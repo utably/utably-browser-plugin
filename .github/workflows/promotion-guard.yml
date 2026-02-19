@@ -1,0 +1,29 @@
+name: Promotion Guard
+
+on:
+  pull_request:
+    branches: [utably-dev, utably-test, utably-staging, utably-prod]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce allowed source -> target branch pairs
+        run: |
+          base="${{ github.base_ref }}"
+          head="${{ github.head_ref }}"
+          echo "PR: $head -> $base"
+
+          case "$base" in
+            utably-test)    allowed="utably-dev" ;;
+            utably-staging) allowed="utably-test" ;;
+            utably-prod)    allowed="utably-staging" ;;
+            *)              exit 0 ;; # no restriction for other base branches
+          esac
+
+          if [ "$allowed" != "$head" ]; then
+            echo "Only '$allowed' may open PRs into '$base' (got '$head')."
+            exit 1
+          fi
+
+          echo "Allowed."
