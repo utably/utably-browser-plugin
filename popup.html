@@ -1,0 +1,184 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Utably Import</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="brand">
+          <img src="icons/32.png" alt="Utably" class="logo" />
+          <div>
+            <div class="title">Utably Import</div>
+            <div class="subtitle">Job posting to application in one click.</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button id="openPrivacyBtn" class="link">Privacy</button>
+          <button id="toggleSettings" class="link">Settings</button>
+          <button id="logoutBtn" class="link hidden">Logout</button>
+        </div>
+      </header>
+
+      <div id="privacyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+        <div class="modal-card">
+          <div class="modal-header">
+            <div id="privacyTitle" class="modal-title">Privacy and Data Use</div>
+            <button id="closePrivacyBtn" class="link">Close</button>
+          </div>
+          <div class="modal-body">
+            <p>
+              Utably Import is designed for user-controlled imports. We only collect and send data when you explicitly
+              click <strong>Save to Utably</strong>.
+            </p>
+            <ul>
+              <li>User-initiated only: no background crawling across websites.</li>
+              <li>Review-first flow: extracted fields are shown for editing before submit.</li>
+              <li>Minimal permissions: host access is requested per site only when Auto-fill is used.</li>
+              <li>No credential capture: extension does not read your passwords.</li>
+              <li>LinkedIn mode: manual description entry by design.</li>
+              <li>Authentication uses short-lived extension tokens and revocable sessions.</li>
+            </ul>
+            <p class="modal-footnote">
+              Data policy last updated: February 19, 2026. For full legal terms and data rights, visit Utably legal
+              pages in the selected stage.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="resetConfirmModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resetConfirmTitle"
+      >
+        <div class="modal-card confirm-card">
+          <div class="modal-header">
+            <div id="resetConfirmTitle" class="modal-title">Reset form?</div>
+          </div>
+          <div class="modal-body">
+            <p>This clears all current fields in the preview form.</p>
+            <div class="confirm-actions">
+              <button id="resetConfirmNo" class="secondary">No</button>
+              <button id="resetConfirmYes" class="primary">Sure</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="settings" class="panel hidden">
+        <div class="settings-row">
+          <label class="label">Debug mode</label>
+          <label class="switch">
+            <input id="debugMode" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div id="stageRow" class="field hidden">
+          <label class="label">Target stage</label>
+          <select id="stage">
+            <option value="prod">Production</option>
+            <option value="dev">Development</option>
+            <option value="test">Test</option>
+            <option value="local">Local App (Dev API)</option>
+          </select>
+        </div>
+        <div id="localPortRow" class="field hidden">
+          <label class="label">Local app port</label>
+          <input id="localPort" type="number" min="1" max="65535" step="1" placeholder="5173" />
+        </div>
+        <button id="saveSettings" class="secondary">Save settings</button>
+      </div>
+
+      <section id="authGate" class="panel auth-gate">
+        <div class="auth-brand">UTABLY</div>
+        <img src="assets/utably-bot_welcoming.webp" alt="Utably welcoming bot" class="auth-bot" />
+        <div class="auth-title">Hello from Utably Bot</div>
+        <p class="auth-copy">Connect your account to import job postings securely.</p>
+        <div class="auth-actions">
+          <button id="openConnect" class="primary">Connect with Utably</button>
+        </div>
+        <div id="manualCodePanel" class="auth-manual hidden">
+          <label class="label auth-label" for="manualCode">One-time code</label>
+          <textarea
+            id="manualCode"
+            rows="3"
+            placeholder="Paste one-time code here if automatic connect does not complete."
+          ></textarea>
+          <button id="manualCodeSubmit" class="secondary">Connect code</button>
+        </div>
+      </section>
+
+      <div id="appContent" class="hidden">
+        <div class="trust-pill trust-pill-inline">Data is only sent when you click Save to Utably.</div>
+
+        <section class="hero">
+          <div class="hero-text">
+            <div class="hero-title">Hey there.</div>
+            <div class="hero-body">I can auto-fill this page. You stay in control before sending.</div>
+            <div class="hero-actions">
+              <button id="goToAppBtn" class="secondary">Go to Utably</button>
+            </div>
+          </div>
+          <img src="assets/bot_small_heart.webp" alt="Utably robot" class="robot" />
+        </section>
+
+        <div id="linkedinNotice" class="notice hidden">
+          LinkedIn detected. Auto-import is disabled. Paste the job description manually.
+        </div>
+
+        <section class="panel">
+          <div class="section-head">
+            <div class="section-title">Preview</div>
+            <div id="previewMeta" class="preview-meta hidden"></div>
+          </div>
+
+          <label class="label">Applied day</label>
+          <input id="applicationDate" type="date" />
+
+          <label class="label">Job title</label>
+          <input id="jobTitle" type="text" placeholder="e.g., Growth Analyst at Utably" />
+          <div id="jobTitleError" class="field-error hidden" role="alert"></div>
+
+          <label class="label">Company</label>
+          <input id="companyName" type="text" placeholder="e.g., Utably Ltd" />
+          <div id="companyNameError" class="field-error hidden" role="alert"></div>
+
+          <label class="label">Location</label>
+          <input id="location" type="text" placeholder="e.g., Berlin, Germany" />
+
+          <label class="label">Recruiter name</label>
+          <input id="recruiterName" type="text" placeholder="e.g., Alex Rivera (Utably)" />
+
+          <label class="label">Job description</label>
+          <textarea id="jobText" rows="7" placeholder="Paste role details from the posting"></textarea>
+
+          <label class="label">Source URL</label>
+          <input id="jobUrl" type="text" placeholder="https://jobs.utably.com/roles/..." />
+
+          <div id="duplicateNotice" class="notice notice-error hidden">
+            <span id="duplicateNoticeText">Already added.</span>
+            <button id="openDuplicateBtn" class="link" type="button">Open existing</button>
+          </div>
+        </section>
+
+        <div class="row">
+          <button id="captureMode" class="secondary">Capture: Off</button>
+          <button id="extract" class="secondary">Auto-fill</button>
+          <button id="reset" class="secondary">Reset</button>
+          <button id="send" class="primary">Save to Utably</button>
+        </div>
+      </div>
+
+      <div id="status" class="status hidden" aria-live="polite" role="status"></div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
