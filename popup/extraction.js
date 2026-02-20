@@ -26,7 +26,7 @@ function getOriginPattern(urlString) {
   }
 }
 
-async function ensureHostAccessForTab(tab) {
+export async function ensureHostAccessForTab(tab) {
   const originPattern = getOriginPattern(tab?.url || "");
   if (!originPattern) return;
 

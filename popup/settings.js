@@ -16,6 +16,10 @@ export function isSidePanelMode() {
   return new URLSearchParams(location.search).get("mode") === "sidepanel";
 }
 
+export function isWorkspaceMode() {
+  return new URLSearchParams(location.search).get("mode") === "workspace";
+}
+
 export function toggleSettingsPanel(els) {
   els.settings.classList.toggle("hidden");
 }
