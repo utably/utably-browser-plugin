@@ -12,6 +12,10 @@ const STAGE_CONNECT_URL = {
   test: "https://app.test.utably.com/extension/connect",
 };
 const DEFAULT_LOCAL_PORT = "5173";
+const WORKSPACE_PATH = "popup.html?mode=workspace";
+const CAPTURE_SCRIPT_FILE = "content/capture.js";
+const DRAFT_STORAGE_KEY = "utablyDraft";
+const CAPTURE_TABS_KEY = "utablyCaptureTabs";
 
 const ACCESS_SKEW_MS = 30_000;
 
@@ -241,6 +245,153 @@ async function openSidePanelForActiveTab() {
   await chrome.sidePanel.open({ windowId: tab.windowId });
 }
 
+async function openOrFocusWorkspaceTab() {
+  const workspaceUrl = chrome.runtime.getURL(WORKSPACE_PATH);
+  const existingTabs = await chrome.tabs.query({ url: workspaceUrl });
+  const existingTab = existingTabs[0];
+  if (existingTab?.id) {
+    await chrome.tabs.update(existingTab.id, { active: true });
+    if (existingTab.windowId) {
+      await chrome.windows.update(existingTab.windowId, { focused: true });
+    }
+    return;
+  }
+  await chrome.tabs.create({ url: workspaceUrl });
+}
+
+async function openPrimarySurfaceForActiveTab() {
+  if (chrome.sidePanel?.open) {
+    await openSidePanelForActiveTab();
+    return;
+  }
+  await openOrFocusWorkspaceTab();
+}
+
+function normalizeCaptureTabs(rawValue) {
+  if (!rawValue || typeof rawValue !== "object") return {};
+  const cleaned = {};
+  for (const [key, value] of Object.entries(rawValue)) {
+    if (value) cleaned[String(key)] = true;
+  }
+  return cleaned;
+}
+
+async function getCaptureTabs() {
+  const stored = await chrome.storage.local.get(CAPTURE_TABS_KEY);
+  return normalizeCaptureTabs(stored[CAPTURE_TABS_KEY]);
+}
+
+async function isCaptureModeEnabledForTab(tabId) {
+  const captureTabs = await getCaptureTabs();
+  return Boolean(captureTabs[String(tabId)]);
+}
+
+async function saveCaptureTabs(captureTabs) {
+  await chrome.storage.local.set({ [CAPTURE_TABS_KEY]: normalizeCaptureTabs(captureTabs) });
+}
+
+async function setCaptureModeForTab(tabId, enabled) {
+  const captureTabs = await getCaptureTabs();
+  const tabKey = String(tabId);
+  const isEnabled = Boolean(enabled);
+
+  if (isEnabled) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: [CAPTURE_SCRIPT_FILE],
+    });
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        globalThis.__utablyCaptureController?.setEnabled(true);
+      },
+    });
+    captureTabs[tabKey] = true;
+  } else {
+    await chrome.scripting
+      .executeScript({
+        target: { tabId },
+        func: () => {
+          globalThis.__utablyCaptureController?.setEnabled(false);
+        },
+      })
+      .catch(() => {});
+    delete captureTabs[tabKey];
+  }
+
+  await saveCaptureTabs(captureTabs);
+  return isEnabled;
+}
+
+function normalizeDraft(rawValue) {
+  if (!rawValue || typeof rawValue !== "object") {
+    return {
+      applicationDate: "",
+      jobTitle: "",
+      companyName: "",
+      location: "",
+      recruiterName: "",
+      jobText: "",
+      jobUrl: "",
+      updatedAt: 0,
+    };
+  }
+  return {
+    applicationDate: trim(rawValue.applicationDate),
+    jobTitle: trim(rawValue.jobTitle),
+    companyName: trim(rawValue.companyName),
+    location: trim(rawValue.location),
+    recruiterName: trim(rawValue.recruiterName),
+    jobText: trim(rawValue.jobText),
+    jobUrl: trim(rawValue.jobUrl),
+    updatedAt: Number(rawValue.updatedAt || 0),
+  };
+}
+
+async function getDraft() {
+  const stored = await chrome.storage.local.get(DRAFT_STORAGE_KEY);
+  return normalizeDraft(stored[DRAFT_STORAGE_KEY]);
+}
+
+async function saveDraft(draft) {
+  const normalized = normalizeDraft(draft);
+  await chrome.storage.local.set({ [DRAFT_STORAGE_KEY]: normalized });
+  return normalized;
+}
+
+async function applyCaptureToDraft(payload) {
+  const field = trim(payload?.field);
+  const text = trim(payload?.text);
+  const pageUrl = trim(payload?.pageUrl);
+  if (!text) {
+    throw new Error("Missing captured text.");
+  }
+
+  const allowedFields = new Set(["jobTitle", "companyName", "location", "recruiterName", "jobText"]);
+  if (!allowedFields.has(field)) {
+    throw new Error("Invalid capture field.");
+  }
+
+  const draft = await getDraft();
+  if (field === "jobText") {
+    const current = draft.jobText ? `${draft.jobText}\n\n` : "";
+    draft.jobText = `${current}${text}`.trim();
+  } else {
+    draft[field] = text;
+  }
+  if (!draft.jobUrl && pageUrl) {
+    draft.jobUrl = pageUrl;
+  }
+  if (!draft.applicationDate) {
+    draft.applicationDate = new Date().toISOString().slice(0, 10);
+  }
+  draft.updatedAt = Date.now();
+
+  const saved = await saveDraft(draft);
+  chrome.runtime.sendMessage({ type: "UTABLY_DRAFT_UPDATED", draft: saved }).catch(() => {});
+  return saved;
+}
+
 async function configureActionClickSidePanel() {
   if (!chrome.sidePanel?.setPanelBehavior) {
     return;
@@ -346,6 +497,52 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "UTABLY_CAPTURE_GET_MODE") {
+    (async () => {
+      try {
+        const tabId = Number(message.tabId);
+        if (!Number.isInteger(tabId) || tabId <= 0) {
+          sendResponse({ ok: false, error: "Invalid tab id." });
+          return;
+        }
+        const enabled = await isCaptureModeEnabledForTab(tabId);
+        sendResponse({ ok: true, enabled });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to read capture mode." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_CAPTURE_SET_MODE") {
+    (async () => {
+      try {
+        const tabId = Number(message.tabId);
+        if (!Number.isInteger(tabId) || tabId <= 0) {
+          sendResponse({ ok: false, error: "Invalid tab id." });
+          return;
+        }
+        const enabled = await setCaptureModeForTab(tabId, Boolean(message.enabled));
+        sendResponse({ ok: true, enabled });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to update capture mode." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_CAPTURE_ASSIGN") {
+    (async () => {
+      try {
+        const draft = await applyCaptureToDraft(message);
+        sendResponse({ ok: true, draft });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to save capture." });
+      }
+    })();
+    return true;
+  }
+
   if (message?.type === "UTABLY_ENSURE_GROUP") {
     (async () => {
       try {
@@ -366,9 +563,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 chrome.action.onClicked.addListener(async () => {
   try {
-    await openSidePanelForActiveTab();
+    await openPrimarySurfaceForActiveTab();
   } catch (error) {
-    console.warn("Failed to open Utably side panel from action click.", error);
+    console.warn("Failed to open Utably workspace surface from action click.", error);
   }
 });
 
@@ -381,6 +578,17 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 configureActionClickSidePanel().catch(() => {});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  getCaptureTabs()
+    .then((captureTabs) => {
+      const tabKey = String(tabId);
+      if (!captureTabs[tabKey]) return;
+      delete captureTabs[tabKey];
+      return saveCaptureTabs(captureTabs);
+    })
+    .catch(() => {});
+});
 
 chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "UTABLY_EXTERNAL_CONNECT") return;

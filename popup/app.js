@@ -3,13 +3,86 @@ import {
   getAppUrl,
   getConnectUrl,
   isSidePanelMode,
+  isWorkspaceMode,
   loadSettings,
   saveSettings,
   toggleSettingsPanel,
   updateStageSettingsUi,
 } from "./settings.js";
 import { buildApplicationPayload } from "./payload.js";
-import { extractIntoForm, prefillSourceUrl, refreshActiveTabContext } from "./extraction.js";
+import {
+  ensureHostAccessForTab,
+  extractIntoForm,
+  getActiveTab,
+  prefillSourceUrl,
+  refreshActiveTabContext,
+} from "./extraction.js";
+
+const DRAFT_STORAGE_KEY = "utablyDraft";
+
+function normalizeDraft(rawValue) {
+  if (!rawValue || typeof rawValue !== "object") {
+    return {
+      applicationDate: "",
+      jobTitle: "",
+      companyName: "",
+      location: "",
+      recruiterName: "",
+      jobText: "",
+      jobUrl: "",
+      updatedAt: 0,
+    };
+  }
+  return {
+    applicationDate: trimOrEmpty(rawValue.applicationDate),
+    jobTitle: trimOrEmpty(rawValue.jobTitle),
+    companyName: trimOrEmpty(rawValue.companyName),
+    location: trimOrEmpty(rawValue.location),
+    recruiterName: trimOrEmpty(rawValue.recruiterName),
+    jobText: trimOrEmpty(rawValue.jobText),
+    jobUrl: trimOrEmpty(rawValue.jobUrl),
+    updatedAt: Number(rawValue.updatedAt || 0),
+  };
+}
+
+function buildDraftFromForm(els) {
+  return {
+    applicationDate: trimOrEmpty(els.applicationDate.value),
+    jobTitle: trimOrEmpty(els.jobTitle.value),
+    companyName: trimOrEmpty(els.companyName.value),
+    location: trimOrEmpty(els.location.value),
+    recruiterName: trimOrEmpty(els.recruiterName.value),
+    jobText: trimOrEmpty(els.jobText.value),
+    jobUrl: trimOrEmpty(els.jobUrl.value),
+    updatedAt: Date.now(),
+  };
+}
+
+function applyDraftToForm(els, rawDraft) {
+  const draft = normalizeDraft(rawDraft);
+  els.applicationDate.value = draft.applicationDate || els.applicationDate.value || new Date().toISOString().slice(0, 10);
+  els.jobTitle.value = draft.jobTitle || els.jobTitle.value;
+  els.companyName.value = draft.companyName || els.companyName.value;
+  els.location.value = draft.location || els.location.value;
+  els.recruiterName.value = draft.recruiterName || els.recruiterName.value;
+  els.jobText.value = draft.jobText || els.jobText.value;
+  els.jobUrl.value = draft.jobUrl || els.jobUrl.value;
+  return draft;
+}
+
+async function loadDraftFromStorage() {
+  const stored = await chrome.storage.local.get([DRAFT_STORAGE_KEY]);
+  return normalizeDraft(stored[DRAFT_STORAGE_KEY]);
+}
+
+async function saveDraftToStorage(els) {
+  const draft = buildDraftFromForm(els);
+  await chrome.storage.local.set({ [DRAFT_STORAGE_KEY]: draft });
+}
+
+async function clearDraftFromStorage() {
+  await chrome.storage.local.remove([DRAFT_STORAGE_KEY]);
+}
 
 function setPreviewMeta(els, result) {
   const adapter = trimOrEmpty(result?.adapter);
@@ -199,6 +272,7 @@ async function sendApplication(els, setStatusText) {
     err.details = response?.details || null;
     throw err;
   }
+  await clearDraftFromStorage();
   setStatusText("Saved to Utably.", "success");
 }
 
@@ -214,6 +288,7 @@ async function resetForm(els, setStatusText) {
   els.recruiterName.value = "";
   els.jobText.value = "";
   await prefillSourceUrl(els);
+  await clearDraftFromStorage();
   setStatusText("Form reset.", "info");
 }
 
@@ -280,6 +355,35 @@ function wireListeners(els, auth, sidePanel) {
   let duplicateCheckTimer = null;
   let duplicateRequestSeq = 0;
   let lastFocusedBeforeModal = null;
+  let captureEnabled = false;
+  let draftSaveTimer = null;
+
+  const persistDraftSoon = () => {
+    if (draftSaveTimer) clearTimeout(draftSaveTimer);
+    draftSaveTimer = setTimeout(() => {
+      saveDraftToStorage(els).catch(() => {});
+    }, 180);
+  };
+
+  const renderCaptureButton = () => {
+    els.captureMode.textContent = captureEnabled ? "Capture: On" : "Capture: Off";
+    els.captureMode.dataset.forceDisabled = "0";
+  };
+
+  const syncCaptureModeForActiveTab = async () => {
+    const tab = await getActiveTab();
+    if (!tab?.id) {
+      captureEnabled = false;
+      renderCaptureButton();
+      return;
+    }
+    const modeResponse = await chrome.runtime.sendMessage({
+      type: "UTABLY_CAPTURE_GET_MODE",
+      tabId: tab.id,
+    });
+    captureEnabled = Boolean(modeResponse?.ok && modeResponse.enabled);
+    renderCaptureButton();
+  };
 
   const isPrivacyOpen = () => !els.privacyModal.classList.contains("hidden");
 
@@ -332,6 +436,7 @@ function wireListeners(els, auth, sidePanel) {
   els.jobTitle.addEventListener("input", () => clearFieldError(els.jobTitle, els.jobTitleError));
   els.companyName.addEventListener("input", () => clearFieldError(els.companyName, els.companyNameError));
   els.jobTitle.addEventListener("input", () => {
+    persistDraftSoon();
     currentDuplicateMatch = null;
     duplicateGate.status = "unknown";
     duplicateGate.allowSend = false;
@@ -339,6 +444,7 @@ function wireListeners(els, auth, sidePanel) {
     scheduleDuplicateCheck();
   });
   els.companyName.addEventListener("input", () => {
+    persistDraftSoon();
     currentDuplicateMatch = null;
     duplicateGate.status = "unknown";
     duplicateGate.allowSend = false;
@@ -346,12 +452,16 @@ function wireListeners(els, auth, sidePanel) {
     scheduleDuplicateCheck();
   });
   els.jobUrl.addEventListener("input", () => {
+    persistDraftSoon();
     currentDuplicateMatch = null;
     duplicateGate.status = "unknown";
     duplicateGate.allowSend = false;
     setSendAvailability(els, duplicateGate);
     scheduleDuplicateCheck();
   });
+  for (const field of [els.applicationDate, els.location, els.recruiterName, els.jobText]) {
+    field.addEventListener("input", persistDraftSoon);
+  }
   els.openDuplicateBtn.addEventListener("click", async () => {
     const id = trimOrEmpty(currentDuplicateMatch?.id);
     if (!id) return;
@@ -396,6 +506,7 @@ function wireListeners(els, auth, sidePanel) {
     withBusyButton(els.extract, "Extracting...", async () => {
       const result = await extractIntoForm(els, setStatusText);
       setPreviewMeta(els, result);
+      persistDraftSoon();
       currentDuplicateMatch = null;
       duplicateGate.status = "unknown";
       duplicateGate.allowSend = false;
@@ -459,6 +570,45 @@ function wireListeners(els, auth, sidePanel) {
     });
   });
 
+  els.captureMode.addEventListener("click", async () => {
+    try {
+      els.captureMode.disabled = true;
+      els.captureMode.dataset.forceDisabled = "1";
+
+      const tab = await getActiveTab();
+      if (!tab?.id) {
+        throw new Error("No active tab.");
+      }
+
+      const nextEnabled = !captureEnabled;
+      if (nextEnabled) {
+        await ensureHostAccessForTab(tab);
+      }
+
+      const response = await chrome.runtime.sendMessage({
+        type: "UTABLY_CAPTURE_SET_MODE",
+        tabId: tab.id,
+        enabled: nextEnabled,
+      });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Failed to update capture mode.");
+      }
+      captureEnabled = Boolean(response.enabled);
+      renderCaptureButton();
+      setStatusText(
+        captureEnabled
+          ? "Capture mode enabled. Copy selected text on the page to categorize it."
+          : "Capture mode disabled.",
+        "info"
+      );
+    } catch (error) {
+      setStatusText(error?.message || "Failed to toggle capture mode.", "error");
+    } finally {
+      els.captureMode.disabled = false;
+      els.captureMode.dataset.forceDisabled = "0";
+    }
+  });
+
   els.debugMode.addEventListener("change", () => {
     if (!els.debugMode.checked) {
       els.stage.value = "prod";
@@ -498,6 +648,7 @@ function wireListeners(els, auth, sidePanel) {
   if (chrome.tabs?.onActivated) {
     chrome.tabs.onActivated.addListener(() => {
       refreshActiveTabContext(els, sidePanel, auth.refreshAuthState).catch(() => {});
+      syncCaptureModeForActiveTab().catch(() => {});
     });
   }
 
@@ -506,18 +657,38 @@ function wireListeners(els, auth, sidePanel) {
       if (!tab?.active) return;
       if (!changeInfo.url && changeInfo.status !== "complete") return;
       refreshActiveTabContext(els, sidePanel, auth.refreshAuthState).catch(() => {});
+      syncCaptureModeForActiveTab().catch(() => {});
     });
   }
 
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type !== "UTABLY_DRAFT_UPDATED") return;
+    applyDraftToForm(els, message.draft || null);
+    currentDuplicateMatch = null;
+    duplicateGate.status = "unknown";
+    duplicateGate.allowSend = false;
+    setSendAvailability(els, duplicateGate);
+    scheduleDuplicateCheck(0);
+  });
+
+  syncCaptureModeForActiveTab().catch(() => {
+    renderCaptureButton();
+  });
+
+  if (trimOrEmpty(els.jobTitle.value) && trimOrEmpty(els.companyName.value)) {
+    scheduleDuplicateCheck(0);
+  }
   setSendAvailability(els, duplicateGate);
 }
 
 export async function startPopupApp() {
   const els = getDom();
   const sidePanel = isSidePanelMode();
+  const workspace = isWorkspaceMode();
   const setStatusText = (message, tone = "info") => setStatus(els, message, tone);
 
   document.body.classList.toggle("sidepanel-mode", sidePanel);
+  document.body.classList.toggle("workspace-mode", workspace);
   clearStatus(els);
 
   if (!els.applicationDate.value) {
@@ -527,5 +698,7 @@ export async function startPopupApp() {
   await loadSettings(els);
   const auth = createAuthController(els, setStatusText);
   await auth.refreshAuthState();
+  const storedDraft = await loadDraftFromStorage();
+  applyDraftToForm(els, storedDraft);
   wireListeners(els, auth, sidePanel);
 }

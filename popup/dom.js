@@ -33,6 +33,7 @@ export function getDom() {
     duplicateNoticeText: document.getElementById("duplicateNoticeText"),
     openDuplicateBtn: document.getElementById("openDuplicateBtn"),
     previewMeta: document.getElementById("previewMeta"),
+    captureMode: document.getElementById("captureMode"),
     extract: document.getElementById("extract"),
     reset: document.getElementById("reset"),
     send: document.getElementById("send"),
