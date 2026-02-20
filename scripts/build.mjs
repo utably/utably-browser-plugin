@@ -6,6 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const extensionRoot = path.resolve(__dirname, '..');
 const distDir = path.join(extensionRoot, 'dist');
+const chromeEdgeDir = path.join(distDir, 'utably-browser-plugin-chrome-edge');
 
 const runtimePaths = [
   'manifest.json',
@@ -31,7 +32,7 @@ async function ensureRuntimePath(relPath) {
 
 async function copyRuntimePath(relPath) {
   const src = path.join(extensionRoot, relPath);
-  const dst = path.join(distDir, relPath);
+  const dst = path.join(chromeEdgeDir, relPath);
   await cp(src, dst, { recursive: true });
 }
 
@@ -41,13 +42,13 @@ async function main() {
   }
 
   await rm(distDir, { recursive: true, force: true });
-  await mkdir(distDir, { recursive: true });
+  await mkdir(chromeEdgeDir, { recursive: true });
 
   for (const runtimePath of runtimePaths) {
     await copyRuntimePath(runtimePath);
   }
 
-  console.log(`Built extension dist at ${distDir}`);
+  console.log(`Built Chrome+Edge extension at ${chromeEdgeDir}`);
 }
 
 main().catch((error) => {

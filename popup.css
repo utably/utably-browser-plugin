@@ -56,6 +56,16 @@ body.sidepanel-mode .app {
   padding: 12px;
 }
 
+body.workspace-mode {
+  width: auto;
+  min-width: 320px;
+}
+
+body.workspace-mode .app {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
 .app {
   position: relative;
   padding: 16px;
@@ -246,12 +256,13 @@ textarea {
 
 .row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
 }
 
 .row > button {
-  flex: 1;
+  flex: 1 1 140px;
 }
 
 button {
@@ -573,6 +584,27 @@ body.sidepanel-mode .row {
   min-width: 220px;
   font-size: 14px;
   padding: 11px 18px;
+}
+
+.auth-manual {
+  margin: 14px auto 0;
+  max-width: 320px;
+  text-align: left;
+}
+
+.auth-label {
+  margin-top: 0;
+}
+
+.auth-manual textarea {
+  min-height: 82px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+  font-size: 11px;
+}
+
+.auth-manual button {
+  margin-top: 8px;
+  width: 100%;
 }
 
 .hidden {
