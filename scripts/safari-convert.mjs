@@ -59,6 +59,7 @@ function runConverter({ projectLocation, appName, bundleId }) {
     "--no-prompt",
     "--no-open",
     "--force",
+    "--copy-resources",
   ];
 
   const result = spawnSync("xcrun", args, { stdio: "inherit" });
