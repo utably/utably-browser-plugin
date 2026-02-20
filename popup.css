@@ -586,6 +586,27 @@ body.sidepanel-mode .row {
   padding: 11px 18px;
 }
 
+.auth-manual {
+  margin: 14px auto 0;
+  max-width: 320px;
+  text-align: left;
+}
+
+.auth-label {
+  margin-top: 0;
+}
+
+.auth-manual textarea {
+  min-height: 82px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+  font-size: 11px;
+}
+
+.auth-manual button {
+  margin-top: 8px;
+  width: 100%;
+}
+
 .hidden {
   display: none;
 }

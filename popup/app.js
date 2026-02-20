@@ -19,6 +19,17 @@ import {
 } from "./extraction.js";
 
 const DRAFT_STORAGE_KEY = "utablyDraft";
+const CONNECT_PENDING_KEY = "utablyConnectPending";
+const MANUAL_FALLBACK_UNTIL_KEY = "utablyManualFallbackUntil";
+const MANUAL_FALLBACK_MS = 120_000;
+const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
+
+function requestBroadHostAccessFromGesture() {
+  if (!IS_FIREFOX) {
+    return Promise.resolve(true);
+  }
+  return chrome.permissions.request({ origins: ["https://*/*", "http://*/*"] });
+}
 
 function normalizeDraft(rawValue) {
   if (!rawValue || typeof rawValue !== "object") {
@@ -199,7 +210,42 @@ function withBusyButton(button, loadingText, action) {
 }
 
 function createAuthController(els, setStatusText) {
-  let authPollHandle = null;
+  let connectPollHandle = null;
+  let manualFallbackTimer = null;
+  const showManualCodeFallback = (untilTs = Date.now() + MANUAL_FALLBACK_MS, persist = true) => {
+    els.manualCodePanel.classList.remove("hidden");
+    if (persist) {
+      chrome.storage.local.set({ [MANUAL_FALLBACK_UNTIL_KEY]: Number(untilTs || 0) }).catch(() => {});
+    }
+  };
+  const hideManualCodeFallback = () => {
+    els.manualCodePanel.classList.add("hidden");
+    chrome.storage.local.remove([MANUAL_FALLBACK_UNTIL_KEY]).catch(() => {});
+  };
+  const clearManualFallbackTimer = () => {
+    if (!manualFallbackTimer) return;
+    clearTimeout(manualFallbackTimer);
+    manualFallbackTimer = null;
+  };
+  const armManualFallbackTimer = () => {
+    clearManualFallbackTimer();
+    manualFallbackTimer = setTimeout(() => {
+      showManualCodeFallback();
+    }, 3000);
+  };
+  const savePendingConnect = (sessionId, expiresAt) => {
+    chrome.storage.local
+      .set({
+        [CONNECT_PENDING_KEY]: {
+          sessionId: trimOrEmpty(sessionId),
+          expiresAt: Number(expiresAt || 0),
+        },
+      })
+      .catch(() => {});
+  };
+  const clearPendingConnect = () => {
+    chrome.storage.local.remove([CONNECT_PENDING_KEY]).catch(() => {});
+  };
 
   async function refreshAuthState() {
     const response = await chrome.runtime.sendMessage({ type: "UTABLY_AUTH_STATUS" });
@@ -211,41 +257,145 @@ function createAuthController(els, setStatusText) {
     els.logoutBtn.classList.toggle("hidden", !connected);
 
     if (connected) {
+      hideManualCodeFallback();
       await prefillSourceUrl(els);
     }
     return connected;
   }
 
-  function startAuthPolling() {
-    if (authPollHandle) clearInterval(authPollHandle);
+  function stopConnectPolling() {
+    if (!connectPollHandle) return;
+    clearInterval(connectPollHandle);
+    connectPollHandle = null;
+  }
+
+  function startConnectPolling(sessionId, expiresAt) {
+    stopConnectPolling();
     let attempts = 0;
-    authPollHandle = setInterval(async () => {
+    connectPollHandle = setInterval(async () => {
+      attempts += 1;
+      const poll = await chrome.runtime
+        .sendMessage({ type: "UTABLY_CONNECT_SESSION_POLL", sessionId })
+        .catch(() => ({ ok: false }));
+
+      if (poll?.ok && poll.status === "connected") {
+        stopConnectPolling();
+        clearManualFallbackTimer();
+        clearPendingConnect();
+        await refreshAuthState().catch(() => false);
+        setStatusText("Extension connected.", "success");
+        return;
+      }
+
+      if (poll?.ok && (poll.status === "expired" || poll.status === "failed" || poll.status === "cancelled")) {
+        stopConnectPolling();
+        clearPendingConnect();
+        showManualCodeFallback();
+        setStatusText(
+          poll.error || "Connect session ended. Paste the one-time code below to finish connecting.",
+          "info"
+        );
+        return;
+      }
+
+      if (Date.now() > Number(expiresAt || 0)) {
+        stopConnectPolling();
+        clearPendingConnect();
+        showManualCodeFallback();
+        setStatusText("Connect session expired. Start again or paste the one-time code.", "info");
+        return;
+      }
+
+      if (attempts % 3 === 0) {
+        const connected = await refreshAuthState().catch(() => false);
+        if (connected) {
+          stopConnectPolling();
+          setStatusText("Extension connected.", "success");
+          return;
+        }
+      }
+
+      if (attempts >= 40) {
+        stopConnectPolling();
+        clearPendingConnect();
+        showManualCodeFallback();
+        setStatusText("Still waiting for connection. Paste the one-time code as a fallback.", "info");
+      }
+    }, 1500);
+    savePendingConnect(sessionId, expiresAt);
+    armManualFallbackTimer();
+  }
+
+  function startLegacyConnectPolling() {
+    stopConnectPolling();
+    let attempts = 0;
+    connectPollHandle = setInterval(async () => {
       attempts += 1;
       const connected = await refreshAuthState().catch(() => false);
       if (connected) {
-        clearInterval(authPollHandle);
-        authPollHandle = null;
+        stopConnectPolling();
+        clearManualFallbackTimer();
         setStatusText("Extension connected.", "success");
         return;
       }
       if (attempts >= 40) {
-        clearInterval(authPollHandle);
-        authPollHandle = null;
-        setStatusText("Still not connected. Complete login on the connect page.", "info");
+        stopConnectPolling();
+        showManualCodeFallback();
+        setStatusText("Still not connected. Paste the one-time code as a fallback.", "info");
       }
     }, 1500);
   }
 
   async function openConnect() {
-    const url = new URL(getConnectUrl(els));
-    url.searchParams.set("extId", chrome.runtime.id);
-    url.searchParams.set("src", "extension");
-    await chrome.tabs.create({ url: url.toString() });
+    const preferredConnectUrl = getConnectUrl(els);
+    const session = await chrome.runtime.sendMessage({
+      type: "UTABLY_CONNECT_SESSION_START",
+      preferredConnectUrl,
+    });
+    if (!session?.ok) {
+      const legacyUrl = new URL(getConnectUrl(els));
+      legacyUrl.searchParams.set("extId", chrome.runtime.id);
+      legacyUrl.searchParams.set("src", "extension");
+      await chrome.tabs.create({ url: legacyUrl.toString() });
+      showManualCodeFallback();
+      setStatusText("Opened connect page. Automatic polling unavailable; you can paste the one-time code below.", "info");
+      startLegacyConnectPolling();
+      return;
+    }
+
+    hideManualCodeFallback();
+    const openUrl = new URL(preferredConnectUrl || session.connectUrl);
+    openUrl.searchParams.set("sessionId", session.sessionId);
+    openUrl.searchParams.set("extId", chrome.runtime.id);
+    openUrl.searchParams.set("src", "extension");
+    await chrome.tabs.create({ url: openUrl.toString() });
     setStatusText("Waiting for connection...", "info");
-    startAuthPolling();
+    startConnectPolling(session.sessionId, session.expiresAt);
+  }
+
+  async function submitManualCode(rawCode) {
+    const code = trimOrEmpty(rawCode);
+    if (!code) {
+      throw new Error("Paste a one-time code first.");
+    }
+    const response = await chrome.runtime.sendMessage({ type: "UTABLY_EXCHANGE_CODE", code });
+    if (!response?.ok) {
+      throw new Error(response?.error || "Code exchange failed.");
+    }
+    stopConnectPolling();
+    clearManualFallbackTimer();
+    clearPendingConnect();
+    const connected = await refreshAuthState();
+    if (!connected) {
+      throw new Error("Code accepted but auth state did not refresh.");
+    }
+    setStatusText("Extension connected.", "success");
   }
 
   async function logout() {
+    stopConnectPolling();
+    clearManualFallbackTimer();
+    clearPendingConnect();
     setStatusText("Logging out...", "info");
     const response = await chrome.runtime.sendMessage({ type: "UTABLY_REVOKE" });
     if (!response?.ok) {
@@ -255,7 +405,29 @@ function createAuthController(els, setStatusText) {
     setStatusText("Logged out.", "success");
   }
 
-  return { refreshAuthState, openConnect, logout };
+  async function restoreConnectUiState() {
+    const stored = await chrome.storage.local.get([CONNECT_PENDING_KEY, MANUAL_FALLBACK_UNTIL_KEY]);
+    const fallbackUntil = Number(stored[MANUAL_FALLBACK_UNTIL_KEY] || 0);
+    if (fallbackUntil > Date.now()) {
+      showManualCodeFallback(fallbackUntil, false);
+    } else {
+      hideManualCodeFallback();
+    }
+
+    const pending = stored[CONNECT_PENDING_KEY];
+    const pendingSessionId = trimOrEmpty(pending?.sessionId);
+    const pendingExpiresAt = Number(pending?.expiresAt || 0);
+    if (pendingSessionId && pendingExpiresAt > Date.now()) {
+      setStatusText("Waiting for connection...", "info");
+      startConnectPolling(pendingSessionId, pendingExpiresAt);
+      return;
+    }
+    if (pendingSessionId) {
+      clearPendingConnect();
+    }
+  }
+
+  return { refreshAuthState, openConnect, submitManualCode, logout, restoreConnectUiState };
 }
 
 async function goToApp(els) {
@@ -490,6 +662,15 @@ function wireListeners(els, auth, sidePanel) {
     });
   });
 
+  els.manualCodeSubmit.addEventListener("click", () => {
+    withBusyButton(els.manualCodeSubmit, "Connecting...", async () => {
+      await auth.submitManualCode(els.manualCode.value);
+      els.manualCode.value = "";
+    }).catch((error) => {
+      setStatusText(error?.message || "Code exchange failed.", "error");
+    });
+  });
+
   els.goToAppBtn.addEventListener("click", () => {
     withBusyButton(els.goToAppBtn, "Opening...", () => goToApp(els)).catch((error) => {
       setStatusText(error?.message || "Failed to open Utably.", "error");
@@ -503,20 +684,30 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   els.extract.addEventListener("click", () => {
-    withBusyButton(els.extract, "Extracting...", async () => {
-      const result = await extractIntoForm(els, setStatusText);
-      setPreviewMeta(els, result);
-      persistDraftSoon();
-      currentDuplicateMatch = null;
-      duplicateGate.status = "unknown";
-      duplicateGate.allowSend = false;
-      setSendAvailability(els, duplicateGate);
-      if (result) {
-        scheduleDuplicateCheck(0);
+    const run = async () => {
+      const granted = await requestBroadHostAccessFromGesture();
+      if (!granted) {
+        setStatusText("Host access denied. Allow website access to use Auto-fill.", "error");
+        return;
       }
-      if (result) clearStatus(els);
-    }).catch((error) => {
-      setStatusText(error?.message || "Extraction failed.", "error");
+      return withBusyButton(els.extract, "Extracting...", async () => {
+        const result = await extractIntoForm(els, setStatusText);
+        setPreviewMeta(els, result);
+        persistDraftSoon();
+        currentDuplicateMatch = null;
+        duplicateGate.status = "unknown";
+        duplicateGate.allowSend = false;
+        setSendAvailability(els, duplicateGate);
+        if (result) {
+          scheduleDuplicateCheck(0);
+        }
+        if (result) clearStatus(els);
+      }).catch((error) => {
+        setStatusText(error?.message || "Extraction failed.", "error");
+      });
+    };
+    run().catch((error) => {
+      setStatusText(error?.message || "Failed to request host access.", "error");
     });
   });
 
@@ -575,12 +766,19 @@ function wireListeners(els, auth, sidePanel) {
       els.captureMode.disabled = true;
       els.captureMode.dataset.forceDisabled = "1";
 
+      const nextEnabled = !captureEnabled;
+      if (nextEnabled) {
+        const granted = await requestBroadHostAccessFromGesture();
+        if (!granted) {
+          throw new Error("Host access denied. Allow website access to enable capture mode.");
+        }
+      }
+
       const tab = await getActiveTab();
       if (!tab?.id) {
         throw new Error("No active tab.");
       }
 
-      const nextEnabled = !captureEnabled;
       if (nextEnabled) {
         await ensureHostAccessForTab(tab);
       }
@@ -698,6 +896,7 @@ export async function startPopupApp() {
   await loadSettings(els);
   const auth = createAuthController(els, setStatusText);
   await auth.refreshAuthState();
+  await auth.restoreConnectUiState();
   const storedDraft = await loadDraftFromStorage();
   applyDraftToForm(els, storedDraft);
   wireListeners(els, auth, sidePanel);

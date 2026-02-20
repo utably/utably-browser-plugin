@@ -177,6 +177,21 @@
 
   function handleCopy() {
     if (!state.enabled) return;
+    captureFromSelection();
+  }
+
+  function handleCopyKeydown(event) {
+    if (!state.enabled) return;
+    const key = String(event.key || "").toLowerCase();
+    const isCopyShortcut = key === "c" && (event.metaKey || event.ctrlKey);
+    if (!isCopyShortcut) return;
+    setTimeout(() => {
+      captureFromSelection();
+    }, 0);
+  }
+
+  function captureFromSelection() {
+    if (!state.enabled) return;
     const selection = window.getSelection();
     const text = (selection ? selection.toString() : "").trim();
     if (!text) return;
@@ -195,6 +210,7 @@
   }
 
   document.addEventListener("copy", handleCopy, true);
+  document.addEventListener("keydown", handleCopyKeydown, true);
 
   globalThis.__utablyCaptureController = {
     setEnabled,

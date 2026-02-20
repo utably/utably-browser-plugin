@@ -104,6 +104,15 @@
         <div class="auth-actions">
           <button id="openConnect" class="primary">Connect with Utably</button>
         </div>
+        <div id="manualCodePanel" class="auth-manual hidden">
+          <label class="label auth-label" for="manualCode">One-time code</label>
+          <textarea
+            id="manualCode"
+            rows="3"
+            placeholder="Paste one-time code here if automatic connect does not complete."
+          ></textarea>
+          <button id="manualCodeSubmit" class="secondary">Connect code</button>
+        </div>
       </section>
 
       <div id="appContent" class="hidden">

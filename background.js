@@ -23,6 +23,15 @@ function trim(value) {
   return (value || "").trim();
 }
 
+function isHttpUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function normalizeLocalPort(rawPort) {
   const port = Number.parseInt(String(rawPort || ""), 10);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -110,6 +119,77 @@ async function exchangeCode(apiBase, code) {
   const json = await res.json().catch(() => ({}));
   const auth = parseTokenResponse(json);
   await saveAuth(auth);
+}
+
+async function startConnectSession(options = {}) {
+  const settings = await getSettings();
+  const preferredConnectUrl = trim(options?.preferredConnectUrl);
+  const connectUrlHint = isHttpUrl(preferredConnectUrl) ? preferredConnectUrl : settings.connectUrl;
+  const res = await fetch(`${settings.apiBase}/extension/connect/session/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      extId: chrome.runtime.id,
+      source: "extension",
+      connectUrlHint,
+      apiBaseHint: settings.apiBase,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+
+  const json = await res.json().catch(() => ({}));
+  const sessionId = trim(json?.sessionId);
+  if (!sessionId) {
+    throw new Error("Connect session missing sessionId.");
+  }
+
+  const connectUrl = trim(json?.connectUrl || settings.connectUrl || DEFAULT_CONNECT_URL) || DEFAULT_CONNECT_URL;
+  const expiresAtRaw = json?.expiresAt ? Date.parse(json.expiresAt) : NaN;
+  const expiresAt = Number.isFinite(expiresAtRaw) ? expiresAtRaw : Date.now() + 120_000;
+  return { sessionId, connectUrl, expiresAt };
+}
+
+async function pollConnectSession(sessionId) {
+  const settings = await getSettings();
+  const cleanSessionId = trim(sessionId);
+  if (!cleanSessionId) {
+    throw new Error("Missing session id.");
+  }
+
+  const url = new URL(`${settings.apiBase}/extension/connect/session/status`);
+  url.searchParams.set("sessionId", cleanSessionId);
+  const res = await fetch(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+
+  const json = await res.json().catch(() => ({}));
+  const status = trim(json?.status).toLowerCase();
+
+  if (trim(json?.code)) {
+    await exchangeCode(settings.apiBase, trim(json.code));
+    return { status: "connected" };
+  }
+
+  if (status === "connected") {
+    const auth = parseTokenResponse(json);
+    await saveAuth(auth);
+    return { status: "connected" };
+  }
+
+  if (status === "expired" || status === "failed" || status === "cancelled") {
+    return {
+      status,
+      error: trim(json?.error || json?.message),
+    };
+  }
+
+  return { status: "pending" };
 }
 
 async function refreshAccessToken(apiBase, refreshToken) {
@@ -492,6 +572,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, ...status });
       } catch (err) {
         sendResponse({ ok: false, error: err?.message || "Failed to read auth state." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_CONNECT_SESSION_START") {
+    (async () => {
+      try {
+        const session = await startConnectSession(message || {});
+        sendResponse({ ok: true, ...session });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to start connect session." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_CONNECT_SESSION_POLL") {
+    (async () => {
+      try {
+        const result = await pollConnectSession(message.sessionId);
+        sendResponse({ ok: true, ...result });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to poll connect session." });
       }
     })();
     return true;
