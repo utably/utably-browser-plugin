@@ -919,6 +919,19 @@ function wireListeners(els, auth, sidePanel) {
   // FitCheck button and modal
   const fitCheckController = createFitCheckController(els, setStatusText);
 
+  // Update FitCheck button state based on job description content
+  const updateFitCheckState = () => {
+    const hasJobText = trimOrEmpty(els.jobText.value).length > 0;
+    if (els.fitCheckInline) {
+      els.fitCheckInline.classList.toggle("no-data", !hasJobText);
+    }
+    els.fitCheckBtn.disabled = !hasJobText;
+  };
+
+  // Initial state and wire to input
+  updateFitCheckState();
+  els.jobText.addEventListener("input", updateFitCheckState);
+
   els.fitCheckBtn.addEventListener("click", () => {
     withBusyButton(els.fitCheckBtn, "Analyzing...", async () => {
       const result = await fitCheckController.runFitCheck();

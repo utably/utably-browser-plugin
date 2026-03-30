@@ -163,6 +163,11 @@
                 </div>
               </div>
             </div>
+
+            <div class="fitcheck-ai-disclaimer">
+              <span class="disclaimer-icon">&#9432;</span>
+              AI-generated analysis based on your profile. Results are suggestions, not guarantees.
+            </div>
           </div>
         </div>
       </div>
@@ -220,7 +225,6 @@
             <div class="hero-body">I can auto-fill this page. You stay in control before sending.</div>
             <div class="hero-actions">
               <button id="goToAppBtn" class="secondary">Go to Utably</button>
-              <button id="fitCheckBtn" class="primary">FitCheck</button>
             </div>
           </div>
           <img src="assets/bot_small_heart.webp" alt="Utably robot" class="robot" />
@@ -255,6 +259,17 @@
 
           <label class="label">Job description</label>
           <textarea id="jobText" rows="7" placeholder="Paste role details from the posting"></textarea>
+
+          <div id="fitCheckInline" class="fitcheck-inline">
+            <div class="fitcheck-source-indicator">
+              <span class="indicator-icon">&#9432;</span>
+              <span class="indicator-text">Analyzes the job details above against your profile</span>
+            </div>
+            <button id="fitCheckBtn" class="secondary fitcheck-btn" title="Analyze how well this job matches your profile">
+              <span class="fitcheck-btn-icon">&#9733;</span>
+              FitCheck
+            </button>
+          </div>
 
           <label class="label">Source URL</label>
           <input id="jobUrl" type="text" placeholder="https://jobs.utably.com/roles/..." />

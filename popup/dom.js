@@ -42,6 +42,7 @@ export function getDom() {
     send: document.getElementById("send"),
     status: document.getElementById("status"),
     // FitCheck elements
+    fitCheckInline: document.getElementById("fitCheckInline"),
     fitCheckBtn: document.getElementById("fitCheckBtn"),
     fitCheckModal: document.getElementById("fitCheckModal"),
     closeFitCheckBtn: document.getElementById("closeFitCheckBtn"),

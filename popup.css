@@ -1089,4 +1089,89 @@ body.sidepanel-mode .row {
   .upgrade-btn {
     color: #0f1618;
   }
+
+  .fitcheck-inline {
+    background: rgba(40, 50, 55, 0.6);
+    border-color: rgba(100, 120, 130, 0.4);
+  }
+
+  .fitcheck-ai-disclaimer {
+    background: rgba(40, 50, 55, 0.5);
+    border-color: rgba(100, 120, 130, 0.3);
+    color: rgba(255, 255, 255, 0.6);
+  }
+}
+
+/* FitCheck Inline Placement (near job description) */
+.fitcheck-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: var(--notice);
+  border: 1px solid var(--notice-border);
+  border-radius: 10px;
+}
+
+.fitcheck-source-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.indicator-icon {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.fitcheck-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.fitcheck-btn-icon {
+  font-size: 12px;
+}
+
+/* Disabled state when no job description */
+.fitcheck-inline.no-data .fitcheck-btn {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.fitcheck-inline.no-data .indicator-text::after {
+  content: " — Add job description first";
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* AI Disclaimer in FitCheck Modal */
+.fitcheck-ai-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: rgba(233, 255, 250, 0.5);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.disclaimer-icon {
+  font-size: 12px;
+  opacity: 0.7;
+  flex-shrink: 0;
 }
