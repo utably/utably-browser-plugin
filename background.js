@@ -309,6 +309,46 @@ async function findDuplicateImport(candidate) {
   };
 }
 
+async function sendFitCheck(jobPosting) {
+  console.log("[sendFitCheck] Starting...");
+  const settings = await getSettings();
+  console.log("[sendFitCheck] Settings:", { apiBase: settings.apiBase, stage: settings.stage });
+
+  const token = await ensureAccessToken(settings);
+  if (!token) {
+    await chrome.tabs.create({ url: settings.connectUrl || DEFAULT_CONNECT_URL });
+    throw new Error("Not connected. Opened connect page.");
+  }
+  console.log("[sendFitCheck] Got token, making fetch to:", `${settings.apiBase}/extension/llm`);
+
+  const res = await fetch(`${settings.apiBase}/extension/llm`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      mode: "fitcheck",
+      jobPosting,
+    }),
+  });
+
+  console.log("[sendFitCheck] Fetch response status:", res.status);
+
+  if (!res.ok) {
+    const json = await res.json().catch(() => null);
+    console.log("[sendFitCheck] Error response body:", json);
+    const message = trim(json?.message || json?.error || "") || `HTTP ${res.status}`;
+    const err = new Error(message);
+    err.code = trim(json?.error || json?.code || "");
+    throw err;
+  }
+
+  const json = await res.json();
+  console.log("[sendFitCheck] Success response:", json);
+  return json;
+}
+
 async function openSidePanelForActiveTab() {
   if (!chrome.sidePanel?.open) {
     throw new Error("Side panel API is unavailable in this Chrome version.");
@@ -560,6 +600,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, ...result });
       } catch (err) {
         sendResponse({ ok: false, error: err?.message || "Failed to check duplicates." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_FITCHECK") {
+    console.log("[FitCheck BG] Received request:", message.jobPosting);
+    (async () => {
+      try {
+        console.log("[FitCheck BG] Calling sendFitCheck...");
+        const result = await sendFitCheck(message.jobPosting || {});
+        console.log("[FitCheck BG] sendFitCheck returned:", result);
+        sendResponse({ ok: true, result });
+      } catch (err) {
+        console.error("[FitCheck BG] Error:", err);
+        sendResponse({
+          ok: false,
+          error: err?.message || "FitCheck failed.",
+          code: err?.code || "",
+        });
       }
     })();
     return true;

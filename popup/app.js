@@ -517,6 +517,245 @@ function confirmResetInApp(els) {
   });
 }
 
+function createFitCheckController(els, setStatusText) {
+  let lastFocusedBeforeModal = null;
+
+  const isFitCheckOpen = () => !els.fitCheckModal.classList.contains("hidden");
+
+  const openFitCheck = (result) => {
+    lastFocusedBeforeModal = document.activeElement;
+    renderFitCheckResult(els, result);
+    els.fitCheckModal.classList.remove("hidden");
+    const [firstFocusable] = getFocusableElements(els.fitCheckModal);
+    firstFocusable?.focus();
+  };
+
+  const closeFitCheck = () => {
+    els.fitCheckModal.classList.add("hidden");
+    if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === "function") {
+      lastFocusedBeforeModal.focus();
+    }
+  };
+
+  async function runFitCheck() {
+    const jobPosting = {
+      jobTitle: trimOrEmpty(els.jobTitle.value),
+      companyName: trimOrEmpty(els.companyName.value),
+      jobText: trimOrEmpty(els.jobText.value),
+      location: trimOrEmpty(els.location.value),
+      jobUrl: trimOrEmpty(els.jobUrl.value),
+    };
+
+    console.log("[FitCheck] Starting with jobPosting:", jobPosting);
+
+    if (!jobPosting.jobText) {
+      throw new Error("Job description is required for FitCheck.");
+    }
+
+    console.log("[FitCheck] Sending message to background...");
+    const response = await chrome.runtime.sendMessage({
+      type: "UTABLY_FITCHECK",
+      jobPosting,
+    });
+
+    console.log("[FitCheck] Response from background:", response);
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "FitCheck failed.");
+    }
+
+    console.log("[FitCheck] Success, result:", response.result);
+    return response.result;
+  }
+
+  return { isFitCheckOpen, openFitCheck, closeFitCheck, runFitCheck };
+}
+
+function renderFitCheckResult(els, result) {
+  const fitcheck = result?.insight || result || {};
+  const insightsLocked = result?.insightsLocked === true;
+  const upgradeMessage = result?.upgradeMessage || "Upgrade to unlock detailed insights.";
+
+  // Traffic Light (always shown)
+  const trafficLight = fitcheck.trafficLight || "good";
+  els.fitCheckTrafficLight.className = `fitcheck-traffic-light ${trafficLight}`;
+  const lightLabel = els.fitCheckTrafficLight.querySelector(".traffic-light-label");
+  if (lightLabel) {
+    lightLabel.textContent =
+      trafficLight === "perfect" ? "Perfect Fit" :
+      trafficLight === "good" ? "Good Match" : "Red Flags";
+  }
+
+  // Score (always shown)
+  const score = fitcheck.overallScore || 0;
+  const scoreValue = els.fitCheckScore.querySelector(".score-value");
+  if (scoreValue) {
+    scoreValue.textContent = Math.round(score);
+  }
+
+  // Helper to render locked section
+  const renderLockedOverlay = (container) => {
+    if (!container) return;
+    container.classList.add("fitcheck-locked");
+    const existingOverlay = container.querySelector(".locked-overlay");
+    if (!existingOverlay) {
+      const overlay = document.createElement("div");
+      overlay.className = "locked-overlay";
+      overlay.innerHTML = `
+        <div class="locked-icon">&#128274;</div>
+        <div class="locked-text">Upgrade to unlock</div>
+      `;
+      container.appendChild(overlay);
+    }
+  };
+
+  const clearLockedOverlay = (container) => {
+    if (!container) return;
+    container.classList.remove("fitcheck-locked");
+    const overlay = container.querySelector(".locked-overlay");
+    if (overlay) overlay.remove();
+  };
+
+  // Summary
+  const summaryText = els.fitCheckSummary.querySelector(".fitcheck-summary-text");
+  if (insightsLocked) {
+    renderLockedOverlay(els.fitCheckSummary);
+    if (summaryText) summaryText.textContent = "";
+  } else {
+    clearLockedOverlay(els.fitCheckSummary);
+    if (summaryText) {
+      summaryText.textContent = fitcheck.summary || "No summary available.";
+    }
+  }
+
+  // Qualification
+  const qual = fitcheck.qualificationAnalysis || {};
+  const qualBadge = els.fitCheckQualification.querySelector(".fitcheck-qualification-badge");
+  if (qualBadge) {
+    const level = qual.level || "match";
+    qualBadge.className = `fitcheck-qualification-badge ${level}`;
+    qualBadge.textContent = level.replace("_", " ");
+  }
+
+  const signalsList = els.fitCheckQualification.querySelector(".fitcheck-signals");
+  if (insightsLocked) {
+    if (signalsList) signalsList.innerHTML = "";
+    renderLockedOverlay(els.fitCheckQualification);
+  } else {
+    clearLockedOverlay(els.fitCheckQualification);
+    if (signalsList) {
+      const signals = Array.isArray(qual.signals) ? qual.signals : [];
+      signalsList.innerHTML = signals.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+    }
+  }
+
+  // Skills
+  if (insightsLocked) {
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), []);
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), []);
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), []);
+    renderLockedOverlay(els.fitCheckSkills);
+  } else {
+    clearLockedOverlay(els.fitCheckSkills);
+    const skills = fitcheck.skillsBreakdown || {};
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), skills.matching || []);
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), skills.gaps || []);
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), skills.bonus || []);
+  }
+
+  // Preferences
+  if (insightsLocked) {
+    renderLockedOverlay(els.fitCheckPreferences);
+    for (const pref of ["salary", "location", "remote"]) {
+      const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
+      if (item) {
+        item.className = "pref-item unknown";
+        const statusEl = item.querySelector(".pref-status");
+        if (statusEl) statusEl.textContent = "";
+      }
+    }
+  } else {
+    clearLockedOverlay(els.fitCheckPreferences);
+    const prefs = fitcheck.preferencesAlignment || {};
+    for (const pref of ["salary", "location", "remote"]) {
+      const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
+      if (item) {
+        const status = prefs[pref]?.status || "unknown";
+        item.className = `pref-item ${status}`;
+        const statusEl = item.querySelector(".pref-status");
+        if (statusEl) {
+          statusEl.textContent = status;
+        }
+      }
+    }
+  }
+
+  // Personality
+  const personalityText = els.fitCheckPersonality.querySelector(".fitcheck-personality-text");
+  if (insightsLocked) {
+    renderLockedOverlay(els.fitCheckPersonality);
+    if (personalityText) personalityText.textContent = "";
+  } else {
+    clearLockedOverlay(els.fitCheckPersonality);
+    const personality = fitcheck.personalityFit || {};
+    if (personalityText) {
+      personalityText.textContent = personality.workStyle || "No personality analysis available.";
+    }
+  }
+
+  // Key Points
+  const strengthsList = els.fitCheckKeyPoints.querySelector(".fitcheck-strengths-list");
+  const concernsList = els.fitCheckKeyPoints.querySelector(".fitcheck-concerns-list");
+  if (insightsLocked) {
+    renderLockedOverlay(els.fitCheckKeyPoints);
+    if (strengthsList) strengthsList.innerHTML = "";
+    if (concernsList) concernsList.innerHTML = "";
+  } else {
+    clearLockedOverlay(els.fitCheckKeyPoints);
+    if (strengthsList) {
+      const strengths = Array.isArray(fitcheck.topStrengths) ? fitcheck.topStrengths : [];
+      strengthsList.innerHTML = strengths.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+    }
+    if (concernsList) {
+      const concerns = Array.isArray(fitcheck.topConcerns) ? fitcheck.topConcerns : [];
+      concernsList.innerHTML = concerns.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+    }
+  }
+
+  // Show upgrade banner for free users
+  const existingBanner = els.fitCheckModal.querySelector(".fitcheck-upgrade-banner");
+  if (insightsLocked) {
+    if (!existingBanner) {
+      const banner = document.createElement("div");
+      banner.className = "fitcheck-upgrade-banner";
+      banner.innerHTML = `
+        <div class="upgrade-icon">&#9889;</div>
+        <div class="upgrade-content">
+          <div class="upgrade-title">Unlock Full Insights</div>
+          <div class="upgrade-text">${escapeHtml(upgradeMessage)}</div>
+        </div>
+        <a href="https://app.utably.com/settings/subscription" target="_blank" class="upgrade-btn">Upgrade</a>
+      `;
+      els.fitCheckModal.querySelector(".fitcheck-body")?.prepend(banner);
+    }
+  } else if (existingBanner) {
+    existingBanner.remove();
+  }
+}
+
+function renderSkillsList(container, skills) {
+  if (!container) return;
+  const safeSkills = Array.isArray(skills) ? skills : [];
+  container.innerHTML = safeSkills.map((s) => `<span class="skill-tag">${escapeHtml(s)}</span>`).join("");
+}
+
+function escapeHtml(str) {
+  const text = String(str || "");
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 function wireListeners(els, auth, sidePanel) {
   const setStatusText = (message, tone = "info") => setStatus(els, message, tone);
   const duplicateGate = {
@@ -675,6 +914,36 @@ function wireListeners(els, auth, sidePanel) {
     withBusyButton(els.goToAppBtn, "Opening...", () => goToApp(els)).catch((error) => {
       setStatusText(error?.message || "Failed to open Utably.", "error");
     });
+  });
+
+  // FitCheck button and modal
+  const fitCheckController = createFitCheckController(els, setStatusText);
+
+  els.fitCheckBtn.addEventListener("click", () => {
+    withBusyButton(els.fitCheckBtn, "Analyzing...", async () => {
+      const result = await fitCheckController.runFitCheck();
+      fitCheckController.openFitCheck(result);
+    }).catch((error) => {
+      setStatusText(error?.message || "FitCheck failed.", "error");
+    });
+  });
+
+  els.closeFitCheckBtn.addEventListener("click", () => {
+    fitCheckController.closeFitCheck();
+  });
+
+  // Close FitCheck modal on Escape key
+  els.fitCheckModal.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && fitCheckController.isFitCheckOpen()) {
+      fitCheckController.closeFitCheck();
+    }
+  });
+
+  // Close FitCheck modal on backdrop click
+  els.fitCheckModal.addEventListener("click", (e) => {
+    if (e.target === els.fitCheckModal) {
+      fitCheckController.closeFitCheck();
+    }
   });
 
   els.logoutBtn.addEventListener("click", () => {
