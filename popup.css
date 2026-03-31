@@ -42,23 +42,67 @@ body {
   margin: 0;
   padding: 0;
   width: 380px;
+  max-height: 600px;
+  overflow-y: auto;
+  overflow-x: hidden;
   font-family: "Red Hat Display", "Arial", sans-serif;
   color: var(--text-strong);
   background: var(--page-bg);
 }
 
+/* Chrome scrollbar styling */
+body::-webkit-scrollbar {
+  width: 6px;
+}
+
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 3px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Safari-specific fixes (detected via JS) */
+body.safari-mode {
+  max-height: none;
+  overflow: visible;
+}
+
+body.safari-mode .app {
+  max-height: 600px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.safari-mode .app::-webkit-scrollbar {
+  width: 6px;
+}
+
+body.safari-mode .app::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body.safari-mode .app::-webkit-scrollbar-thumb {
+  background: rgba(141, 211, 202, 0.7);
+  border-radius: 3px;
+}
+
 body.sidepanel-mode {
   width: auto;
   min-width: 320px;
-}
-
-body.sidepanel-mode .app {
-  padding: 12px;
+  max-height: none;
 }
 
 body.workspace-mode {
   width: auto;
   min-width: 320px;
+  max-height: none;
 }
 
 body.workspace-mode .app {
@@ -69,6 +113,11 @@ body.workspace-mode .app {
 .app {
   position: relative;
   padding: 16px;
+}
+
+body.sidepanel-mode .app {
+  padding: 12px;
+  height: auto;
 }
 
 .header {
@@ -281,8 +330,9 @@ button:hover {
 }
 
 button.primary {
+  background-color: #00545e;
   background: linear-gradient(120deg, var(--action) 0%, var(--action-hover) 100%);
-  color: var(--action-contrast);
+  color: #ffffff;
   border-color: var(--action);
   box-shadow: 0 12px 24px rgba(0, 84, 94, 0.3);
 }
@@ -399,7 +449,7 @@ button.link.is-loading::before {
   justify-content: center;
   padding: 8px;
   background: var(--modal-overlay);
-  backdrop-filter: blur(4px);
+  /* backdrop-filter removed for Safari scroll performance */
 }
 
 .modal-card {
@@ -642,6 +692,393 @@ body.sidepanel-mode .row {
   }
 }
 
+/* FitCheck Modal Styles */
+.fitcheck-card {
+  max-width: 380px;
+}
+
+.fitcheck-body {
+  max-height: 420px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Safari smooth scrolling */
+  transform: translateZ(0); /* Force GPU layer for Safari */
+}
+
+.fitcheck-traffic-light {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+}
+
+.fitcheck-traffic-light.perfect {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.fitcheck-traffic-light.good {
+  background: rgba(209, 250, 229, 0.9);
+  color: #166534;
+}
+
+.fitcheck-traffic-light.partial {
+  background: rgba(255, 243, 205, 0.9);
+  color: #856404;
+}
+
+.fitcheck-traffic-light.flags {
+  background: var(--error-bg);
+  color: var(--error-fg);
+}
+
+.traffic-light-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.fitcheck-traffic-light.perfect .traffic-light-icon {
+  background: #28a745;
+  box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+}
+
+.fitcheck-traffic-light.good .traffic-light-icon {
+  background: #ffc107;
+  box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+}
+
+.fitcheck-traffic-light.partial .traffic-light-icon {
+  background: #fd7e14;
+  box-shadow: 0 0 10px rgba(253, 126, 20, 0.5);
+}
+
+.fitcheck-traffic-light.flags .traffic-light-icon {
+  background: #dc3545;
+  box-shadow: 0 0 10px rgba(220, 53, 69, 0.5);
+}
+
+.traffic-light-label {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.fitcheck-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.score-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-1);
+}
+
+.score-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.score-label {
+  margin-top: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fitcheck-section {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.fitcheck-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.fitcheck-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.fitcheck-summary-text,
+.fitcheck-personality-text {
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.fitcheck-qualification-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-transform: capitalize;
+}
+
+.fitcheck-qualification-badge.match {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.fitcheck-qualification-badge.overqualified {
+  background: rgba(255, 243, 205, 0.9);
+  color: #856404;
+}
+
+.fitcheck-qualification-badge.underqualified {
+  background: var(--error-bg);
+  color: var(--error-fg);
+}
+
+.fitcheck-signals {
+  margin: 0;
+  padding-left: 14px;
+  font-size: 11px;
+  color: var(--text-strong);
+}
+
+.fitcheck-signals li {
+  margin-bottom: 3px;
+}
+
+.fitcheck-skills-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.skills-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.skills-list .skill-tag {
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--notice);
+  border: 1px solid var(--notice-border);
+}
+
+.skills-matching .skill-tag {
+  background: var(--ok-bg);
+  border-color: rgba(101, 208, 164, 0.86);
+  color: var(--ok-fg);
+}
+
+.skills-gaps .skill-tag {
+  background: var(--error-bg);
+  border-color: rgba(233, 133, 133, 0.88);
+  color: var(--error-fg);
+}
+
+.skills-bonus .skill-tag {
+  background: rgba(230, 240, 255, 0.9);
+  border-color: rgba(130, 170, 255, 0.7);
+  color: #2563eb;
+}
+
+.fitcheck-preferences-grid {
+  display: flex;
+  gap: 8px;
+}
+
+.pref-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+}
+
+.pref-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.pref-item.match .pref-icon { background: #28a745; }
+.pref-item.partial .pref-icon { background: #ffc107; }
+.pref-item.mismatch .pref-icon { background: #dc3545; }
+.pref-item.above .pref-icon { background: #17a2b8; }
+.pref-item.below .pref-icon { background: #fd7e14; }
+.pref-item.unknown .pref-icon { background: var(--text-muted); }
+
+.pref-label {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.pref-status {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.fitcheck-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fitcheck-strengths-list,
+.fitcheck-concerns-list {
+  margin: 0;
+  padding-left: 12px;
+  font-size: 10px;
+}
+
+.fitcheck-strengths-list li {
+  color: var(--ok-fg);
+  margin-bottom: 3px;
+}
+
+.fitcheck-concerns-list li {
+  color: var(--error-fg);
+  margin-bottom: 3px;
+}
+
+/* FitCheck Locked Sections (Free Tier) */
+.fitcheck-locked {
+  position: relative;
+  min-height: 48px;
+}
+
+.fitcheck-locked::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(128, 128, 128, 0.08) 0%,
+    rgba(128, 128, 128, 0.15) 100%
+  );
+  backdrop-filter: blur(2px);
+  border-radius: 6px;
+  z-index: 1;
+}
+
+.locked-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.locked-icon {
+  font-size: 18px;
+  opacity: 0.6;
+  margin-bottom: 2px;
+}
+
+.locked-text {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+/* FitCheck Upgrade Banner */
+.fitcheck-upgrade-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 193, 7, 0.12) 0%,
+    rgba(255, 152, 0, 0.08) 100%
+  );
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  border-radius: 8px;
+}
+
+.upgrade-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.upgrade-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.upgrade-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-strong);
+  margin-bottom: 2px;
+}
+
+.upgrade-text {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.upgrade-btn {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #000;
+  background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+  border-radius: 4px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.upgrade-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(255, 193, 7, 0.35);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 8px;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --page-bg: #0f1618;
@@ -677,4 +1114,141 @@ body.sidepanel-mode .row {
     --slider-bg: #355d60;
     --slider-knob: #eaf5f3;
   }
+
+  .fitcheck-traffic-light.good {
+    background: rgba(73, 58, 25, 0.9);
+    color: #ffd97a;
+  }
+
+  .fitcheck-traffic-light.partial {
+    background: rgba(73, 45, 20, 0.9);
+    color: #ffb87a;
+  }
+
+  .fitcheck-qualification-badge.overqualified {
+    background: rgba(73, 58, 25, 0.9);
+    color: #ffd97a;
+  }
+
+  .skills-bonus .skill-tag {
+    background: rgba(37, 99, 235, 0.2);
+    border-color: rgba(96, 165, 250, 0.5);
+    color: #93c5fd;
+  }
+
+  .fitcheck-locked::before {
+    background: linear-gradient(
+      135deg,
+      rgba(60, 60, 60, 0.15) 0%,
+      rgba(80, 80, 80, 0.2) 100%
+    );
+  }
+
+  .fitcheck-upgrade-banner {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 193, 7, 0.15) 0%,
+      rgba(255, 152, 0, 0.1) 100%
+    );
+    border-color: rgba(255, 193, 7, 0.4);
+  }
+
+  .upgrade-btn {
+    color: #0f1618;
+  }
+
+  .fitcheck-inline {
+    background: rgba(40, 50, 55, 0.6);
+    border-color: rgba(100, 120, 130, 0.4);
+  }
+
+  .fitcheck-ai-disclaimer {
+    background: rgba(40, 50, 55, 0.5);
+    border-color: rgba(100, 120, 130, 0.3);
+    color: rgba(255, 255, 255, 0.6);
+  }
+}
+
+/* FitCheck Inline Placement (near job description) */
+.fitcheck-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: var(--notice);
+  border: 1px solid var(--notice-border);
+  border-radius: 10px;
+}
+
+.fitcheck-source-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.indicator-icon {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.fitcheck-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.fitcheck-btn-icon {
+  font-size: 12px;
+}
+
+/* Disabled state when no job description */
+.fitcheck-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fitcheck-inline.no-data .indicator-text::after {
+  content: " — Add job description first";
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* AI Disclaimer in FitCheck Modal */
+.fitcheck-ai-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: rgba(233, 255, 250, 0.5);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.disclaimer-icon {
+  font-size: 12px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* Modal header actions */
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-header-actions .link {
+  font-size: 11px;
 }

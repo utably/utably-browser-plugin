@@ -23,6 +23,7 @@ const CONNECT_PENDING_KEY = "utablyConnectPending";
 const MANUAL_FALLBACK_UNTIL_KEY = "utablyManualFallbackUntil";
 const MANUAL_FALLBACK_MS = 120_000;
 const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
+const IS_SAFARI = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
 function requestBroadHostAccessFromGesture() {
   if (!IS_FIREFOX) {
@@ -436,7 +437,7 @@ async function goToApp(els) {
 
 async function sendApplication(els, setStatusText) {
   setStatusText("Sending...", "info");
-  const payload = buildApplicationPayload(els);
+  const payload = await buildApplicationPayload(els);
   const response = await chrome.runtime.sendMessage({ type: "UTABLY_SEND", payload });
   if (!response?.ok) {
     const err = new Error(response?.error || "Failed to send.");
@@ -515,6 +516,323 @@ function confirmResetInApp(els) {
     els.resetConfirmModal.addEventListener("click", onBackdrop);
     document.addEventListener("keydown", onKeyDown);
   });
+}
+
+const FITCHECK_CACHE_KEY = "utablyFitCheckCache";
+
+function getFitCheckCacheKey(els) {
+  const jobTitle = trimOrEmpty(els.jobTitle.value);
+  const companyName = trimOrEmpty(els.companyName.value);
+  const jobUrl = trimOrEmpty(els.jobUrl.value);
+  // Use URL if available, otherwise use title+company
+  return jobUrl || `${jobTitle}::${companyName}`;
+}
+
+async function getCachedFitCheck(cacheKey) {
+  if (!cacheKey) return null;
+  try {
+    const stored = await chrome.storage.local.get([FITCHECK_CACHE_KEY]);
+    const cache = stored[FITCHECK_CACHE_KEY] || {};
+    const entry = cache[cacheKey];
+    if (!entry) return null;
+    // Cache valid for 24 hours
+    if (Date.now() - entry.timestamp > 24 * 60 * 60 * 1000) return null;
+    return entry.result;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedFitCheck(cacheKey, result) {
+  if (!cacheKey || !result) return;
+  try {
+    const stored = await chrome.storage.local.get([FITCHECK_CACHE_KEY]);
+    const cache = stored[FITCHECK_CACHE_KEY] || {};
+    // Keep max 20 cached results
+    const keys = Object.keys(cache);
+    if (keys.length >= 20) {
+      const oldest = keys.sort((a, b) => (cache[a].timestamp || 0) - (cache[b].timestamp || 0))[0];
+      delete cache[oldest];
+    }
+    cache[cacheKey] = { result, timestamp: Date.now() };
+    await chrome.storage.local.set({ [FITCHECK_CACHE_KEY]: cache });
+  } catch (err) {
+    console.warn("[FitCheck] Cache save failed:", err);
+  }
+}
+
+function createFitCheckController(els, setStatusText) {
+  let lastFocusedBeforeModal = null;
+  let cachedResult = null;
+
+  const isFitCheckOpen = () => !els.fitCheckModal.classList.contains("hidden");
+
+  const openFitCheck = (result) => {
+    lastFocusedBeforeModal = document.activeElement;
+    cachedResult = result;
+    renderFitCheckResult(els, result);
+    els.fitCheckModal.classList.remove("hidden");
+    const [firstFocusable] = getFocusableElements(els.fitCheckModal);
+    firstFocusable?.focus();
+  };
+
+  const closeFitCheck = () => {
+    els.fitCheckModal.classList.add("hidden");
+    if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === "function") {
+      lastFocusedBeforeModal.focus();
+    }
+  };
+
+  const getCachedResult = () => cachedResult;
+
+  const clearCachedResult = () => {
+    cachedResult = null;
+  };
+
+  async function runFitCheck(forceRefresh = false) {
+    const cacheKey = getFitCheckCacheKey(els);
+
+    // Check cache unless forcing refresh
+    if (!forceRefresh && cacheKey) {
+      const cached = await getCachedFitCheck(cacheKey);
+      if (cached) {
+        console.log("[FitCheck] Using cached result");
+        cachedResult = cached;
+        return cached;
+      }
+    }
+
+    const jobPosting = {
+      jobTitle: trimOrEmpty(els.jobTitle.value),
+      companyName: trimOrEmpty(els.companyName.value),
+      jobText: trimOrEmpty(els.jobText.value),
+      location: trimOrEmpty(els.location.value),
+      jobUrl: trimOrEmpty(els.jobUrl.value),
+    };
+
+    console.log("[FitCheck] Starting with jobPosting:", jobPosting);
+
+    if (!jobPosting.jobText) {
+      throw new Error("Job description is required for FitCheck.");
+    }
+
+    console.log("[FitCheck] Sending message to background...");
+    const response = await chrome.runtime.sendMessage({
+      type: "UTABLY_FITCHECK",
+      jobPosting,
+    });
+
+    console.log("[FitCheck] Response from background:", response);
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "FitCheck failed.");
+    }
+
+    console.log("[FitCheck] Success, result:", response.result);
+    cachedResult = response.result;
+
+    // Save to cache
+    if (cacheKey) {
+      await setCachedFitCheck(cacheKey, response.result);
+    }
+
+    return response.result;
+  }
+
+  async function checkHasCached() {
+    const cacheKey = getFitCheckCacheKey(els);
+    if (!cacheKey) return false;
+    const cached = await getCachedFitCheck(cacheKey);
+    return cached !== null;
+  }
+
+  return { isFitCheckOpen, openFitCheck, closeFitCheck, runFitCheck, getCachedResult, clearCachedResult, checkHasCached };
+}
+
+function renderFitCheckResult(els, result) {
+  const fitcheck = result?.insight || result || {};
+  const insightsLocked = result?.insightsLocked === true;
+  const upgradeMessage = result?.upgradeMessage || "Upgrade to unlock detailed insights.";
+
+  // Traffic Light (always shown)
+  const trafficLight = fitcheck.trafficLight || "good";
+  els.fitCheckTrafficLight.className = `fitcheck-traffic-light ${trafficLight}`;
+  const lightLabel = els.fitCheckTrafficLight.querySelector(".traffic-light-label");
+  if (lightLabel) {
+    lightLabel.textContent =
+      trafficLight === "perfect" ? "Strong Match" :
+      trafficLight === "good" ? "Good Match" :
+      trafficLight === "partial" ? "Partial Match" : "Review Needed";
+  }
+
+  // Score (always shown)
+  const score = fitcheck.overallScore || 0;
+  const scoreValue = els.fitCheckScore.querySelector(".score-value");
+  if (scoreValue) {
+    scoreValue.textContent = Math.round(score);
+  }
+
+  // Helper to render locked section
+  const renderLockedOverlay = (container) => {
+    if (!container) return;
+    container.classList.add("fitcheck-locked");
+    const existingOverlay = container.querySelector(".locked-overlay");
+    if (!existingOverlay) {
+      const overlay = document.createElement("div");
+      overlay.className = "locked-overlay";
+      overlay.innerHTML = `
+        <div class="locked-icon">&#128274;</div>
+        <div class="locked-text">Upgrade to unlock</div>
+      `;
+      container.appendChild(overlay);
+    }
+  };
+
+  const clearLockedOverlay = (container) => {
+    if (!container) return;
+    container.classList.remove("fitcheck-locked");
+    const overlay = container.querySelector(".locked-overlay");
+    if (overlay) overlay.remove();
+  };
+
+  // Summary
+  const summaryText = els.fitCheckSummary.querySelector(".fitcheck-summary-text");
+  if (insightsLocked) {
+    renderLockedOverlay(els.fitCheckSummary);
+    if (summaryText) summaryText.textContent = "";
+  } else {
+    clearLockedOverlay(els.fitCheckSummary);
+    if (summaryText) {
+      summaryText.textContent = fitcheck.summary || "No summary available.";
+    }
+  }
+
+  // Qualification
+  const qual = fitcheck.qualificationAnalysis || {};
+  const qualBadge = els.fitCheckQualification.querySelector(".fitcheck-qualification-badge");
+  if (qualBadge) {
+    const level = qual.level || "match";
+    qualBadge.className = `fitcheck-qualification-badge ${level}`;
+    qualBadge.textContent = level.replace("_", " ");
+  }
+
+  const signalsList = els.fitCheckQualification.querySelector(".fitcheck-signals");
+  if (insightsLocked) {
+    if (signalsList) signalsList.innerHTML = "";
+    renderLockedOverlay(els.fitCheckQualification);
+  } else {
+    clearLockedOverlay(els.fitCheckQualification);
+    if (signalsList) {
+      const signals = Array.isArray(qual.signals) ? qual.signals : [];
+      signalsList.innerHTML = signals.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+    }
+  }
+
+  // Skills
+  if (insightsLocked) {
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), []);
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), []);
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), []);
+    renderLockedOverlay(els.fitCheckSkills);
+  } else {
+    clearLockedOverlay(els.fitCheckSkills);
+    const skills = fitcheck.skillsBreakdown || {};
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), skills.matching || []);
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), skills.gaps || []);
+    renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), skills.bonus || []);
+  }
+
+  // Preferences
+  if (insightsLocked) {
+    renderLockedOverlay(els.fitCheckPreferences);
+    for (const pref of ["salary", "location", "remote"]) {
+      const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
+      if (item) {
+        item.className = "pref-item unknown";
+        const statusEl = item.querySelector(".pref-status");
+        if (statusEl) statusEl.textContent = "";
+      }
+    }
+  } else {
+    clearLockedOverlay(els.fitCheckPreferences);
+    const prefs = fitcheck.preferencesAlignment || {};
+    for (const pref of ["salary", "location", "remote"]) {
+      const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
+      if (item) {
+        const status = prefs[pref]?.status || "unknown";
+        item.className = `pref-item ${status}`;
+        const statusEl = item.querySelector(".pref-status");
+        if (statusEl) {
+          statusEl.textContent = status;
+        }
+      }
+    }
+  }
+
+  // Personality
+  const personalityText = els.fitCheckPersonality.querySelector(".fitcheck-personality-text");
+  if (insightsLocked) {
+    renderLockedOverlay(els.fitCheckPersonality);
+    if (personalityText) personalityText.textContent = "";
+  } else {
+    clearLockedOverlay(els.fitCheckPersonality);
+    const personality = fitcheck.personalityFit || {};
+    if (personalityText) {
+      personalityText.textContent = personality.workStyle || "No personality analysis available.";
+    }
+  }
+
+  // Key Points
+  const strengthsList = els.fitCheckKeyPoints.querySelector(".fitcheck-strengths-list");
+  const concernsList = els.fitCheckKeyPoints.querySelector(".fitcheck-concerns-list");
+  if (insightsLocked) {
+    renderLockedOverlay(els.fitCheckKeyPoints);
+    if (strengthsList) strengthsList.innerHTML = "";
+    if (concernsList) concernsList.innerHTML = "";
+  } else {
+    clearLockedOverlay(els.fitCheckKeyPoints);
+    if (strengthsList) {
+      const strengths = Array.isArray(fitcheck.topStrengths) ? fitcheck.topStrengths : [];
+      strengthsList.innerHTML = strengths.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+    }
+    if (concernsList) {
+      const concerns = Array.isArray(fitcheck.topConcerns) ? fitcheck.topConcerns : [];
+      concernsList.innerHTML = concerns.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+    }
+  }
+
+  // Show upgrade banner for free users
+  const existingBanner = els.fitCheckModal.querySelector(".fitcheck-upgrade-banner");
+  if (insightsLocked) {
+    if (!existingBanner) {
+      const banner = document.createElement("div");
+      banner.className = "fitcheck-upgrade-banner";
+      banner.innerHTML = `
+        <div class="upgrade-icon">&#9889;</div>
+        <div class="upgrade-content">
+          <div class="upgrade-title">Unlock Full Insights</div>
+          <div class="upgrade-text">${escapeHtml(upgradeMessage)}</div>
+        </div>
+        <a href="https://app.utably.com/settings/subscription" target="_blank" class="upgrade-btn">Upgrade</a>
+      `;
+      els.fitCheckModal.querySelector(".fitcheck-body")?.prepend(banner);
+    }
+  } else if (existingBanner) {
+    existingBanner.remove();
+  }
+}
+
+function renderSkillsList(container, skills) {
+  if (!container) return;
+  const safeSkills = Array.isArray(skills) ? skills : [];
+  container.innerHTML = safeSkills.map((s) => `<span class="skill-tag">${escapeHtml(s)}</span>`).join("");
+}
+
+function escapeHtml(str) {
+  const text = String(str || "");
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function wireListeners(els, auth, sidePanel) {
@@ -677,6 +995,108 @@ function wireListeners(els, auth, sidePanel) {
     });
   });
 
+  // FitCheck button and modal
+  const fitCheckController = createFitCheckController(els, setStatusText);
+
+  // Update FitCheck button state based on job description content
+  const updateFitCheckState = () => {
+    const jobTextValue = els.jobText?.value || "";
+    const hasJobText = jobTextValue.trim().length > 0;
+
+    // Enable/disable button
+    if (els.fitCheckBtn) {
+      els.fitCheckBtn.disabled = !hasJobText;
+    }
+
+    // Update indicator text
+    if (els.fitCheckInline) {
+      els.fitCheckInline.classList.toggle("no-data", !hasJobText);
+    }
+  };
+
+  // Update button label based on cache (async, separate from disabled state)
+  const updateFitCheckLabel = async () => {
+    try {
+      const hasCached = await fitCheckController.checkHasCached();
+      const btnText = els.fitCheckBtn?.querySelector(".fitcheck-btn-text");
+      if (btnText) {
+        btnText.textContent = hasCached ? "View FitCheck" : "FitCheck";
+      }
+    } catch (e) {
+      console.warn("[FitCheck] Cache check failed:", e);
+    }
+  };
+
+  // Initial state
+  updateFitCheckState();
+  updateFitCheckLabel();
+
+  // Wire to input events
+  els.jobText.addEventListener("input", updateFitCheckState);
+  els.jobTitle.addEventListener("input", updateFitCheckLabel);
+  els.companyName.addEventListener("input", updateFitCheckLabel);
+  els.jobUrl.addEventListener("input", updateFitCheckLabel);
+
+  els.fitCheckBtn.addEventListener("click", async () => {
+    // If we have a cached result in memory, just reopen instantly
+    const existing = fitCheckController.getCachedResult();
+    if (existing) {
+      fitCheckController.openFitCheck(existing);
+      return;
+    }
+
+    // Check storage cache - if found, open instantly without "Analyzing..." spinner
+    const cacheKey = getFitCheckCacheKey(els);
+    if (cacheKey) {
+      const storageCached = await getCachedFitCheck(cacheKey);
+      if (storageCached) {
+        fitCheckController.openFitCheck(storageCached);
+        return;
+      }
+    }
+
+    // No cache - run fresh analysis
+    withBusyButton(els.fitCheckBtn, "Analyzing...", async () => {
+      const result = await fitCheckController.runFitCheck(false);
+      fitCheckController.openFitCheck(result);
+    }).catch((error) => {
+      setStatusText(error?.message || "FitCheck failed.", "error");
+    });
+  });
+
+  // Reanalyze button in modal
+  els.reanalyzeFitCheckBtn.addEventListener("click", () => {
+    fitCheckController.closeFitCheck();
+    withBusyButton(els.fitCheckBtn, "Reanalyzing...", async () => {
+      const result = await fitCheckController.runFitCheck(true); // force refresh
+      fitCheckController.openFitCheck(result);
+      updateFitCheckState(); // update button label
+    }).catch((error) => {
+      setStatusText(error?.message || "FitCheck failed.", "error");
+    });
+  });
+
+  els.closeFitCheckBtn.addEventListener("click", () => {
+    fitCheckController.closeFitCheck();
+  });
+
+  // Expose controller for payload building
+  window.__fitCheckController = fitCheckController;
+
+  // Close FitCheck modal on Escape key
+  els.fitCheckModal.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && fitCheckController.isFitCheckOpen()) {
+      fitCheckController.closeFitCheck();
+    }
+  });
+
+  // Close FitCheck modal on backdrop click
+  els.fitCheckModal.addEventListener("click", (e) => {
+    if (e.target === els.fitCheckModal) {
+      fitCheckController.closeFitCheck();
+    }
+  });
+
   els.logoutBtn.addEventListener("click", () => {
     withBusyButton(els.logoutBtn, "Logging out...", () => auth.logout()).catch((error) => {
       setStatusText(error?.message || "Logout failed.", "error");
@@ -698,6 +1118,10 @@ function wireListeners(els, auth, sidePanel) {
         duplicateGate.status = "unknown";
         duplicateGate.allowSend = false;
         setSendAvailability(els, duplicateGate);
+        // Update FitCheck button state after auto-fill
+        fitCheckController.clearCachedResult();
+        updateFitCheckState();
+        updateFitCheckLabel();
         if (result) {
           scheduleDuplicateCheck(0);
         }
@@ -718,7 +1142,13 @@ function wireListeners(els, auth, sidePanel) {
       duplicateGate.status = "unknown";
       duplicateGate.allowSend = false;
       setSendAvailability(els, duplicateGate);
-      withBusyButton(els.reset, "Resetting...", () => resetForm(els, setStatusText)).catch((error) => {
+      withBusyButton(els.reset, "Resetting...", async () => {
+        await resetForm(els, setStatusText);
+        // Clear FitCheck cache AFTER form is reset
+        fitCheckController.clearCachedResult();
+        updateFitCheckState();
+        updateFitCheckLabel();
+      }).catch((error) => {
         setStatusText(error?.message || "Reset failed.", "error");
       });
     });
@@ -867,6 +1297,10 @@ function wireListeners(els, auth, sidePanel) {
     duplicateGate.allowSend = false;
     setSendAvailability(els, duplicateGate);
     scheduleDuplicateCheck(0);
+    // Update FitCheck state for new draft
+    fitCheckController.clearCachedResult();
+    updateFitCheckState();
+    updateFitCheckLabel();
   });
 
   syncCaptureModeForActiveTab().catch(() => {
@@ -887,6 +1321,7 @@ export async function startPopupApp() {
 
   document.body.classList.toggle("sidepanel-mode", sidePanel);
   document.body.classList.toggle("workspace-mode", workspace);
+  document.body.classList.toggle("safari-mode", IS_SAFARI);
   clearStatus(els);
 
   if (!els.applicationDate.value) {

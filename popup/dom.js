@@ -41,6 +41,20 @@ export function getDom() {
     reset: document.getElementById("reset"),
     send: document.getElementById("send"),
     status: document.getElementById("status"),
+    // FitCheck elements
+    fitCheckInline: document.getElementById("fitCheckInline"),
+    fitCheckBtn: document.getElementById("fitCheckBtn"),
+    fitCheckModal: document.getElementById("fitCheckModal"),
+    closeFitCheckBtn: document.getElementById("closeFitCheckBtn"),
+    reanalyzeFitCheckBtn: document.getElementById("reanalyzeFitCheckBtn"),
+    fitCheckTrafficLight: document.getElementById("fitCheckTrafficLight"),
+    fitCheckScore: document.getElementById("fitCheckScore"),
+    fitCheckSummary: document.getElementById("fitCheckSummary"),
+    fitCheckQualification: document.getElementById("fitCheckQualification"),
+    fitCheckSkills: document.getElementById("fitCheckSkills"),
+    fitCheckPreferences: document.getElementById("fitCheckPreferences"),
+    fitCheckPersonality: document.getElementById("fitCheckPersonality"),
+    fitCheckKeyPoints: document.getElementById("fitCheckKeyPoints"),
   };
 }
 
