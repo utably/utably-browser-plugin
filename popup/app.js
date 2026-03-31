@@ -23,6 +23,7 @@ const CONNECT_PENDING_KEY = "utablyConnectPending";
 const MANUAL_FALLBACK_UNTIL_KEY = "utablyManualFallbackUntil";
 const MANUAL_FALLBACK_MS = 120_000;
 const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
+const IS_SAFARI = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
 function requestBroadHostAccessFromGesture() {
   if (!IS_FIREFOX) {
@@ -659,8 +660,9 @@ function renderFitCheckResult(els, result) {
   const lightLabel = els.fitCheckTrafficLight.querySelector(".traffic-light-label");
   if (lightLabel) {
     lightLabel.textContent =
-      trafficLight === "perfect" ? "Perfect Fit" :
-      trafficLight === "good" ? "Good Match" : "Red Flags";
+      trafficLight === "perfect" ? "Strong Match" :
+      trafficLight === "good" ? "Good Match" :
+      trafficLight === "partial" ? "Partial Match" : "Review Needed";
   }
 
   // Score (always shown)
@@ -1319,6 +1321,7 @@ export async function startPopupApp() {
 
   document.body.classList.toggle("sidepanel-mode", sidePanel);
   document.body.classList.toggle("workspace-mode", workspace);
+  document.body.classList.toggle("safari-mode", IS_SAFARI);
   clearStatus(els);
 
   if (!els.applicationDate.value) {
