@@ -436,7 +436,7 @@ async function goToApp(els) {
 
 async function sendApplication(els, setStatusText) {
   setStatusText("Sending...", "info");
-  const payload = buildApplicationPayload(els);
+  const payload = await buildApplicationPayload(els);
   const response = await chrome.runtime.sendMessage({ type: "UTABLY_SEND", payload });
   if (!response?.ok) {
     const err = new Error(response?.error || "Failed to send.");
@@ -517,13 +517,58 @@ function confirmResetInApp(els) {
   });
 }
 
+const FITCHECK_CACHE_KEY = "utablyFitCheckCache";
+
+function getFitCheckCacheKey(els) {
+  const jobTitle = trimOrEmpty(els.jobTitle.value);
+  const companyName = trimOrEmpty(els.companyName.value);
+  const jobUrl = trimOrEmpty(els.jobUrl.value);
+  // Use URL if available, otherwise use title+company
+  return jobUrl || `${jobTitle}::${companyName}`;
+}
+
+async function getCachedFitCheck(cacheKey) {
+  if (!cacheKey) return null;
+  try {
+    const stored = await chrome.storage.local.get([FITCHECK_CACHE_KEY]);
+    const cache = stored[FITCHECK_CACHE_KEY] || {};
+    const entry = cache[cacheKey];
+    if (!entry) return null;
+    // Cache valid for 24 hours
+    if (Date.now() - entry.timestamp > 24 * 60 * 60 * 1000) return null;
+    return entry.result;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedFitCheck(cacheKey, result) {
+  if (!cacheKey || !result) return;
+  try {
+    const stored = await chrome.storage.local.get([FITCHECK_CACHE_KEY]);
+    const cache = stored[FITCHECK_CACHE_KEY] || {};
+    // Keep max 20 cached results
+    const keys = Object.keys(cache);
+    if (keys.length >= 20) {
+      const oldest = keys.sort((a, b) => (cache[a].timestamp || 0) - (cache[b].timestamp || 0))[0];
+      delete cache[oldest];
+    }
+    cache[cacheKey] = { result, timestamp: Date.now() };
+    await chrome.storage.local.set({ [FITCHECK_CACHE_KEY]: cache });
+  } catch (err) {
+    console.warn("[FitCheck] Cache save failed:", err);
+  }
+}
+
 function createFitCheckController(els, setStatusText) {
   let lastFocusedBeforeModal = null;
+  let cachedResult = null;
 
   const isFitCheckOpen = () => !els.fitCheckModal.classList.contains("hidden");
 
   const openFitCheck = (result) => {
     lastFocusedBeforeModal = document.activeElement;
+    cachedResult = result;
     renderFitCheckResult(els, result);
     els.fitCheckModal.classList.remove("hidden");
     const [firstFocusable] = getFocusableElements(els.fitCheckModal);
@@ -537,7 +582,25 @@ function createFitCheckController(els, setStatusText) {
     }
   };
 
-  async function runFitCheck() {
+  const getCachedResult = () => cachedResult;
+
+  const clearCachedResult = () => {
+    cachedResult = null;
+  };
+
+  async function runFitCheck(forceRefresh = false) {
+    const cacheKey = getFitCheckCacheKey(els);
+
+    // Check cache unless forcing refresh
+    if (!forceRefresh && cacheKey) {
+      const cached = await getCachedFitCheck(cacheKey);
+      if (cached) {
+        console.log("[FitCheck] Using cached result");
+        cachedResult = cached;
+        return cached;
+      }
+    }
+
     const jobPosting = {
       jobTitle: trimOrEmpty(els.jobTitle.value),
       companyName: trimOrEmpty(els.companyName.value),
@@ -565,10 +628,24 @@ function createFitCheckController(els, setStatusText) {
     }
 
     console.log("[FitCheck] Success, result:", response.result);
+    cachedResult = response.result;
+
+    // Save to cache
+    if (cacheKey) {
+      await setCachedFitCheck(cacheKey, response.result);
+    }
+
     return response.result;
   }
 
-  return { isFitCheckOpen, openFitCheck, closeFitCheck, runFitCheck };
+  async function checkHasCached() {
+    const cacheKey = getFitCheckCacheKey(els);
+    if (!cacheKey) return false;
+    const cached = await getCachedFitCheck(cacheKey);
+    return cached !== null;
+  }
+
+  return { isFitCheckOpen, openFitCheck, closeFitCheck, runFitCheck, getCachedResult, clearCachedResult, checkHasCached };
 }
 
 function renderFitCheckResult(els, result) {
@@ -921,21 +998,77 @@ function wireListeners(els, auth, sidePanel) {
 
   // Update FitCheck button state based on job description content
   const updateFitCheckState = () => {
-    const hasJobText = trimOrEmpty(els.jobText.value).length > 0;
+    const jobTextValue = els.jobText?.value || "";
+    const hasJobText = jobTextValue.trim().length > 0;
+
+    // Enable/disable button
+    if (els.fitCheckBtn) {
+      els.fitCheckBtn.disabled = !hasJobText;
+    }
+
+    // Update indicator text
     if (els.fitCheckInline) {
       els.fitCheckInline.classList.toggle("no-data", !hasJobText);
     }
-    els.fitCheckBtn.disabled = !hasJobText;
   };
 
-  // Initial state and wire to input
-  updateFitCheckState();
-  els.jobText.addEventListener("input", updateFitCheckState);
+  // Update button label based on cache (async, separate from disabled state)
+  const updateFitCheckLabel = async () => {
+    try {
+      const hasCached = await fitCheckController.checkHasCached();
+      const btnText = els.fitCheckBtn?.querySelector(".fitcheck-btn-text");
+      if (btnText) {
+        btnText.textContent = hasCached ? "View FitCheck" : "FitCheck";
+      }
+    } catch (e) {
+      console.warn("[FitCheck] Cache check failed:", e);
+    }
+  };
 
-  els.fitCheckBtn.addEventListener("click", () => {
+  // Initial state
+  updateFitCheckState();
+  updateFitCheckLabel();
+
+  // Wire to input events
+  els.jobText.addEventListener("input", updateFitCheckState);
+  els.jobTitle.addEventListener("input", updateFitCheckLabel);
+  els.companyName.addEventListener("input", updateFitCheckLabel);
+  els.jobUrl.addEventListener("input", updateFitCheckLabel);
+
+  els.fitCheckBtn.addEventListener("click", async () => {
+    // If we have a cached result in memory, just reopen instantly
+    const existing = fitCheckController.getCachedResult();
+    if (existing) {
+      fitCheckController.openFitCheck(existing);
+      return;
+    }
+
+    // Check storage cache - if found, open instantly without "Analyzing..." spinner
+    const cacheKey = getFitCheckCacheKey(els);
+    if (cacheKey) {
+      const storageCached = await getCachedFitCheck(cacheKey);
+      if (storageCached) {
+        fitCheckController.openFitCheck(storageCached);
+        return;
+      }
+    }
+
+    // No cache - run fresh analysis
     withBusyButton(els.fitCheckBtn, "Analyzing...", async () => {
-      const result = await fitCheckController.runFitCheck();
+      const result = await fitCheckController.runFitCheck(false);
       fitCheckController.openFitCheck(result);
+    }).catch((error) => {
+      setStatusText(error?.message || "FitCheck failed.", "error");
+    });
+  });
+
+  // Reanalyze button in modal
+  els.reanalyzeFitCheckBtn.addEventListener("click", () => {
+    fitCheckController.closeFitCheck();
+    withBusyButton(els.fitCheckBtn, "Reanalyzing...", async () => {
+      const result = await fitCheckController.runFitCheck(true); // force refresh
+      fitCheckController.openFitCheck(result);
+      updateFitCheckState(); // update button label
     }).catch((error) => {
       setStatusText(error?.message || "FitCheck failed.", "error");
     });
@@ -944,6 +1077,9 @@ function wireListeners(els, auth, sidePanel) {
   els.closeFitCheckBtn.addEventListener("click", () => {
     fitCheckController.closeFitCheck();
   });
+
+  // Expose controller for payload building
+  window.__fitCheckController = fitCheckController;
 
   // Close FitCheck modal on Escape key
   els.fitCheckModal.addEventListener("keydown", (e) => {
@@ -980,6 +1116,10 @@ function wireListeners(els, auth, sidePanel) {
         duplicateGate.status = "unknown";
         duplicateGate.allowSend = false;
         setSendAvailability(els, duplicateGate);
+        // Update FitCheck button state after auto-fill
+        fitCheckController.clearCachedResult();
+        updateFitCheckState();
+        updateFitCheckLabel();
         if (result) {
           scheduleDuplicateCheck(0);
         }
@@ -1000,7 +1140,13 @@ function wireListeners(els, auth, sidePanel) {
       duplicateGate.status = "unknown";
       duplicateGate.allowSend = false;
       setSendAvailability(els, duplicateGate);
-      withBusyButton(els.reset, "Resetting...", () => resetForm(els, setStatusText)).catch((error) => {
+      withBusyButton(els.reset, "Resetting...", async () => {
+        await resetForm(els, setStatusText);
+        // Clear FitCheck cache AFTER form is reset
+        fitCheckController.clearCachedResult();
+        updateFitCheckState();
+        updateFitCheckLabel();
+      }).catch((error) => {
         setStatusText(error?.message || "Reset failed.", "error");
       });
     });
@@ -1149,6 +1295,10 @@ function wireListeners(els, auth, sidePanel) {
     duplicateGate.allowSend = false;
     setSendAvailability(els, duplicateGate);
     scheduleDuplicateCheck(0);
+    // Update FitCheck state for new draft
+    fitCheckController.clearCachedResult();
+    updateFitCheckState();
+    updateFitCheckLabel();
   });
 
   syncCaptureModeForActiveTab().catch(() => {

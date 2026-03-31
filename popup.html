@@ -81,7 +81,10 @@
         <div class="modal-card fitcheck-card">
           <div class="modal-header">
             <div id="fitCheckTitle" class="modal-title">FitCheck Results</div>
-            <button id="closeFitCheckBtn" class="link">Close</button>
+            <div class="modal-header-actions">
+              <button id="reanalyzeFitCheckBtn" class="link" title="Run fresh analysis">Reanalyze</button>
+              <button id="closeFitCheckBtn" class="link">Close</button>
+            </div>
           </div>
           <div class="modal-body fitcheck-body">
             <div id="fitCheckTrafficLight" class="fitcheck-traffic-light">
@@ -217,7 +220,7 @@
       </section>
 
       <div id="appContent" class="hidden">
-        <div class="trust-pill trust-pill-inline">Data is only sent when you click Save to Utably.</div>
+        <div class="trust-pill trust-pill-inline">Your data stays local until you Save or run FitCheck.</div>
 
         <section class="hero">
           <div class="hero-text">
@@ -267,7 +270,7 @@
             </div>
             <button id="fitCheckBtn" class="secondary fitcheck-btn" title="Analyze how well this job matches your profile">
               <span class="fitcheck-btn-icon">&#9733;</span>
-              FitCheck
+              <span class="fitcheck-btn-text">FitCheck</span>
             </button>
           </div>
 
