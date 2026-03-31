@@ -46,6 +46,7 @@ export function getDom() {
     fitCheckBtn: document.getElementById("fitCheckBtn"),
     fitCheckModal: document.getElementById("fitCheckModal"),
     closeFitCheckBtn: document.getElementById("closeFitCheckBtn"),
+    reanalyzeFitCheckBtn: document.getElementById("reanalyzeFitCheckBtn"),
     fitCheckTrafficLight: document.getElementById("fitCheckTrafficLight"),
     fitCheckScore: document.getElementById("fitCheckScore"),
     fitCheckSummary: document.getElementById("fitCheckSummary"),
