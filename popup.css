@@ -42,23 +42,67 @@ body {
   margin: 0;
   padding: 0;
   width: 380px;
-  height: 600px;
-  overflow: hidden;
+  max-height: 600px;
+  overflow-y: auto;
+  overflow-x: hidden;
   font-family: "Red Hat Display", "Arial", sans-serif;
   color: var(--text-strong);
   background: var(--page-bg);
 }
 
+/* Chrome scrollbar styling */
+body::-webkit-scrollbar {
+  width: 6px;
+}
+
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 3px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Safari-specific fixes (detected via JS) */
+body.safari-mode {
+  max-height: none;
+  overflow: visible;
+}
+
+body.safari-mode .app {
+  max-height: 600px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.safari-mode .app::-webkit-scrollbar {
+  width: 6px;
+}
+
+body.safari-mode .app::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body.safari-mode .app::-webkit-scrollbar-thumb {
+  background: rgba(141, 211, 202, 0.7);
+  border-radius: 3px;
+}
+
 body.sidepanel-mode {
   width: auto;
   min-width: 320px;
-  height: auto;
+  max-height: none;
 }
 
 body.workspace-mode {
   width: auto;
   min-width: 320px;
-  height: auto;
+  max-height: none;
 }
 
 body.workspace-mode .app {
@@ -69,35 +113,10 @@ body.workspace-mode .app {
 .app {
   position: relative;
   padding: 16px;
-  height: 100%;
-  max-height: 600px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  transform: translateZ(0); /* GPU acceleration for Safari */
-}
-
-/* Visible scrollbar for Safari */
-.app::-webkit-scrollbar {
-  width: 6px;
-}
-
-.app::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.app::-webkit-scrollbar-thumb {
-  background: var(--border-soft);
-  border-radius: 3px;
-}
-
-.app::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
 }
 
 body.sidepanel-mode .app {
   padding: 12px;
-  max-height: none;
   height: auto;
 }
 
@@ -311,8 +330,9 @@ button:hover {
 }
 
 button.primary {
+  background-color: #00545e;
   background: linear-gradient(120deg, var(--action) 0%, var(--action-hover) 100%);
-  color: var(--action-contrast);
+  color: #ffffff;
   border-color: var(--action);
   box-shadow: 0 12px 24px rgba(0, 84, 94, 0.3);
 }
@@ -700,6 +720,11 @@ body.sidepanel-mode .row {
 }
 
 .fitcheck-traffic-light.good {
+  background: rgba(209, 250, 229, 0.9);
+  color: #166534;
+}
+
+.fitcheck-traffic-light.partial {
   background: rgba(255, 243, 205, 0.9);
   color: #856404;
 }
@@ -723,6 +748,11 @@ body.sidepanel-mode .row {
 .fitcheck-traffic-light.good .traffic-light-icon {
   background: #ffc107;
   box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+}
+
+.fitcheck-traffic-light.partial .traffic-light-icon {
+  background: #fd7e14;
+  box-shadow: 0 0 10px rgba(253, 126, 20, 0.5);
 }
 
 .fitcheck-traffic-light.flags .traffic-light-icon {
@@ -1088,6 +1118,11 @@ body.sidepanel-mode .row {
   .fitcheck-traffic-light.good {
     background: rgba(73, 58, 25, 0.9);
     color: #ffd97a;
+  }
+
+  .fitcheck-traffic-light.partial {
+    background: rgba(73, 45, 20, 0.9);
+    color: #ffb87a;
   }
 
   .fitcheck-qualification-badge.overqualified {

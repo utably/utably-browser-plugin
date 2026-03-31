@@ -35,6 +35,7 @@ async function getCachedFitCheckFromStorage(cacheKey) {
 
 /**
  * Map FitCheck result to FitAnalysis format for the application
+ * Includes full detailed data from plugin's FitCheck
  */
 function mapFitCheckToFitAnalysis(fitCheckResult) {
   if (!fitCheckResult) return undefined;
@@ -43,12 +44,39 @@ function mapFitCheckToFitAnalysis(fitCheckResult) {
   if (!insight || !insight.overallScore) return undefined;
 
   return {
+    // Basic fields
     fitSummary: insight.summary || undefined,
     strengths: Array.isArray(insight.topStrengths) ? insight.topStrengths : undefined,
     gaps: Array.isArray(insight.topConcerns) ? insight.topConcerns : undefined,
-    nextSteps: undefined, // FitCheck doesn't provide this yet
+    nextSteps: undefined,
     confidence: insight.overallScore ? insight.overallScore / 100 : undefined,
     generatedAt: new Date().toISOString(),
+
+    // Extended fields from FitCheck
+    trafficLight: insight.trafficLight || undefined,
+    qualificationAnalysis: insight.qualificationAnalysis ? {
+      level: insight.qualificationAnalysis.level || undefined,
+      signals: Array.isArray(insight.qualificationAnalysis.signals)
+        ? insight.qualificationAnalysis.signals : undefined,
+    } : undefined,
+    skillsBreakdown: insight.skillsBreakdown ? {
+      matching: Array.isArray(insight.skillsBreakdown.matching)
+        ? insight.skillsBreakdown.matching : undefined,
+      gaps: Array.isArray(insight.skillsBreakdown.gaps)
+        ? insight.skillsBreakdown.gaps : undefined,
+      bonus: Array.isArray(insight.skillsBreakdown.bonus)
+        ? insight.skillsBreakdown.bonus : undefined,
+      gapSeverity: insight.skillsBreakdown.gapSeverity || undefined,
+    } : undefined,
+    preferencesAlignment: insight.preferencesAlignment ? {
+      salary: insight.preferencesAlignment.salary || undefined,
+      location: insight.preferencesAlignment.location || undefined,
+      remote: insight.preferencesAlignment.remote || undefined,
+    } : undefined,
+    personalityFit: insight.personalityFit ? {
+      workStyle: insight.personalityFit.workStyle || undefined,
+      teamDynamics: insight.personalityFit.teamDynamics || undefined,
+    } : undefined,
   };
 }
 
