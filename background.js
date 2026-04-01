@@ -257,8 +257,7 @@ async function sendImport(payload) {
   const settings = await getSettings();
   const token = await ensureAccessToken(settings);
   if (!token) {
-    await chrome.tabs.create({ url: settings.connectUrl || DEFAULT_CONNECT_URL });
-    throw new Error("Not connected. Opened connect page.");
+    throw new Error("Not connected. Please connect to Utably first.");
   }
 
   const res = await fetch(`${settings.apiBase}/extension/import-job`, {
@@ -284,8 +283,7 @@ async function findDuplicateImport(candidate) {
   const settings = await getSettings();
   const token = await ensureAccessToken(settings);
   if (!token) {
-    await chrome.tabs.create({ url: settings.connectUrl || DEFAULT_CONNECT_URL });
-    throw new Error("Not connected. Opened connect page.");
+    throw new Error("Not connected. Please connect to Utably first.");
   }
 
   const res = await fetch(`${settings.apiBase}/extension/import-job/duplicate-check`, {
@@ -316,8 +314,7 @@ async function sendFitCheck(jobPosting) {
 
   const token = await ensureAccessToken(settings);
   if (!token) {
-    await chrome.tabs.create({ url: settings.connectUrl || DEFAULT_CONNECT_URL });
-    throw new Error("Not connected. Opened connect page.");
+    throw new Error("Not connected. Please connect to Utably first.");
   }
   console.log("[sendFitCheck] Got token, making fetch to:", `${settings.apiBase}/extension/llm`);
 

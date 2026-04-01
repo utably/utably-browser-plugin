@@ -402,6 +402,20 @@ function createAuthController(els, setStatusText) {
     if (!response?.ok) {
       throw new Error(response?.error || "Logout failed.");
     }
+    // Clear all user data on logout to prevent stale data
+    await clearDraftFromStorage();
+    await chrome.storage.local.remove([FITCHECK_CACHE_KEY]);
+    // Reset form fields
+    els.applicationDate.value = new Date().toISOString().slice(0, 10);
+    els.jobTitle.value = "";
+    els.companyName.value = "";
+    els.location.value = "";
+    els.recruiterName.value = "";
+    els.jobText.value = "";
+    els.jobUrl.value = "";
+    setPreviewMeta(els, null);
+    clearDuplicateNotice(els);
+    clearValidationErrors(els);
     await refreshAuthState();
     setStatusText("Logged out.", "success");
   }
