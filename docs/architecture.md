@@ -1,57 +1,90 @@
 # Architecture
 
-## Runtime components
+## Runtime Components
 
-1. `manifest.json` (MV3)
-1. `background.js` service worker
-1. Side panel UI (`popup.html`, `popup.css`, `popup.js`)
-1. Popup app modules (`popup/`)
-1. Extraction adapters (`webpages/`)
+1. `manifest.json` — Manifest V3 configuration (permissions, service worker, side panel)
+2. `background.js` — Service worker handling auth, API calls, token management, external messaging
+3. Side panel UI — `popup.html` + `popup.css` + `popup.js` (module loader)
+4. App modules — `popup/app.js` (46KB core logic), `config.js`, `dom.js`, `extraction.js`, `payload.js`, `settings.js`
+5. Extraction adapters — 17 adapters in `webpages/` with priority-based routing
+6. Content scripts — `content/capture.js` (text capture), `content/extract.js` (reserved)
 
-## User flow
+## User Flow
 
-1. User clicks the Utably extension icon.
-1. Chrome opens the side panel (`openPanelOnActionClick`).
-1. If not authenticated:
-1. User clicks **Connect with Utably**.
-1. Extension opens `https://app.<stage>.utably.com/extension/connect` (or local stage URL).
-1. App sends `UTABLY_EXTERNAL_CONNECT` message back to extension.
-1. Background exchanges one-time code for short-lived access + refresh tokens.
-1. If authenticated:
-1. User clicks **Auto-fill**.
-1. Side panel injects extractor scripts from `webpages/`.
-1. Router picks best adapter and returns normalized job payload.
-1. User reviews fields and clicks **Save to Utably**.
-1. Background sends payload to `/extension/import-job`.
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant SP as Side Panel
+    participant BG as Background SW
+    participant API as Utably API
+    participant Page as Job Board
 
-## Files of interest
+    U->>SP: Click toolbar icon
+    alt Not authenticated
+        SP->>BG: Start connect session
+        BG->>API: POST /extension/connect/session/start
+        SP->>U: Open Utably connect page
+        BG->>API: Poll /extension/connect/session/status
+        API-->>BG: One-time code
+        BG->>API: POST /extension/token/exchange
+        API-->>BG: Access + Refresh tokens
+    end
+    U->>SP: Click Auto-fill
+    SP->>Page: Inject extraction adapters
+    Page-->>SP: Normalized job data
+    SP->>U: Show preview (editable)
+    opt FitCheck
+        U->>SP: Click FitCheck
+        SP->>BG: Send job + profile data
+        BG->>API: POST /extension/llm
+        API-->>SP: Fit analysis results
+    end
+    U->>SP: Click Save to Utably
+    SP->>BG: Send payload
+    BG->>API: POST /extension/import-job
+```
 
-- `background.js`
-- `popup/app.js`
-- `popup/settings.js`
-- `popup/extraction.js`
-- `popup/payload.js`
-- `webpages/router.js`
-- `webpages/generic.js`
+## Auth & Token Model
 
-## Auth and token model
+- **Connect flow**: Side panel opens Utably app -> app sends `UTABLY_EXTERNAL_CONNECT` message -> background exchanges code for tokens
+- **Storage**: `chrome.storage.local` for all tokens and state
+- **Access token**: Short-lived, auto-refreshed with 30-second skew buffer
+- **Refresh token**: Long-lived, rotated on each refresh call
+- **Logout**: Calls `/extension/token/revoke`, clears all stored tokens
+- **External messaging**: `onMessageExternal` listener for app-initiated connects
 
-- Tokens are stored in `chrome.storage.local`.
-- Access token is short-lived.
-- Refresh token is rotated by `/extension/token/refresh`.
-- Logout calls `/extension/token/revoke` and clears local storage.
+## Storage Keys
 
-## Stage behavior
+| Key | Purpose |
+|-----|---------|
+| `extAccessToken` | Current access token |
+| `extRefreshToken` | Current refresh token |
+| `extAccessExpiresAt` | Access token expiry timestamp |
+| `extRefreshExpiresAt` | Refresh token expiry timestamp |
+| `debugMode` | Debug mode enabled flag |
+| `stage` | Current target stage |
+| `localPort` | Custom port for local development |
+| `utablyDraft` | Form state with `updatedAt` timestamp |
+| `utablyCaptureTabs` | Per-tab text capture mode state |
+| `utablyConnectPending` | OAuth session ID + expiry |
+| `utablyManualFallbackUntil` | Manual code fallback timeout |
+| `utablyFitCheckCache` | FitCheck results cache (24h, max 20) |
 
-- `prod`:
-  - API: `https://api.utably.com`
-  - App: `https://app.utably.com`
-- `dev`:
-  - API: `https://api.dev.utably.com`
-  - App: `https://app.dev.utably.com`
-- `test`:
-  - API: `https://api.test.utably.com`
-  - App: `https://app.test.utably.com`
-- `local`:
-  - API: `https://api.dev.utably.com`
-  - App: `https://app.dev.utably.com:<port>`
+## Stage Routing
+
+| Stage | API Base | App Base |
+|-------|----------|----------|
+| `prod` | `https://api.utably.com` | `https://app.utably.com` |
+| `dev` | `https://api.dev.utably.com` | `https://app.dev.utably.com` |
+| `test` | `https://api.test.utably.com` | `https://app.test.utably.com` |
+| `local` | `https://api.dev.utably.com` | `https://app.dev.utably.com:<port>` |
+
+## Permissions
+
+**Declared**: `activeTab`, `scripting`, `storage`, `sidePanel`, `tabs`
+
+**Host permissions** (declared): `https://api.utably.com/*`, `https://api.dev.utably.com/*`, `https://api.test.utably.com/*`
+
+**Optional host permissions**: `https://*/*`, `http://*/*` — requested at runtime per-origin when Auto-fill is used
+
+**Externally connectable**: Utably app URLs for OAuth callback messaging
