@@ -1,8 +1,14 @@
-# Extension Docs
+# Utably Browser Plugin Documentation
 
-This folder contains the implementation docs for the Utably Chrome extension.
+> Implementation docs for the Utably browser extension (Manifest V3).
 
-- `architecture.md` - runtime architecture and data flow
-- `adapters.md` - page extractor adapter system (`webpages/`)
-- `development.md` - local/dev testing and common troubleshooting
-- `branching.md` - branch strategy and promotion guard
+## Documents
+
+| Document | Coverage |
+|----------|----------|
+| [architecture.md](architecture.md) | Runtime components, user flow, auth model, storage keys |
+| [adapters.md](adapters.md) | Extraction adapter system, all 17 adapters, adding new adapters |
+| [api.md](api.md) | API endpoints, request/response formats, payload structures |
+| [fitcheck.md](fitcheck.md) | FitCheck AI analysis feature, caching, tier gating |
+| [development.md](development.md) | Local setup, debugging, multi-browser testing |
+| [branching.md](branching.md) | Branch strategy and promotion guard |

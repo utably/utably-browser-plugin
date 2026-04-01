@@ -93,6 +93,26 @@ body.safari-mode .app::-webkit-scrollbar-thumb {
   border-radius: 3px;
 }
 
+/* Safari button fixes - prevent white-on-white after click */
+body.safari-mode button {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+body.safari-mode button.primary,
+body.safari-mode button.primary:hover,
+body.safari-mode button.primary:focus,
+body.safari-mode button.primary:active,
+body.safari-mode button.primary:focus-visible,
+body.safari-mode button.primary:focus-within {
+  background: #00545e !important;
+  background-color: #00545e !important;
+  color: #ffffff !important;
+  border-color: #00545e !important;
+  outline: none !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
 body.sidepanel-mode {
   width: auto;
   min-width: 320px;
@@ -330,11 +350,32 @@ button:hover {
 }
 
 button.primary {
-  background-color: #00545e;
-  background: linear-gradient(120deg, var(--action) 0%, var(--action-hover) 100%);
-  color: #ffffff;
-  border-color: var(--action);
+  background: #00545e !important;
+  background-image: linear-gradient(120deg, #00545e 0%, #0d6f79 100%) !important;
+  color: #ffffff !important;
+  border-color: #00545e !important;
   box-shadow: 0 12px 24px rgba(0, 84, 94, 0.3);
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+button.primary:hover,
+button.primary:focus,
+button.primary:active,
+button.primary:focus-visible {
+  background: #00545e !important;
+  background-image: linear-gradient(120deg, #00545e 0%, #0d6f79 100%) !important;
+  color: #ffffff !important;
+  border-color: #00545e !important;
+  outline: none !important;
+  box-shadow: 0 12px 24px rgba(0, 84, 94, 0.3) !important;
+}
+
+button:focus,
+button:active,
+button:focus-visible {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button.secondary {
