@@ -1,7 +1,7 @@
 {
   "name": "utably-job-importer-extension",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.5",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs && node scripts/firefox-build.mjs && node scripts/safari-convert.mjs --optional && node scripts/prod-build.mjs --optional",

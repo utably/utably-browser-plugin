@@ -43,6 +43,9 @@ async function transformManifest() {
   const manifestPath = path.join(PROD_CHROME_EDGE_DIR, "manifest.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 
+  // Prod build ships under the clean public name.
+  manifest.name = "Utably Job Importer";
+
   if (Array.isArray(manifest.host_permissions)) {
     manifest.host_permissions = manifest.host_permissions.filter((h) => !isDevHostEntry(h));
   }
@@ -59,16 +62,20 @@ async function transformPopupHtml() {
   const popupPath = path.join(PROD_CHROME_EDGE_DIR, "popup.html");
   let html = await readFile(popupPath, "utf8");
 
-  // Remove the entire <div id="settings"> ... </div> block (debug mode UI).
+  // IMPORTANT: do not remove #toggleSettings or #settings from the DOM.
+  // popup.js looks them up in dom.js and binds listeners; if they are gone,
+  // `els.toggleSettings.addEventListener` throws and the entire popup init
+  // halts (no Privacy / Connect / Logout handlers wired).
+  //
+  // Instead, hide the toggle button and the settings panel via inline
+  // styles so they exist in the DOM but cannot be reached by the user.
   html = html.replace(
-    /\n\s*<div id="settings"[\s\S]*?<\/div>\s*<\/div>\s*\n/,
-    "\n"
+    /<button id="toggleSettings" class="link">/,
+    '<button id="toggleSettings" class="link" style="display:none !important">'
   );
-
-  // Remove the Settings toggle button from the header.
   html = html.replace(
-    /\s*<button id="toggleSettings"[^>]*>[\s\S]*?<\/button>/,
-    ""
+    /<div id="settings" class="panel hidden">/,
+    '<div id="settings" class="panel hidden" style="display:none !important">'
   );
 
   await writeFile(popupPath, html, "utf8");
