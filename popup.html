@@ -32,7 +32,7 @@
           <div class="modal-body">
             <p>
               Utably Import is designed for user-controlled imports. We only collect and send data when you explicitly
-              click <strong>Save to Utably</strong>.
+              click <strong>Save to Utably</strong> or <strong>FitCheck</strong>.
             </p>
             <ul>
               <li>User-initiated only: no background crawling across websites.</li>
@@ -43,9 +43,14 @@
               <li>Authentication uses short-lived extension tokens and revocable sessions.</li>
             </ul>
             <p class="modal-footnote">
-              Data policy last updated: February 19, 2026. For full legal terms and data rights, visit Utably legal
-              pages in the selected stage.
+              Operated by Utably Limited (UK). For full legal terms and your data rights see:
             </p>
+            <ul class="legal-links">
+              <li><a class="legal-link" data-legal-path="/Privacy-Policy#browser-extension" href="https://app.utably.com/Privacy-Policy#browser-extension" target="_blank" rel="noopener noreferrer">Privacy Policy (Browser Extension)</a></li>
+              <li><a class="legal-link" data-legal-path="/terms-of-service#browser-extension" href="https://app.utably.com/terms-of-service#browser-extension" target="_blank" rel="noopener noreferrer">Terms of Service (Browser Extension)</a></li>
+              <li><a class="legal-link" data-legal-path="/Cookie-Policy" href="https://app.utably.com/Cookie-Policy" target="_blank" rel="noopener noreferrer">Cookie Policy</a></li>
+              <li><a class="legal-link" data-legal-path="/imprint" href="https://app.utably.com/imprint" target="_blank" rel="noopener noreferrer">Imprint / Legal Notice</a></li>
+            </ul>
           </div>
         </div>
       </div>
@@ -66,6 +71,110 @@
             <div class="confirm-actions">
               <button id="resetConfirmNo" class="secondary">No</button>
               <button id="resetConfirmYes" class="primary">Sure</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="fitCheckModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fitCheckTitle"
+      >
+        <div class="modal-card fitcheck-card">
+          <div class="modal-header">
+            <div id="fitCheckTitle" class="modal-title">FitCheck Results</div>
+            <div class="modal-header-actions">
+              <button id="reanalyzeFitCheckBtn" class="link" title="Run fresh analysis">Reanalyze</button>
+              <button id="closeFitCheckBtn" class="link">Close</button>
+            </div>
+          </div>
+          <div class="modal-body fitcheck-body">
+            <div id="fitCheckTrafficLight" class="fitcheck-traffic-light">
+              <div class="traffic-light-icon"></div>
+              <div class="traffic-light-label"></div>
+            </div>
+
+            <div id="fitCheckScore" class="fitcheck-score">
+              <div class="score-circle">
+                <span class="score-value">--</span>
+              </div>
+              <div class="score-label">Overall Fit Score</div>
+            </div>
+
+            <div id="fitCheckSummary" class="fitcheck-section">
+              <div class="fitcheck-section-title">Summary</div>
+              <p class="fitcheck-summary-text"></p>
+            </div>
+
+            <div id="fitCheckQualification" class="fitcheck-section">
+              <div class="fitcheck-section-title">Qualification Fit</div>
+              <div class="fitcheck-qualification-badge"></div>
+              <ul class="fitcheck-signals"></ul>
+            </div>
+
+            <div id="fitCheckSkills" class="fitcheck-section">
+              <div class="fitcheck-section-title">Skills Analysis</div>
+              <div class="fitcheck-skills-grid">
+                <div class="skills-matching">
+                  <div class="skills-label">Matching</div>
+                  <div class="skills-list"></div>
+                </div>
+                <div class="skills-gaps">
+                  <div class="skills-label">Gaps</div>
+                  <div class="skills-list"></div>
+                </div>
+                <div class="skills-bonus">
+                  <div class="skills-label">Bonus</div>
+                  <div class="skills-list"></div>
+                </div>
+              </div>
+            </div>
+
+            <div id="fitCheckPreferences" class="fitcheck-section">
+              <div class="fitcheck-section-title">Preferences Match</div>
+              <div class="fitcheck-preferences-grid">
+                <div class="pref-item" data-pref="salary">
+                  <span class="pref-icon"></span>
+                  <span class="pref-label">Salary</span>
+                  <span class="pref-status"></span>
+                </div>
+                <div class="pref-item" data-pref="location">
+                  <span class="pref-icon"></span>
+                  <span class="pref-label">Location</span>
+                  <span class="pref-status"></span>
+                </div>
+                <div class="pref-item" data-pref="remote">
+                  <span class="pref-icon"></span>
+                  <span class="pref-label">Remote</span>
+                  <span class="pref-status"></span>
+                </div>
+              </div>
+            </div>
+
+            <div id="fitCheckPersonality" class="fitcheck-section">
+              <div class="fitcheck-section-title">Work Style Fit</div>
+              <p class="fitcheck-personality-text"></p>
+            </div>
+
+            <div id="fitCheckKeyPoints" class="fitcheck-section">
+              <div class="fitcheck-columns">
+                <div class="strengths-column">
+                  <div class="fitcheck-section-title">Top Strengths</div>
+                  <ul class="fitcheck-strengths-list"></ul>
+                </div>
+                <div class="concerns-column">
+                  <div class="fitcheck-section-title">Concerns</div>
+                  <ul class="fitcheck-concerns-list"></ul>
+                </div>
+              </div>
+            </div>
+
+            <div class="fitcheck-ai-disclaimer">
+              <span class="disclaimer-icon">&#9432;</span>
+              AI-generated analysis based on your profile. Results are suggestions, not guarantees.
             </div>
           </div>
         </div>
@@ -116,7 +225,7 @@
       </section>
 
       <div id="appContent" class="hidden">
-        <div class="trust-pill trust-pill-inline">Data is only sent when you click Save to Utably.</div>
+        <div class="trust-pill trust-pill-inline">Your data stays local until you Save or run FitCheck.</div>
 
         <section class="hero">
           <div class="hero-text">
@@ -158,6 +267,17 @@
 
           <label class="label">Job description</label>
           <textarea id="jobText" rows="7" placeholder="Paste role details from the posting"></textarea>
+
+          <div id="fitCheckInline" class="fitcheck-inline">
+            <div class="fitcheck-source-indicator">
+              <span class="indicator-icon">&#9432;</span>
+              <span class="indicator-text">Analyzes the job details above against your profile</span>
+            </div>
+            <button id="fitCheckBtn" class="secondary fitcheck-btn" title="Analyze how well this job matches your profile">
+              <span class="fitcheck-btn-icon">&#9733;</span>
+              <span class="fitcheck-btn-text">FitCheck</span>
+            </button>
+          </div>
 
           <label class="label">Source URL</label>
           <input id="jobUrl" type="text" placeholder="https://jobs.utably.com/roles/..." />

@@ -7,9 +7,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 
-const CHROME_EDGE_DIR = path.join(projectRoot, "dist", "utably-browser-plugin-chrome-edge");
-const SAFARI_INPUT_DIR = path.join(projectRoot, ".tmp", "safari-dist");
-const DEFAULT_PROJECT_LOCATION = path.join(projectRoot, "dist", "utably-browser-plugin-safari");
+const CHROME_EDGE_DIR = process.env.UTABLY_SOURCE_DIR
+  ? path.resolve(process.env.UTABLY_SOURCE_DIR)
+  : path.join(projectRoot, "dist", "utably-browser-plugin-chrome-edge");
+const SAFARI_INPUT_DIR = process.env.UTABLY_SAFARI_TMP
+  ? path.resolve(process.env.UTABLY_SAFARI_TMP)
+  : path.join(projectRoot, ".tmp", "safari-dist");
+const DEFAULT_PROJECT_LOCATION = process.env.UTABLY_OUT_DIR
+  ? path.resolve(process.env.UTABLY_OUT_DIR)
+  : path.join(projectRoot, "dist", "utably-browser-plugin-safari");
 const DEFAULT_APP_NAME = "Utably Job Importer";
 const DEFAULT_BUNDLE_ID = "com.utably.importer";
 

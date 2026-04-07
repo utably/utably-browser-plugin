@@ -26,7 +26,14 @@
     switch (portal) {
       case "reed":
         return {
-          company: ["[data-qa='company-name']", ".companyName", "[class*='company']"],
+          company: [
+            "[data-qa='company-name']",
+            "[data-testid='company-name']",
+            "[data-qa='job-company']",
+            ".companyName",
+            "[class*='company-name']",
+            "[class*='company']",
+          ],
           title: ["h1[data-qa='job-title']", ".job-header h1", "h1"],
           location: ["[data-qa='job-location']", ".location", "[class*='location']"],
           description: ["#jobDescription", "[data-qa='job-description']", ".description"],
@@ -89,22 +96,54 @@
           location: ["[class*='location']", "[data-testid='job-location']"],
           description: ["[class*='job-description']", "article", "main"],
         };
+      }
+  }
+
+  function cleanReedCompany(rawCompany, normalize) {
+    const text = normalize(rawCompany);
+    if (!text) return "";
+    return normalize(text.replace(/^company\s*/i, "").replace(/^posted by\s*/i, ""));
+  }
+
+  function inferReedCompanyFromTitle(rawTitle, normalize) {
+    const text = normalize(rawTitle);
+    if (!text) return "";
+    const match = text.match(/\bby\s+(.+)$/i);
+    return normalize(match?.[1] || "");
+  }
+
+  function cleanReedTitle(rawTitle, company, normalize) {
+    let title = normalize(rawTitle);
+    if (!title) return "";
+    title = normalize(title.replace(/^job title\s*/i, ""));
+    title = normalize(title.replace(/\bposted by\b.*$/i, ""));
+    title = normalize(title.replace(/\s*\d{1,2}\s+[A-Za-z]+\s*(?:\d{4})?\s*(?:by\s+.*)?$/i, ""));
+    if (company) {
+      const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      title = normalize(title.replace(new RegExp(`\\bby\\s+${escaped}$`, "i"), ""));
+    } else {
+      title = normalize(title.replace(/\bby\s+.*$/i, ""));
     }
+    return title;
   }
 
   async function extract(ctx) {
-    const { queryFirstText, sanitizeText, cleanTitle, metaValue } = ctx;
+    const { normalize, queryFirstText, sanitizeText, cleanTitle, metaValue } = ctx;
     const host = location.hostname.toLowerCase();
     const portal = detectPortal(host);
     const selectors = selectorsForPortal(portal);
 
-    const company = queryFirstText(selectors.company);
+    const rawCompany = queryFirstText(selectors.company);
     const rawTitle = queryFirstText(selectors.title) || metaValue("og:title", "property") || document.title;
     const location = queryFirstText(selectors.location);
     const description = sanitizeText(queryFirstText(selectors.description));
+    const companyFromTitle = portal === "reed" ? inferReedCompanyFromTitle(rawTitle, normalize) : "";
+    const company =
+      portal === "reed" ? cleanReedCompany(rawCompany, normalize) || companyFromTitle : rawCompany;
+    const cleanRawTitle = portal === "reed" ? cleanReedTitle(rawTitle, company, normalize) : rawTitle;
 
     return {
-      title: cleanTitle(rawTitle, company),
+      title: cleanTitle(cleanRawTitle, company),
       company,
       location,
       recruiterName: "",
@@ -119,4 +158,3 @@
     extract,
   });
 })();
-

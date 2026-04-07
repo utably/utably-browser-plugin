@@ -2,6 +2,7 @@
 .tmp/
 dist/
 node_modules/
+.claude
 
 # OS files
 .DS_Store
