@@ -4,10 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs && node scripts/firefox-build.mjs && node scripts/safari-convert.mjs --optional",
+    "build": "node scripts/build.mjs && node scripts/firefox-build.mjs && node scripts/safari-convert.mjs --optional && node scripts/prod-build.mjs --optional",
     "clean": "rm -rf dist",
     "build:chrome": "node scripts/build.mjs",
     "build:firefox": "npm run build:chrome && node scripts/firefox-build.mjs",
-    "safari:convert": "npm run build:chrome && node scripts/safari-convert.mjs"
+    "safari:convert": "npm run build:chrome && node scripts/safari-convert.mjs",
+    "build:prod": "node scripts/build.mjs && node scripts/prod-build.mjs --optional"
   }
 }

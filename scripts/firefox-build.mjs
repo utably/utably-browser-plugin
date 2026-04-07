@@ -6,8 +6,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 
-const CHROME_EDGE_DIR = path.join(projectRoot, "dist", "utably-browser-plugin-chrome-edge");
-const FIREFOX_DIR = path.join(projectRoot, "dist", "utably-browser-plugin-firefox");
+const CHROME_EDGE_DIR = process.env.UTABLY_SOURCE_DIR
+  ? path.resolve(process.env.UTABLY_SOURCE_DIR)
+  : path.join(projectRoot, "dist", "utably-browser-plugin-chrome-edge");
+const FIREFOX_DIR = process.env.UTABLY_OUT_DIR
+  ? path.resolve(process.env.UTABLY_OUT_DIR)
+  : path.join(projectRoot, "dist", "utably-browser-plugin-firefox");
 const DEFAULT_GECKO_ID = "utably-job-importer@utably.com";
 
 function getArgValue(name, fallback) {
