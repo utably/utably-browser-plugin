@@ -27,16 +27,14 @@ function getOriginPattern(urlString) {
 }
 
 export async function ensureHostAccessForTab(tab) {
-  const originPattern = getOriginPattern(tab?.url || "");
-  if (!originPattern) return;
-
-  const hasAccess = await chrome.permissions.contains({ origins: [originPattern] });
-  if (hasAccess) return;
-
-  const granted = await chrome.permissions.request({ origins: [originPattern] });
-  if (!granted) {
-    throw new Error("Host access denied. Allow access to this site to use Auto-fill.");
-  }
+  // No-op. The extension no longer declares broad optional_host_permissions,
+  // so it cannot request arbitrary origins at runtime. Instead, all DOM
+  // access is obtained via the `activeTab` permission, which the browser
+  // grants for the active tab whenever the user invokes the extension's
+  // action (clicks the toolbar icon, opens the popup, or uses the keyboard
+  // shortcut). chrome.scripting.executeScript({ target: { tabId } }) will
+  // succeed for that tab while the popup remains open.
+  void tab;
 }
 
 async function runAdapterExtraction(tabId) {

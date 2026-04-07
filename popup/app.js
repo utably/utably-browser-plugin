@@ -25,11 +25,13 @@ const MANUAL_FALLBACK_MS = 120_000;
 const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
 const IS_SAFARI = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
+// Host access is now obtained via the `activeTab` permission, which is granted
+// automatically when the user invokes the extension's action (i.e. opens this
+// popup). No proactive broad-host permission request is performed; this keeps
+// the install/grant prompt minimal ("This extension can read the site you're
+// currently on" rather than "all sites you visit").
 function requestBroadHostAccessFromGesture() {
-  if (!IS_FIREFOX) {
-    return Promise.resolve(true);
-  }
-  return chrome.permissions.request({ origins: ["https://*/*", "http://*/*"] });
+  return Promise.resolve(true);
 }
 
 function normalizeDraft(rawValue) {
@@ -891,8 +893,18 @@ function wireListeners(els, auth, sidePanel) {
 
   const isPrivacyOpen = () => !els.privacyModal.classList.contains("hidden");
 
+  const refreshLegalLinkHrefs = () => {
+    const base = getAppUrl(els);
+    const links = els.privacyModal.querySelectorAll("a.legal-link[data-legal-path]");
+    links.forEach((link) => {
+      const path = link.getAttribute("data-legal-path") || "";
+      link.setAttribute("href", `${base}${path}`);
+    });
+  };
+
   const openPrivacy = () => {
     lastFocusedBeforeModal = document.activeElement;
+    refreshLegalLinkHrefs();
     els.privacyModal.classList.remove("hidden");
     const [firstFocusable] = getFocusableElements(els.privacyModal);
     firstFocusable?.focus();
