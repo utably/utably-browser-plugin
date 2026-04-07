@@ -545,6 +545,20 @@ button.link.is-loading::before {
   color: var(--text-muted);
 }
 
+.legal-links {
+  margin-top: 4px;
+  padding-left: 18px;
+}
+
+.legal-links a {
+  color: var(--text-muted);
+  text-decoration: underline;
+}
+
+.legal-links a:hover {
+  color: var(--text);
+}
+
 .confirm-actions {
   display: flex;
   justify-content: flex-end;
