@@ -612,7 +612,6 @@ function createFitCheckController(els, setStatusText) {
     if (!forceRefresh && cacheKey) {
       const cached = await getCachedFitCheck(cacheKey);
       if (cached) {
-        console.log("[FitCheck] Using cached result");
         cachedResult = cached;
         return cached;
       }
@@ -626,25 +625,19 @@ function createFitCheckController(els, setStatusText) {
       jobUrl: trimOrEmpty(els.jobUrl.value),
     };
 
-    console.log("[FitCheck] Starting with jobPosting:", jobPosting);
-
     if (!jobPosting.jobText) {
       throw new Error("Job description is required for FitCheck.");
     }
 
-    console.log("[FitCheck] Sending message to background...");
     const response = await chrome.runtime.sendMessage({
       type: "UTABLY_FITCHECK",
       jobPosting,
     });
 
-    console.log("[FitCheck] Response from background:", response);
-
     if (!response?.ok) {
       throw new Error(response?.error || "FitCheck failed.");
     }
 
-    console.log("[FitCheck] Success, result:", response.result);
     cachedResult = response.result;
 
     // Save to cache

@@ -1,2 +1,19 @@
-# Everyone owns everything:
+# Default owner for everything in the repo.
+# External contributions require review from a Utably maintainer.
 * @utably/utably-prod-approver @sievertj
+
+# Security-sensitive paths — require explicit Utably maintainer review.
+# These touch auth token handling, the extension manifest surface, and the
+# build scripts that produce distributable artifacts.
+/background.js        @utably/utably-prod-approver @sievertj
+/manifest.json        @utably/utably-prod-approver @sievertj
+/popup/               @utably/utably-prod-approver @sievertj
+/scripts/             @utably/utably-prod-approver @sievertj
+/.github/             @utably/utably-prod-approver @sievertj
+/LICENSE              @utably/utably-prod-approver @sievertj
+/NOTICE               @utably/utably-prod-approver @sievertj
+/SECURITY.md          @utably/utably-prod-approver @sievertj
+
+# Brand assets are not community-editable (see NOTICE).
+/icons/               @utably/utably-prod-approver @sievertj
+/assets/              @utably/utably-prod-approver @sievertj

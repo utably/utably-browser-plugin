@@ -1,0 +1,74 @@
+name: Bug report
+description: Something in the extension is broken.
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please provide as
+        much detail as possible so we can reproduce it.
+
+        **Security issues** should NOT be filed here — see
+        [SECURITY.md](../../SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      description: Shown at the bottom of the side panel, or in `chrome://extensions`.
+      placeholder: "0.1.5"
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Chrome
+        - Edge
+        - Firefox
+        - Safari
+        - Other (specify below)
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 14.5, Windows 11, Ubuntu 24.04, ..."
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what did you see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Numbered list, please. Include a link to the job posting if relevant (public links only — do not include internal or login-gated URLs).
+      placeholder: |
+        1. Open https://example.com/job/12345
+        2. Click the Utably icon in the toolbar
+        3. Click "Auto-fill"
+        4. Observe that the company field is empty
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console / service worker logs
+      description: Any relevant errors from the browser console or the extension service worker. Please redact tokens.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checklist
+      options:
+        - label: I am running the latest released version of the extension.
+          required: true
+        - label: I have not included any tokens, passwords, or personal data in this report.
+          required: true

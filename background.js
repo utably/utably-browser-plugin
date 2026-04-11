@@ -308,15 +308,12 @@ async function findDuplicateImport(candidate) {
 }
 
 async function sendFitCheck(jobPosting) {
-  console.log("[sendFitCheck] Starting...");
   const settings = await getSettings();
-  console.log("[sendFitCheck] Settings:", { apiBase: settings.apiBase, stage: settings.stage });
 
   const token = await ensureAccessToken(settings);
   if (!token) {
     throw new Error("Not connected. Please connect to Utably first.");
   }
-  console.log("[sendFitCheck] Got token, making fetch to:", `${settings.apiBase}/extension/llm`);
 
   const res = await fetch(`${settings.apiBase}/extension/llm`, {
     method: "POST",
@@ -330,20 +327,15 @@ async function sendFitCheck(jobPosting) {
     }),
   });
 
-  console.log("[sendFitCheck] Fetch response status:", res.status);
-
   if (!res.ok) {
     const json = await res.json().catch(() => null);
-    console.log("[sendFitCheck] Error response body:", json);
     const message = trim(json?.message || json?.error || "") || `HTTP ${res.status}`;
     const err = new Error(message);
     err.code = trim(json?.error || json?.code || "");
     throw err;
   }
 
-  const json = await res.json();
-  console.log("[sendFitCheck] Success response:", json);
-  return json;
+  return await res.json();
 }
 
 async function openSidePanelForActiveTab() {
@@ -603,12 +595,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "UTABLY_FITCHECK") {
-    console.log("[FitCheck BG] Received request:", message.jobPosting);
     (async () => {
       try {
-        console.log("[FitCheck BG] Calling sendFitCheck...");
         const result = await sendFitCheck(message.jobPosting || {});
-        console.log("[FitCheck BG] sendFitCheck returned:", result);
         sendResponse({ ok: true, result });
       } catch (err) {
         console.error("[FitCheck BG] Error:", err);

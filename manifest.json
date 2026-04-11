@@ -16,8 +16,7 @@
     "matches": [
       "https://app.utably.com/*",
       "https://app.dev.utably.com/*",
-      "https://app.test.utably.com/*",
-      "http://app.dev.utably.com/*"
+      "https://app.test.utably.com/*"
     ]
   },
   "side_panel": {
