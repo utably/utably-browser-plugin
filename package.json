@@ -33,6 +33,7 @@
     "build:chrome": "node scripts/build.mjs",
     "build:firefox": "npm run build:chrome && node scripts/firefox-build.mjs",
     "safari:convert": "npm run build:chrome && node scripts/safari-convert.mjs",
-    "build:prod": "node scripts/build.mjs && node scripts/prod-build.mjs --optional"
+    "build:prod": "node scripts/build.mjs && node scripts/prod-build.mjs --optional",
+    "test": "node --test tests/*.test.mjs"
   }
 }

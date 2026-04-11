@@ -167,6 +167,10 @@ Please verify your adapter before opening a PR:
   certify you wrote the change (or have the right to submit it) under
   Apache-2.0. See https://developercertificate.org/.
 - **Keep the history clean.** Squash WIP commits before requesting review.
+- **Run the tests.** Execute `npm test` before opening a PR. The suite
+  is built on Node's native test runner (`node --test`) — no install
+  step, no dev dependencies. CI runs the same command on Node 18, 20,
+  and 22.
 
 ### Merge strategy
 

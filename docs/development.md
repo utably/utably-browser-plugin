@@ -13,6 +13,7 @@ see the result.
 - [Multi-browser builds](#multi-browser-builds)
 - [Project layout](#project-layout)
 - [Build commands](#build-commands)
+- [Testing](#testing)
 - [Common issues](#common-issues)
 
 ---
@@ -224,9 +225,42 @@ utably-browser-plugin/
 | `npm run build:firefox` | Builds Chrome/Edge, then packages Firefox XPI. |
 | `npm run safari:convert` | Builds Chrome/Edge, then runs Xcode conversion (macOS only). |
 | `npm run build` | Builds all three targets + the production build. Use before tagging a release. |
+| `npm run build:prod` | Builds the clean production variant (no debug UI, dev hosts stripped) under `dist/prod/`. |
 | `npm run clean` | Removes `dist/`. |
+| `npm test` | Runs the test suite via Node's native test runner. |
 
 **For iterating on code, `npm run build:chrome` is all you need.**
+
+## Testing
+
+The project ships with a small test suite under `tests/` covering:
+
+- **Metadata invariants** — `manifest.json` / `package.json` version
+  parity, MV3 shape, permission surface, icon sizes.
+- **Adapter registry** — static validation that every `webpages/*.js`
+  adapter has the required shape, unique id, in-range priority, and is
+  registered in `EXTRACTION_SCRIPT_FILES`.
+- **`common.js` helpers** — unit tests for `normalize`, `sanitizeText`,
+  and `cleanTitle` via a Node `vm` sandbox.
+- **Build output** — executes both the dev and prod builds, asserts the
+  prod stripper removes dev hosts, hides the Debug Mode UI, and strips
+  `console.log/debug/info` while preserving `console.error/warn`.
+
+Run locally:
+
+```bash
+npm test
+```
+
+The tests use Node's built-in runner (`node --test`, available since
+Node 18), so there is nothing to install. CI runs the same command on
+Node 18, 20, and 22 via `.github/workflows/test.yml`.
+
+**Write tests for new adapters** is explicitly **not** required — the
+adapter shape test covers every file automatically. The most useful
+thing you can do for a new adapter is include at least two real job
+posting URLs and screenshots of the side-panel review screen in the PR
+(see [`../CONTRIBUTING.md`](../CONTRIBUTING.md)).
 
 ## Common issues
 

@@ -49,6 +49,7 @@ Screenshots of the side-panel review screen showing extracted fields:
 - [ ] I have read [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [ ] My commits are signed off (`git commit -s`) per the DCO
 - [ ] I have tested the build locally (`npm run build`)
+- [ ] I have run the test suite (`npm test`) and it passes
 - [ ] This PR does not introduce new runtime dependencies
 - [ ] This PR does not introduce new backend endpoints
 - [ ] This PR does not broaden the extension's permissions model
