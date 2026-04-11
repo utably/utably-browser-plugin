@@ -103,6 +103,20 @@ test("manifest.json host_permissions are scoped to *.utably.com", async () => {
   );
 });
 
+test("manifest.json declares optional_host_permissions for runtime broad-host prompt", async () => {
+  // The extension requests broad host access at runtime from within a user
+  // gesture (first Auto-fill or Capture click), so the field must exist and
+  // be exactly ["*://*/*"]. Narrowing it would break the runtime prompt for
+  // arbitrary job boards; widening it (e.g. adding file:///*) would expand
+  // the review surface without purpose.
+  const manifest = await readJson("manifest.json");
+  assert.deepEqual(
+    manifest.optional_host_permissions,
+    ["*://*/*"],
+    "optional_host_permissions must be exactly ['*://*/*'] — this is what popup/app.js requests at runtime"
+  );
+});
+
 test("manifest.json externally_connectable is scoped to *.utably.com", async () => {
   const manifest = await readJson("manifest.json");
   const matches = manifest.externally_connectable?.matches || [];

@@ -25,13 +25,25 @@ const MANUAL_FALLBACK_MS = 120_000;
 const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
 const IS_SAFARI = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-// Host access is now obtained via the `activeTab` permission, which is granted
-// automatically when the user invokes the extension's action (i.e. opens this
-// popup). No proactive broad-host permission request is performed; this keeps
-// the install/grant prompt minimal ("This extension can read the site you're
-// currently on" rather than "all sites you visit").
+// Host access is obtained at runtime via `optional_host_permissions` — the
+// user gets a one-time Chrome prompt ("Allow this extension to read and
+// change all your data on websites you visit") the first time they invoke
+// Auto-fill or Capture. This must be called *synchronously* from within a
+// user-gesture handler (e.g. a click listener) so Chrome recognizes the
+// gesture and shows the prompt. Returns a Promise<boolean>: true if the
+// user already granted or just granted, false on denial or error.
 function requestBroadHostAccessFromGesture() {
-  return Promise.resolve(true);
+  if (!chrome?.permissions?.request) {
+    return Promise.resolve(false);
+  }
+  try {
+    return chrome.permissions
+      .request({ origins: ["*://*/*"] })
+      .then((granted) => Boolean(granted))
+      .catch(() => false);
+  } catch {
+    return Promise.resolve(false);
+  }
 }
 
 function normalizeDraft(rawValue) {

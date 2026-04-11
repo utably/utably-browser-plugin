@@ -106,6 +106,19 @@ test("prod build strips dev/test host permissions", async () => {
   assert.deepEqual(manifest.host_permissions, ["https://api.utably.com/*"]);
 });
 
+test("prod build preserves optional_host_permissions", async () => {
+  // The runtime broad-host prompt depends on this field surviving the
+  // prod stripper. If it's ever dropped, Auto-fill and Capture will fail
+  // silently on the public release because chrome.permissions.request
+  // can only ask for origins listed in optional_host_permissions.
+  const manifest = await readJson(path.join(prodDir, "manifest.json"));
+  assert.deepEqual(
+    manifest.optional_host_permissions,
+    ["*://*/*"],
+    "prod build must preserve optional_host_permissions so the runtime permission prompt still works"
+  );
+});
+
 test("prod build strips dev/test externally_connectable matches", async () => {
   const manifest = await readJson(path.join(prodDir, "manifest.json"));
   assert.deepEqual(manifest.externally_connectable.matches, ["https://app.utably.com/*"]);

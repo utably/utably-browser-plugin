@@ -83,8 +83,12 @@ For context, the extension's design assumes:
   short-lived access tokens and longer-lived refresh tokens in
   `chrome.storage.local`. Tokens are only issued after the user completes an
   authenticated session in the Utably web app.
-- Host permissions for job boards are requested **per-origin at runtime**,
-  not granted at install time.
+- Host permissions for job boards are declared as `optional_host_permissions`
+  and requested **at runtime from a user gesture**, not granted at install
+  time. On first use of Auto-fill or Capture the browser shows the native
+  Chrome permission prompt; the user must approve it before any page content
+  is read. If the user declines, Auto-fill and Capture fail loudly with an
+  actionable error message.
 - The extension never auto-submits data. All imports and FitCheck requests
   require an explicit user click.
 - LinkedIn adapter runs in **manual-description mode** by design and does not

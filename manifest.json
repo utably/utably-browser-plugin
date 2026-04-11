@@ -12,6 +12,7 @@
     "https://api.dev.utably.com/*",
     "https://api.test.utably.com/*"
   ],
+  "optional_host_permissions": ["*://*/*"],
   "externally_connectable": {
     "matches": [
       "https://app.utably.com/*",

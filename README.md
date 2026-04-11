@@ -104,8 +104,9 @@ dependencies** — the extension is hand-rolled vanilla JS, so
    the Utably web app to approve the connection. Tokens come back to
    the extension and live in `chrome.storage.local`.
 3. **Open a job posting** on any supported site.
-4. **Click Auto-fill.** The extension requests per-origin permission
-   (first time only), injects the adapter, and populates the form.
+4. **Click Auto-fill.** The first time you do this, Chrome prompts for
+   permission to read websites — approve it, and the extension injects
+   the adapter and populates the form.
 5. **Review the fields** — edit anything the adapter got wrong.
 6. *(Optional)* **Click FitCheck** for an AI analysis of how well the
    posting matches your profile.
@@ -213,8 +214,11 @@ Deeper dive in [`docs/architecture.md`](docs/architecture.md).
 
 - **Only reads pages you open**, only when you click Auto-fill, and
   only on that tab.
-- **Per-origin host permissions** requested at runtime, not granted at
-  install time. You can revoke them at any time in browser settings.
+- **Host access requested at runtime** via the browser's native
+  permission prompt. The first time you click Auto-fill or Capture,
+  Chrome asks whether the extension may read pages you visit — nothing
+  is read until you approve. You can revoke the grant at any time in
+  browser settings.
 - **No background crawling.** The extension does nothing while you
   don't have the side panel open.
 - **No credential capture.** The extension never touches password
