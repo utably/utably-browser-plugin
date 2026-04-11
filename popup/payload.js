@@ -96,13 +96,9 @@ export async function buildApplicationPayload(els) {
   if (!fitCheckResult) {
     const cacheKey = getFitCheckCacheKey(els);
     fitCheckResult = await getCachedFitCheckFromStorage(cacheKey);
-    console.log("[Payload] FitCheck from storage:", fitCheckResult ? "found" : "not found");
-  } else {
-    console.log("[Payload] FitCheck from memory cache");
   }
 
   const fitAnalysis = mapFitCheckToFitAnalysis(fitCheckResult);
-  console.log("[Payload] fitAnalysis:", fitAnalysis);
 
   return {
     id: crypto.randomUUID(),

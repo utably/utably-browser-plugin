@@ -1,4 +1,4 @@
-import { cp, mkdir, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,6 +36,16 @@ async function copyRuntimePath(relPath) {
   await cp(src, dst, { recursive: true });
 }
 
+// Decorate the built manifest name so sideloaded dev builds are visibly
+// distinct from the Chrome Web Store release ("Utably Job Importer").
+// prod-build.mjs overwrites this back to the clean name for store builds.
+async function decorateDevManifest() {
+  const manifestPath = path.join(chromeEdgeDir, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.name = `${manifest.name} (Dev ${manifest.version})`;
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+}
+
 async function main() {
   for (const runtimePath of runtimePaths) {
     await ensureRuntimePath(runtimePath);
@@ -47,6 +57,8 @@ async function main() {
   for (const runtimePath of runtimePaths) {
     await copyRuntimePath(runtimePath);
   }
+
+  await decorateDevManifest();
 
   console.log(`Built Chrome+Edge extension at ${chromeEdgeDir}`);
 }

@@ -1,0 +1,50 @@
+Utably Browser Plugin
+Copyright 2026 Utably
+
+This product includes software developed by Utably
+(https://utably.com).
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file
+for the full license text.
+
+================================================================================
+Trademarks
+================================================================================
+
+"Utably" and the Utably logo are trademarks of Utably. The Apache License,
+Version 2.0 does not grant permission to use Utably trademarks, trade names,
+logos, or product names, except as required for describing the origin of this
+Work and reproducing the content of this NOTICE file.
+
+================================================================================
+Brand Assets (icons/, assets/)
+================================================================================
+
+The files in the `icons/` and `assets/` directories (including but not limited
+to Utably logos, icon set, and marketing imagery) are NOT licensed under
+Apache-2.0. They are proprietary brand assets of Utably and are included in
+this repository solely so the extension can be built and run as-is for
+development and store submission of the official Utably extension.
+
+Forks, derivative works, or redistributions MUST replace these brand assets
+with their own before publishing to any extension store or distributing a
+modified build. Do not reuse Utably brand assets in forks, in other projects,
+or to imply endorsement by Utably.
+
+================================================================================
+Backend API
+================================================================================
+
+This extension communicates with Utably's backend API (https://api.utably.com
+and related environments). The backend is proprietary and is NOT part of this
+open source release. Forks that wish to use this extension against a different
+backend must implement and operate their own compatible API endpoints. Utably
+does not provide support, uptime guarantees, or access credentials to third-
+party forks.
+
+================================================================================
+Third-party notices
+================================================================================
+
+This project has no runtime dependencies. Build-time tooling uses Node.js
+built-ins only.

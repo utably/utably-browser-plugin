@@ -1,0 +1,66 @@
+name: Adapter request / broken adapter
+description: A job board isn't supported, or an existing adapter returns wrong/empty fields.
+title: "[adapter] "
+labels: ["adapter", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when a specific job board isn't extracting correctly,
+        or when you'd like to request support for a new board.
+
+        **If you're reporting a broken adapter, please include a link to a
+        real, publicly accessible job posting on the affected site.** Without
+        a reproducible URL we usually can't fix it.
+  - type: input
+    id: site
+    attributes:
+      label: Job board domain
+      placeholder: "example.com"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Request type
+      options:
+        - New adapter (site not yet supported)
+        - Broken adapter (fields missing or wrong)
+        - Broken adapter (site unsupported after recent redesign)
+    validations:
+      required: true
+  - type: input
+    id: posting-url
+    attributes:
+      label: Example posting URL
+      description: A public, logged-out-accessible job posting URL we can test against.
+      placeholder: "https://example.com/jobs/senior-engineer-12345"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should be extracted?
+      description: "Paste what you expect each field to be: title, company, location, description excerpt."
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What is actually extracted?
+      description: Side-panel screenshot or paste of the auto-filled fields. Mark missing fields as `(empty)`.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      placeholder: "0.1.5"
+    validations:
+      required: true
+  - type: checkboxes
+    id: willingness
+    attributes:
+      label: Would you like to submit a PR?
+      options:
+        - label: I'd like to submit a PR fixing this adapter (see CONTRIBUTING.md)

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Utably Job Importer (Dev 0.1.5)",
+  "name": "Utably Job Importer",
   "version": "0.1.5",
   "description": "Import job postings into Utably with a user-reviewed preview.",
   "action": {
@@ -12,12 +12,12 @@
     "https://api.dev.utably.com/*",
     "https://api.test.utably.com/*"
   ],
+  "optional_host_permissions": ["*://*/*"],
   "externally_connectable": {
     "matches": [
       "https://app.utably.com/*",
       "https://app.dev.utably.com/*",
-      "https://app.test.utably.com/*",
-      "http://app.dev.utably.com/*"
+      "https://app.test.utably.com/*"
     ]
   },
   "side_panel": {
