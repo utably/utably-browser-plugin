@@ -30,17 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   playbook, and explicit safety rules.
 
 ### Removed
-- Debug `console.log` statements from `background.js`, `popup/app.js`,
-  and `popup/payload.js` that leaked FitCheck response bodies and job
-  posting payloads to the DevTools console. No tokens were ever
-  logged.
-- `http://app.dev.utably.com/*` from `manifest.json` `externally_connectable`
-  (leftover from pre-TLS local dev).
+- Verbose debug logging from the side panel and service worker code
+  paths.
+- A stale non-production origin from `manifest.json`
+  `externally_connectable`.
 
 ### Security
-- Hardened against accidental log leakage in FitCheck code paths.
 - Published security disclosure policy in `SECURITY.md` with
-  `support@utably.com` (subject prefix `[SECURITY]`) as the contact.
+  `security@utably.com` as the contact mailbox.
 
 ## [0.1.5] — Pre-open-source baseline
 

@@ -20,7 +20,7 @@ update before reporting.
 
 Report vulnerabilities privately via one of the following channels:
 
-- **Email:** `support@utably.com` with subject line prefixed `[SECURITY]`
+- **Email:** `security@utably.com` — goes to a dedicated, monitored mailbox.
 - **GitHub Security Advisories:** use the "Report a vulnerability" button in
   the [Security tab](https://github.com/utably/utably-browser-plugin/security)
   of this repository (preferred for structured disclosure).
@@ -51,9 +51,8 @@ confirmed high-severity issues within **30 days** of triage.
 
 **Out of scope**
 
-- The Utably backend API (`api.utably.com` and stage environments).
-  Report backend-side issues through the same `support@utably.com` address
-  with the `[SECURITY]` subject prefix, but they are tracked in a separate
+- The Utably backend API (`api.utably.com`). Report backend-side issues to
+  the same `security@utably.com` address — they are tracked in a separate
   private repository and are not part of this project.
 - Vulnerabilities in browser vendors (Chrome, Firefox, Safari, Edge) or in
   the browser extension runtime itself — please report those upstream.

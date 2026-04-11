@@ -2,6 +2,30 @@
   "name": "utably-job-importer-extension",
   "private": true,
   "version": "0.1.5",
+  "description": "Utably Browser Plugin — one-click job capture and FitCheck analysis from any job board into your Utably tracker.",
+  "license": "Apache-2.0",
+  "author": "Utably",
+  "homepage": "https://github.com/utably/utably-browser-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/utably/utably-browser-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/utably/utably-browser-plugin/issues"
+  },
+  "keywords": [
+    "browser-extension",
+    "chrome-extension",
+    "firefox-extension",
+    "safari-extension",
+    "manifest-v3",
+    "job-search",
+    "job-tracker",
+    "utably"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs && node scripts/firefox-build.mjs && node scripts/safari-convert.mjs --optional && node scripts/prod-build.mjs --optional",
