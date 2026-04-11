@@ -29,7 +29,7 @@ slides in with the title, company, location, and description already
 filled out. You review, optionally run an AI fit check against your
 profile, and click **Save**. That's the whole extension.
 
-- **One-click import** from **17 job boards** including LinkedIn, Indeed,
+- **One-click import** from **15+ job boards** including LinkedIn, Indeed,
   Glassdoor, ZipRecruiter, Google Careers, and most Greenhouse/Lever ATS
   pages.
 - **AI FitCheck** — a traffic-light score, skills breakdown, and
@@ -134,8 +134,6 @@ description yourself. This is intentional — see
 | 90 | [`ukPortals.js`](webpages/ukPortals.js) | UK job portals |
 | 80 | [`atsHosted.js`](webpages/atsHosted.js) | Greenhouse, Lever, Workday, and other ATS hosts |
 | 80 | [`builtin.js`](webpages/builtin.js) | BuiltIn |
-| 70 | [`simplyhired.js`](webpages/simplyhired.js) | SimplyHired |
-| 70 | [`remoteok.js`](webpages/remoteok.js) | RemoteOK |
 | 10 | [`generic.js`](webpages/generic.js) | Fallback (JSON-LD `JobPosting` + DOM scoring) |
 
 **Your favorite site missing or broken?**
