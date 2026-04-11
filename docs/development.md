@@ -40,6 +40,22 @@ minifier. It runs in well under a second on modern hardware.
 
 Output lands in `dist/utably-browser-plugin-chrome-edge/`.
 
+### Dev vs. prod builds
+
+There are two build variants and it matters which one you sideload:
+
+| Variant | Command | Output | Manifest name | Debug features |
+|---|---|---|---|---|
+| **Dev** (default) | `npm run build:chrome` | `dist/utably-browser-plugin-chrome-edge/` | `Utably Job Importer (Dev <version>)` | Debug Mode UI, `api.dev.utably.com` + `api.test.utably.com` host permissions, full `console.log` output |
+| **Prod** | `npm run build:prod` | `dist/prod/utably-browser-plugin-chrome-edge/` | `Utably Job Importer` | All of the above stripped |
+
+**Never sideload the repo root directly.** The raw `manifest.json` in
+the root is the dev variant's source — it declares the dev/test host
+permissions so Debug Mode works during development. Always load from
+`dist/…` after running a build. For a clean no-debug extension that
+matches the Chrome Web Store release, use `npm run build:prod` and
+load from `dist/prod/utably-browser-plugin-chrome-edge/`.
+
 ## Load the extension
 
 1. Open `chrome://extensions` (or `edge://extensions`).

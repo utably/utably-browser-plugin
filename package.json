@@ -1,6 +1,6 @@
 {
   "name": "utably-job-importer-extension",
-  "private": true,
+  "private": false,
   "version": "0.1.5",
   "description": "Utably Browser Plugin — one-click job capture and FitCheck analysis from any job board into your Utably tracker.",
   "license": "Apache-2.0",

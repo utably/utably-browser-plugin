@@ -12,13 +12,17 @@ valuable contribution type.
 - [Development setup](#development-setup)
 - [Adding or fixing a job board adapter](#adding-or-fixing-a-job-board-adapter)
 - [Pull request guidelines](#pull-request-guidelines)
+- [Merge strategy](#merge-strategy)
+- [Formatting](#formatting)
 - [Out of scope](#out-of-scope)
 
 ## Code of Conduct
 
-Be kind. Assume good intent. Don't harass contributors. Disagreements about
-technical direction are fine; personal attacks are not. Utably maintainers
-will enforce this at their discretion.
+This project follows a [Code of Conduct](CODE_OF_CONDUCT.md) adapted
+from the Contributor Covenant. In short: be kind, assume good intent,
+and don't harass contributors. Disagreements about technical direction
+are fine; personal attacks are not. Report violations to
+`conduct@utably.com`.
 
 ## Ways to contribute
 
@@ -163,6 +167,25 @@ Please verify your adapter before opening a PR:
   certify you wrote the change (or have the right to submit it) under
   Apache-2.0. See https://developercertificate.org/.
 - **Keep the history clean.** Squash WIP commits before requesting review.
+
+### Merge strategy
+
+- **Adapter PRs and small bug fixes:** squash-merged into the default
+  branch. One clean commit per PR keeps the history scannable.
+- **Larger core/docs changes:** squash or rebase, at maintainer
+  discretion. We do not use merge commits for PRs.
+- **Signed-off commits are preserved** across the squash — the final
+  merge commit message will include the `Signed-off-by:` trailer.
+
+### Formatting
+
+Two config files document the expected style:
+
+- [`.editorconfig`](.editorconfig) — indentation, line endings, trailing
+  whitespace. Most editors pick this up automatically.
+- [`.prettierrc.json`](.prettierrc.json) — Prettier settings if you
+  choose to run it (`npx --yes prettier --write <path>`). Prettier is
+  optional and is **not** a runtime or dev dependency of this project.
 
 ## Out of scope
 

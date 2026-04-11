@@ -1,5 +1,10 @@
 <!--
 Thanks for contributing! Please fill out the sections below.
+
+External contributors: open this PR against the **default branch**
+(do NOT target `utably-dev`, `utably-test`, `utably-staging`, or
+`utably-prod` — those are internal promotion branches, and Utably
+maintainers handle promotion after merge). See docs/branching.md.
 -->
 
 ## What does this change?
