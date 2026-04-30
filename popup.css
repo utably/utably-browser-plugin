@@ -146,13 +146,23 @@ body.sidepanel-mode .app {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .top-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   padding-top: 2px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+.top-actions button.link {
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 2px 3px;
 }
 
 .brand {
@@ -160,6 +170,8 @@ body.sidepanel-mode .app {
   align-items: flex-start;
   gap: 10px;
   padding-top: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .brand > div {
@@ -167,6 +179,7 @@ body.sidepanel-mode .app {
   flex-direction: column;
   gap: 3px;
   padding-top: 1px;
+  min-width: 0;
 }
 
 .logo {
@@ -623,6 +636,17 @@ body.sidepanel-mode .row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-row .label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-row .switch {
+  flex: 0 0 auto;
 }
 
 .switch {
@@ -1307,3 +1331,81 @@ body.sidepanel-mode .row {
 .modal-header-actions .link {
   font-size: 11px;
 }
+
+/* Save kind selector (Applied vs Saved) */
+.kind-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.kind-selector .kind-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  background: var(--button-bg);
+  color: var(--text-strong);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.kind-selector .kind-option:hover {
+  border-color: var(--border-strong);
+}
+
+.kind-selector .kind-option.is-active {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--action-contrast);
+}
+
+.kind-selector .kind-icon {
+  font-size: 13px;
+}
+
+.kind-selector .kind-option:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Post-save success notice */
+.notice.notice-success {
+  margin-top: 4px;
+  border-color: rgba(101, 208, 164, 0.86);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notice.notice-success:not(.hidden) {
+  display: flex;
+}
+
+.notice.notice-success .success-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.notice.notice-success .success-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.notice.notice-success .link {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 600;
+}
+

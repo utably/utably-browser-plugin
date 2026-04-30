@@ -1,24 +1,27 @@
-# Branching and Promotion Guard
+# Branching
 
-This extension follows the same promotion model as the main project.
+## For external contributors
 
-## Branches
+If you are contributing from outside Utably:
 
-- `utably-dev`
-- `utably-test`
-- `utably-staging`
-- `utably-prod`
+1. **Fork** this repository to your own GitHub account.
+2. **Create a topic branch** off the default branch (e.g.
+   `fix/indeed-adapter-selector`, `adapter/myboard`).
+3. **Open a pull request** against the default branch of
+   `utably/utably-browser-plugin`.
+4. A Utably maintainer will review. Adapter PRs typically merge quickly;
+   anything that touches `background.js`, `manifest.json`, or the build
+   scripts may take longer.
 
-## Allowed promotion path
+See [`CONTRIBUTING.md`](../CONTRIBUTING.md) for PR requirements.
 
-1. `utably-dev` -> `utably-test`
-1. `utably-test` -> `utably-staging`
-1. `utably-staging` -> `utably-prod`
+## For Utably maintainers
 
-Direct promotion that skips stages is blocked by the promotion guard workflow.
+This repository uses an internal promotion model across environment
+branches (`utably-dev` → `utably-test` → `utably-staging` → `utably-prod`).
+The promotion-guard workflow at `.github/workflows/promotion-guard.yml`
+enforces the allowed promotion pairs.
 
-## Workflow file
-
-- `.github/workflows/promotion-guard.yml`
-
-When this folder is moved to its own repository, keep that workflow at repo root `.github/workflows/`.
+External contributors do **not** need to target these branches — they are
+Utably-internal and a maintainer will handle promotion after merging your
+PR into the default branch.

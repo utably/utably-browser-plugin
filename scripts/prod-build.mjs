@@ -70,12 +70,12 @@ async function transformPopupHtml() {
   // Instead, hide the toggle button and the settings panel via inline
   // styles so they exist in the DOM but cannot be reached by the user.
   html = html.replace(
-    /<button id="toggleSettings" class="link">/,
-    '<button id="toggleSettings" class="link" style="display:none !important">'
+    /<button id="toggleSettings"([^>]*)>/,
+    '<button id="toggleSettings"$1 style="display:none !important">'
   );
   html = html.replace(
-    /<div id="settings" class="panel hidden">/,
-    '<div id="settings" class="panel hidden" style="display:none !important">'
+    /<div id="settings"([^>]*)>/,
+    '<div id="settings"$1 style="display:none !important">'
   );
 
   await writeFile(popupPath, html, "utf8");

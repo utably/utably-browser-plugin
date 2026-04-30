@@ -53,7 +53,7 @@ Authorization: Bearer <accessToken>
   jobTitle: "Job Title",            // required
   applicationDate: "YYYY-MM-DD",
   applicationMethod: "string",
-  status: "Applied",
+  status: "Applied",                // "Applied" or "Saved" (want-to-apply); other values are coerced to "Applied"
   jobUrl: "https://...",
   jobText: "Job description...",
   location: "City, Country",
@@ -65,6 +65,15 @@ Authorization: Bearer <accessToken>
   interviewRounds: [],
   attachments: "",
   source: "hostname"
+}
+```
+
+**Success response (201):**
+```json
+{
+  "id": "uuid-v4",
+  "applicationLink": "https://app.utably.com/applications/<id>",
+  "status": "Applied"
 }
 ```
 

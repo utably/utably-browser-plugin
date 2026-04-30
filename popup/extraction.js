@@ -27,14 +27,42 @@ function getOriginPattern(urlString) {
 }
 
 export async function ensureHostAccessForTab(tab) {
-  // No-op. The extension no longer declares broad optional_host_permissions,
-  // so it cannot request arbitrary origins at runtime. Instead, all DOM
-  // access is obtained via the `activeTab` permission, which the browser
-  // grants for the active tab whenever the user invokes the extension's
-  // action (clicks the toolbar icon, opens the popup, or uses the keyboard
-  // shortcut). chrome.scripting.executeScript({ target: { tabId } }) will
-  // succeed for that tab while the popup remains open.
-  void tab;
+  // Verify the user actually granted host access for this tab before we try
+  // to inject. This runs *after* requestBroadHostAccessFromGesture() has
+  // shown the Chrome prompt from within a user gesture — by the time we get
+  // here, the grant is either in place or the user declined. Checking
+  // chrome.permissions.contains() gives us a clean, actionable error message
+  // instead of letting chrome.scripting.executeScript fail with an opaque
+  // "Extension manifest must request permission to access this host".
+  if (!tab?.url) return;
+  const originPattern = getOriginPattern(tab.url);
+  if (!originPattern) {
+    // chrome://, about:, file:, etc. — we can't grant access to these.
+    throw new Error(
+      "This page type doesn't allow extension access. Open a regular website and try again."
+    );
+  }
+  if (!chrome?.permissions?.contains) return;
+  try {
+    const hasBroad = await chrome.permissions.contains({ origins: ["*://*/*"] });
+    if (hasBroad) return;
+    const hasOrigin = await chrome.permissions.contains({ origins: [originPattern] });
+    if (hasOrigin) return;
+  } catch {
+    // If the check itself throws, let the downstream executeScript call
+    // surface the real error.
+    return;
+  }
+  const host = (() => {
+    try {
+      return new URL(tab.url).hostname;
+    } catch {
+      return "this page";
+    }
+  })();
+  throw new Error(
+    `Host access required for ${host}. Click Auto-fill again and approve the Chrome permission prompt.`
+  );
 }
 
 async function runAdapterExtraction(tabId) {
