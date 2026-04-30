@@ -1,4 +1,10 @@
 import { DEFAULT_LOCAL_PORT, STAGE_APP_URL, STAGE_CONNECT_URL } from "./config.js";
+import {
+  applyTranslations,
+  getLocalePreference,
+  setLocalePreference,
+  t,
+} from "./i18n.js";
 
 export function normalizeLocalPort(rawPort) {
   const port = Number.parseInt(String(rawPort || ""), 10);
@@ -36,6 +42,9 @@ export async function loadSettings(els) {
   els.debugMode.checked = Boolean(stored.debugMode);
   els.stage.value = stored.stage || "prod";
   els.localPort.value = normalizeLocalPort(stored.localPort);
+  if (els.languageSelect) {
+    els.languageSelect.value = await getLocalePreference();
+  }
   updateStageSettingsUi(els);
 }
 
@@ -47,7 +56,11 @@ export async function saveSettings(els, setStatus) {
     stage: els.stage.value || "prod",
     localPort,
   });
-  setStatus("Settings saved.");
+  if (els.languageSelect) {
+    await setLocalePreference(els.languageSelect.value);
+    applyTranslations(document);
+  }
+  setStatus(t("settings.saved"));
 }
 
 export function getConnectUrl(els) {

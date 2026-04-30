@@ -1,4 +1,5 @@
 import { trimOrEmpty } from "./dom.js";
+import { getLocale } from "./i18n.js";
 
 const FITCHECK_CACHE_KEY = "utablyFitCheckCache";
 
@@ -15,7 +16,9 @@ function getFitCheckCacheKey(els) {
   const jobTitle = trimOrEmpty(els.jobTitle.value);
   const companyName = trimOrEmpty(els.companyName.value);
   const jobUrl = trimOrEmpty(els.jobUrl.value);
-  return jobUrl || `${jobTitle}::${companyName}`;
+  const locale = getLocale();
+  const base = jobUrl || `${jobTitle}::${companyName}`;
+  return base ? `${locale}::${base}` : "";
 }
 
 async function getCachedFitCheckFromStorage(cacheKey) {
@@ -80,6 +83,12 @@ function mapFitCheckToFitAnalysis(fitCheckResult) {
   };
 }
 
+function getSelectedKind(els) {
+  const active = els?.kindOptions?.find?.((btn) => btn.classList.contains("is-active"));
+  const value = active?.dataset?.kind;
+  return value === "Applied" ? "Applied" : "Saved";
+}
+
 export async function buildApplicationPayload(els) {
   const jobTitle = trimOrEmpty(els.jobTitle.value);
   const companyName = trimOrEmpty(els.companyName.value);
@@ -87,9 +96,10 @@ export async function buildApplicationPayload(els) {
     throw new Error("Job title and company are required.");
   }
 
-  const appliedDay = trimOrEmpty(els.applicationDate.value) || new Date().toISOString().slice(0, 10);
+  const status = getSelectedKind(els);
   const recruiterName = trimOrEmpty(els.recruiterName.value);
   const jobUrl = trimOrEmpty(els.jobUrl.value);
+  const appliedDay = trimOrEmpty(els.applicationDate.value) || new Date().toISOString().slice(0, 10);
 
   // Get cached FitCheck result - check memory first, then storage
   let fitCheckResult = window.__fitCheckController?.getCachedResult?.();
@@ -106,7 +116,7 @@ export async function buildApplicationPayload(els) {
     jobTitle,
     applicationDate: appliedDay,
     applicationMethod: "",
-    status: "Applied",
+    status,
     jobUrl,
     jobText: trimOrEmpty(els.jobText.value),
     location: trimOrEmpty(els.location.value) || undefined,

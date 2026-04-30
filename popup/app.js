@@ -17,6 +17,7 @@ import {
   prefillSourceUrl,
   refreshActiveTabContext,
 } from "./extraction.js";
+import { applyTranslations, getLocale, loadLocale, setLocalePreference, t } from "./i18n.js";
 
 const DRAFT_STORAGE_KEY = "utablyDraft";
 const CONNECT_PENDING_KEY = "utablyConnectPending";
@@ -46,6 +47,10 @@ function requestBroadHostAccessFromGesture() {
   }
 }
 
+function normalizeKind(value) {
+  return value === "Applied" ? "Applied" : "Saved";
+}
+
 function normalizeDraft(rawValue) {
   if (!rawValue || typeof rawValue !== "object") {
     return {
@@ -56,6 +61,7 @@ function normalizeDraft(rawValue) {
       recruiterName: "",
       jobText: "",
       jobUrl: "",
+      kind: "Saved",
       updatedAt: 0,
     };
   }
@@ -67,8 +73,55 @@ function normalizeDraft(rawValue) {
     recruiterName: trimOrEmpty(rawValue.recruiterName),
     jobText: trimOrEmpty(rawValue.jobText),
     jobUrl: trimOrEmpty(rawValue.jobUrl),
+    kind: normalizeKind(rawValue.kind),
     updatedAt: Number(rawValue.updatedAt || 0),
   };
+}
+
+function getSelectedKind(els) {
+  const active = els.kindOptions?.find((btn) => btn.classList.contains("is-active"));
+  return normalizeKind(active?.dataset?.kind);
+}
+
+function setSelectedKind(els, kind) {
+  const next = normalizeKind(kind);
+  els.kindOptions?.forEach((btn) => {
+    const isActive = btn.dataset.kind === next;
+    btn.classList.toggle("is-active", isActive);
+    btn.setAttribute("aria-checked", isActive ? "true" : "false");
+  });
+}
+
+function showSaveSuccess(els, { applicationLink, kind }) {
+  if (!els.saveSuccessNotice) return;
+  const messageKey = kind === "Saved" ? "success.savedSaved" : "success.savedApplied";
+  if (els.saveSuccessText) {
+    els.saveSuccessText.textContent = t(messageKey);
+  }
+  if (els.openSavedBtn) {
+    if (applicationLink) {
+      els.openSavedBtn.dataset.appLink = applicationLink;
+      els.openSavedBtn.classList.remove("hidden");
+    } else {
+      els.openSavedBtn.dataset.appLink = "";
+      els.openSavedBtn.classList.add("hidden");
+    }
+  }
+  els.saveSuccessNotice.classList.remove("hidden");
+  if (els.previewPanel) {
+    els.previewPanel.classList.add("hidden");
+  }
+}
+
+function hideSaveSuccess(els) {
+  if (!els.saveSuccessNotice) return;
+  els.saveSuccessNotice.classList.add("hidden");
+  if (els.openSavedBtn) {
+    els.openSavedBtn.dataset.appLink = "";
+  }
+  if (els.previewPanel) {
+    els.previewPanel.classList.remove("hidden");
+  }
 }
 
 function buildDraftFromForm(els) {
@@ -80,6 +133,7 @@ function buildDraftFromForm(els) {
     recruiterName: trimOrEmpty(els.recruiterName.value),
     jobText: trimOrEmpty(els.jobText.value),
     jobUrl: trimOrEmpty(els.jobUrl.value),
+    kind: getSelectedKind(els),
     updatedAt: Date.now(),
   };
 }
@@ -93,6 +147,7 @@ function applyDraftToForm(els, rawDraft) {
   els.recruiterName.value = draft.recruiterName || els.recruiterName.value;
   els.jobText.value = draft.jobText || els.jobText.value;
   els.jobUrl.value = draft.jobUrl || els.jobUrl.value;
+  setSelectedKind(els, draft.kind);
   return draft;
 }
 
@@ -148,13 +203,13 @@ function getDuplicateCandidate(els) {
 
 function clearDuplicateNotice(els) {
   els.duplicateNotice.classList.add("hidden");
-  els.duplicateNoticeText.textContent = "Already added.";
+  els.duplicateNoticeText.textContent = t("duplicate.alreadyAdded");
 }
 
 function renderDuplicateNotice(els, match) {
-  const title = trimOrEmpty(match?.jobTitle) || "This application";
-  const company = trimOrEmpty(match?.companyName) || "the same company";
-  els.duplicateNoticeText.textContent = `${title} at ${company} already exists.`;
+  const title = trimOrEmpty(match?.jobTitle) || t("duplicate.alreadyAdded");
+  const company = trimOrEmpty(match?.companyName);
+  els.duplicateNoticeText.textContent = company ? `${title} — ${company}` : title;
   els.duplicateNotice.classList.remove("hidden");
 }
 
@@ -188,11 +243,11 @@ function validateRequiredFields(els) {
   let isValid = true;
 
   if (!trimOrEmpty(els.jobTitle.value)) {
-    showFieldError(els.jobTitle, els.jobTitleError, "Job title is required.");
+    showFieldError(els.jobTitle, els.jobTitleError, t("errors.jobTitleRequired"));
     isValid = false;
   }
   if (!trimOrEmpty(els.companyName.value)) {
-    showFieldError(els.companyName, els.companyNameError, "Company is required.");
+    showFieldError(els.companyName, els.companyNameError, t("errors.companyRequired"));
     isValid = false;
   }
 
@@ -298,7 +353,7 @@ function createAuthController(els, setStatusText) {
         clearManualFallbackTimer();
         clearPendingConnect();
         await refreshAuthState().catch(() => false);
-        setStatusText("Extension connected.", "success");
+        setStatusText(t("status.connected"), "success");
         return;
       }
 
@@ -325,7 +380,7 @@ function createAuthController(els, setStatusText) {
         const connected = await refreshAuthState().catch(() => false);
         if (connected) {
           stopConnectPolling();
-          setStatusText("Extension connected.", "success");
+          setStatusText(t("status.connected"), "success");
           return;
         }
       }
@@ -350,7 +405,7 @@ function createAuthController(els, setStatusText) {
       if (connected) {
         stopConnectPolling();
         clearManualFallbackTimer();
-        setStatusText("Extension connected.", "success");
+        setStatusText(t("status.connected"), "success");
         return;
       }
       if (attempts >= 40) {
@@ -384,7 +439,7 @@ function createAuthController(els, setStatusText) {
     openUrl.searchParams.set("extId", chrome.runtime.id);
     openUrl.searchParams.set("src", "extension");
     await chrome.tabs.create({ url: openUrl.toString() });
-    setStatusText("Waiting for connection...", "info");
+    setStatusText(t("status.connecting"), "info");
     startConnectPolling(session.sessionId, session.expiresAt);
   }
 
@@ -411,7 +466,7 @@ function createAuthController(els, setStatusText) {
     stopConnectPolling();
     clearManualFallbackTimer();
     clearPendingConnect();
-    setStatusText("Logging out...", "info");
+    setStatusText(t("actions.loggingOut"), "info");
     const response = await chrome.runtime.sendMessage({ type: "UTABLY_REVOKE" });
     if (!response?.ok) {
       throw new Error(response?.error || "Logout failed.");
@@ -431,7 +486,7 @@ function createAuthController(els, setStatusText) {
     clearDuplicateNotice(els);
     clearValidationErrors(els);
     await refreshAuthState();
-    setStatusText("Logged out.", "success");
+    setStatusText(t("status.loggedOut"), "success");
   }
 
   async function restoreConnectUiState() {
@@ -447,7 +502,7 @@ function createAuthController(els, setStatusText) {
     const pendingSessionId = trimOrEmpty(pending?.sessionId);
     const pendingExpiresAt = Number(pending?.expiresAt || 0);
     if (pendingSessionId && pendingExpiresAt > Date.now()) {
-      setStatusText("Waiting for connection...", "info");
+      setStatusText(t("status.connecting"), "info");
       startConnectPolling(pendingSessionId, pendingExpiresAt);
       return;
     }
@@ -464,7 +519,7 @@ async function goToApp(els) {
 }
 
 async function sendApplication(els, setStatusText) {
-  setStatusText("Sending...", "info");
+  setStatusText(t("actions.sending"), "info");
   const payload = await buildApplicationPayload(els);
   const response = await chrome.runtime.sendMessage({ type: "UTABLY_SEND", payload });
   if (!response?.ok) {
@@ -474,10 +529,36 @@ async function sendApplication(els, setStatusText) {
     throw err;
   }
   await clearDraftFromStorage();
-  setStatusText("Saved to Utably.", "success");
+  // Build a fallback link in case the backend response is missing one.
+  const fallbackLink = response?.id
+    ? `${getAppUrl(els).replace(/\/+$/u, "")}/applications/${encodeURIComponent(response.id)}`
+    : "";
+  return {
+    id: trimOrEmpty(response?.id),
+    applicationLink: trimOrEmpty(response?.applicationLink) || fallbackLink,
+    kind: payload.status,
+  };
 }
 
 async function resetForm(els, setStatusText) {
+  clearValidationErrors(els);
+  setPreviewMeta(els, null);
+  clearDuplicateNotice(els);
+  hideSaveSuccess(els);
+  els.linkedinNotice.classList.add("hidden");
+  els.applicationDate.value = new Date().toISOString().slice(0, 10);
+  els.jobTitle.value = "";
+  els.companyName.value = "";
+  els.location.value = "";
+  els.recruiterName.value = "";
+  els.jobText.value = "";
+  setSelectedKind(els, "Saved");
+  await prefillSourceUrl(els);
+  await clearDraftFromStorage();
+  setStatusText(t("status.formReset"), "info");
+}
+
+async function clearFormAfterSave(els) {
   clearValidationErrors(els);
   setPreviewMeta(els, null);
   clearDuplicateNotice(els);
@@ -488,9 +569,9 @@ async function resetForm(els, setStatusText) {
   els.location.value = "";
   els.recruiterName.value = "";
   els.jobText.value = "";
-  await prefillSourceUrl(els);
+  els.jobUrl.value = "";
+  setSelectedKind(els, "Saved");
   await clearDraftFromStorage();
-  setStatusText("Form reset.", "info");
 }
 
 function confirmResetInApp(els) {
@@ -552,8 +633,10 @@ function getFitCheckCacheKey(els) {
   const jobTitle = trimOrEmpty(els.jobTitle.value);
   const companyName = trimOrEmpty(els.companyName.value);
   const jobUrl = trimOrEmpty(els.jobUrl.value);
-  // Use URL if available, otherwise use title+company
-  return jobUrl || `${jobTitle}::${companyName}`;
+  // Locale-scoped: a cached EN result must not be served for a DE request.
+  const locale = getLocale();
+  const base = jobUrl || `${jobTitle}::${companyName}`;
+  return base ? `${locale}::${base}` : "";
 }
 
 async function getCachedFitCheck(cacheKey) {
@@ -877,7 +960,7 @@ function wireListeners(els, auth, sidePanel) {
   };
 
   const renderCaptureButton = () => {
-    els.captureMode.textContent = captureEnabled ? "Capture: On" : "Capture: Off";
+    els.captureMode.textContent = captureEnabled ? t("actions.captureOn") : t("actions.captureOff");
     els.captureMode.dataset.forceDisabled = "0";
   };
 
@@ -949,7 +1032,7 @@ function wireListeners(els, auth, sidePanel) {
         duplicateGate.status = "unavailable";
         duplicateGate.allowSend = false;
         setSendAvailability(els, duplicateGate);
-        setStatusText("Duplicate check unavailable. Save is disabled.", "error");
+        setStatusText(t("errors.duplicateUnavailable"), "error");
       }
     }, delay);
   };
@@ -1006,13 +1089,13 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   els.openConnect.addEventListener("click", () => {
-    withBusyButton(els.openConnect, "Opening...", () => auth.openConnect()).catch((error) => {
+    withBusyButton(els.openConnect, t("actions.opening"), () => auth.openConnect()).catch((error) => {
       setStatusText(error?.message || "Connect failed.", "error");
     });
   });
 
   els.manualCodeSubmit.addEventListener("click", () => {
-    withBusyButton(els.manualCodeSubmit, "Connecting...", async () => {
+    withBusyButton(els.manualCodeSubmit, t("actions.connecting"), async () => {
       await auth.submitManualCode(els.manualCode.value);
       els.manualCode.value = "";
     }).catch((error) => {
@@ -1021,7 +1104,7 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   els.goToAppBtn.addEventListener("click", () => {
-    withBusyButton(els.goToAppBtn, "Opening...", () => goToApp(els)).catch((error) => {
+    withBusyButton(els.goToAppBtn, t("actions.opening"), () => goToApp(els)).catch((error) => {
       setStatusText(error?.message || "Failed to open Utably.", "error");
     });
   });
@@ -1051,7 +1134,7 @@ function wireListeners(els, auth, sidePanel) {
       const hasCached = await fitCheckController.checkHasCached();
       const btnText = els.fitCheckBtn?.querySelector(".fitcheck-btn-text");
       if (btnText) {
-        btnText.textContent = hasCached ? "View FitCheck" : "FitCheck";
+        btnText.textContent = hasCached ? t("fitcheck.btnView") : t("fitcheck.btn");
       }
     } catch (e) {
       console.warn("[FitCheck] Cache check failed:", e);
@@ -1087,7 +1170,7 @@ function wireListeners(els, auth, sidePanel) {
     }
 
     // No cache - run fresh analysis
-    withBusyButton(els.fitCheckBtn, "Analyzing...", async () => {
+    withBusyButton(els.fitCheckBtn, t("fitcheck.analyzing"), async () => {
       const result = await fitCheckController.runFitCheck(false);
       fitCheckController.openFitCheck(result);
     }).catch((error) => {
@@ -1098,7 +1181,7 @@ function wireListeners(els, auth, sidePanel) {
   // Reanalyze button in modal
   els.reanalyzeFitCheckBtn.addEventListener("click", () => {
     fitCheckController.closeFitCheck();
-    withBusyButton(els.fitCheckBtn, "Reanalyzing...", async () => {
+    withBusyButton(els.fitCheckBtn, t("fitcheck.reanalyzing"), async () => {
       const result = await fitCheckController.runFitCheck(true); // force refresh
       fitCheckController.openFitCheck(result);
       updateFitCheckState(); // update button label
@@ -1129,19 +1212,33 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   els.logoutBtn.addEventListener("click", () => {
-    withBusyButton(els.logoutBtn, "Logging out...", () => auth.logout()).catch((error) => {
+    withBusyButton(els.logoutBtn, t("actions.loggingOut"), () => auth.logout()).catch((error) => {
       setStatusText(error?.message || "Logout failed.", "error");
     });
   });
 
+  // Apply translations immediately when the user changes the language.
+  els.languageSelect?.addEventListener("change", async () => {
+    await setLocalePreference(els.languageSelect.value);
+    applyTranslations(document);
+    // Refresh dynamic strings.
+    renderCaptureButton();
+    // FitCheck output is locale-bound. Drop the in-memory result so the next
+    // click re-runs (or hits the new locale's storage cache).
+    fitCheckController.clearCachedResult();
+    updateFitCheckState();
+    updateFitCheckLabel();
+  });
+
   els.extract.addEventListener("click", () => {
     const run = async () => {
+      hideSaveSuccess(els);
       const granted = await requestBroadHostAccessFromGesture();
       if (!granted) {
-        setStatusText("Host access denied. Allow website access to use Auto-fill.", "error");
+        setStatusText(t("errors.hostDenied"), "error");
         return;
       }
-      return withBusyButton(els.extract, "Extracting...", async () => {
+      return withBusyButton(els.extract, t("actions.extracting"), async () => {
         const result = await extractIntoForm(els, setStatusText);
         setPreviewMeta(els, result);
         persistDraftSoon();
@@ -1173,7 +1270,7 @@ function wireListeners(els, auth, sidePanel) {
       duplicateGate.status = "unknown";
       duplicateGate.allowSend = false;
       setSendAvailability(els, duplicateGate);
-      withBusyButton(els.reset, "Resetting...", async () => {
+      withBusyButton(els.reset, t("actions.resetting"), async () => {
         await resetForm(els, setStatusText);
         // Clear FitCheck cache AFTER form is reset
         fitCheckController.clearCachedResult();
@@ -1186,13 +1283,13 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   els.send.addEventListener("click", () => {
-    withBusyButton(els.send, "Saving...", async () => {
+    withBusyButton(els.send, t("actions.saving"), async () => {
       if (duplicateGate.status !== "ok") {
-        setStatusText("Waiting for duplicate check result.", "info");
+        setStatusText(t("errors.duplicateWaiting"), "info");
         return;
       }
       if (!validateRequiredFields(els)) {
-        setStatusText("Review required fields before saving.", "error");
+        setStatusText(t("errors.requiredFields"), "error");
         return;
       }
       const duplicateMatch = await checkDuplicate(els);
@@ -1201,13 +1298,26 @@ function wireListeners(els, auth, sidePanel) {
         duplicateGate.status = "duplicate";
         duplicateGate.allowSend = false;
         setSendAvailability(els, duplicateGate);
-        setStatusText("Application already exists. Open the existing entry.", "error");
+        setStatusText(t("errors.duplicateExists"), "error");
         return;
       }
       duplicateGate.status = "ok";
       duplicateGate.allowSend = true;
       setSendAvailability(els, duplicateGate);
-      await sendApplication(els, setStatusText);
+      const result = await sendApplication(els, setStatusText);
+      // Clear form fields, hide preview, show success notice with link.
+      // The link persists until the user clicks "Save another", "Reset",
+      // "Auto-fill", or starts typing in the form.
+      await clearFormAfterSave(els);
+      currentDuplicateMatch = null;
+      duplicateGate.status = "unknown";
+      duplicateGate.allowSend = false;
+      setSendAvailability(els, duplicateGate);
+      fitCheckController.clearCachedResult();
+      updateFitCheckState();
+      updateFitCheckLabel();
+      showSaveSuccess(els, result);
+      clearStatus(els);
     }).catch((error) => {
       if (error?.code === "DUPLICATE_APPLICATION" && error?.details?.id) {
         currentDuplicateMatch = error.details;
@@ -1215,12 +1325,51 @@ function wireListeners(els, auth, sidePanel) {
         duplicateGate.status = "duplicate";
         duplicateGate.allowSend = false;
         setSendAvailability(els, duplicateGate);
-        setStatusText("Application already exists. Open the existing entry.", "error");
+        setStatusText(t("errors.duplicateExists"), "error");
         return;
       }
       setStatusText(error?.message || "Failed to send.", "error");
     });
   });
+
+  // Kind selector (Applied vs Saved)
+  els.kindOptions?.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setSelectedKind(els, btn.dataset.kind);
+      persistDraftSoon();
+    });
+  });
+
+  // Save success notice actions
+  els.openSavedBtn?.addEventListener("click", async () => {
+    const link = els.openSavedBtn.dataset.appLink;
+    if (!link) return;
+    await chrome.tabs.create({ url: link });
+    hideSaveSuccess(els);
+    prefillSourceUrl(els).catch(() => {});
+  });
+  els.saveAnotherBtn?.addEventListener("click", () => {
+    hideSaveSuccess(els);
+    prefillSourceUrl(els).catch(() => {});
+  });
+
+  // Hide success notice as soon as the user starts working on a new entry.
+  const dismissSuccessOnEdit = () => {
+    if (els.saveSuccessNotice && !els.saveSuccessNotice.classList.contains("hidden")) {
+      hideSaveSuccess(els);
+    }
+  };
+  for (const field of [
+    els.jobTitle,
+    els.companyName,
+    els.jobUrl,
+    els.location,
+    els.recruiterName,
+    els.jobText,
+    els.applicationDate,
+  ]) {
+    field?.addEventListener("input", dismissSuccessOnEdit);
+  }
 
   els.captureMode.addEventListener("click", async () => {
     try {
@@ -1255,13 +1404,16 @@ function wireListeners(els, auth, sidePanel) {
       captureEnabled = Boolean(response.enabled);
       renderCaptureButton();
       setStatusText(
-        captureEnabled
-          ? "Capture mode enabled. Copy selected text on the page to categorize it."
-          : "Capture mode disabled.",
+        captureEnabled ? t("status.captureOn") : t("status.captureOff"),
         "info"
       );
     } catch (error) {
-      setStatusText(error?.message || "Failed to toggle capture mode.", "error");
+      const fallback = error?.message;
+      if (fallback?.includes("Host access denied") || fallback?.includes("capture mode")) {
+        setStatusText(t("errors.captureHostDenied"), "error");
+      } else {
+        setStatusText(fallback || "Failed to toggle capture mode.", "error");
+      }
     } finally {
       els.captureMode.disabled = false;
       els.captureMode.dataset.forceDisabled = "0";
@@ -1354,6 +1506,9 @@ export async function startPopupApp() {
   document.body.classList.toggle("workspace-mode", workspace);
   document.body.classList.toggle("safari-mode", IS_SAFARI);
   clearStatus(els);
+
+  await loadLocale();
+  applyTranslations(document);
 
   if (!els.applicationDate.value) {
     els.applicationDate.value = new Date().toISOString().slice(0, 10);
