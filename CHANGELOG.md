@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Further notes** field in the side panel preview, between the source
+  URL and the duplicate-notice block. Free-form text, autosaved to the
+  draft in `chrome.storage.local` like the other fields, and forwarded
+  in the import payload as `notes`. The backend trims and caps it at
+  20,000 chars before storing it on the application record; longer
+  input is silently truncated. Localized as "Further notes" / "Weitere
+  Notizen". Not auto-extracted from the page — user-only.
 - `LICENSE` (Apache-2.0), `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md`,
   `CHANGELOG.md` for the open source release.
 - `docs/faq.md` — contributor FAQ.

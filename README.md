@@ -107,7 +107,9 @@ dependencies** — the extension is hand-rolled vanilla JS, so
 4. **Click Auto-fill.** The first time you do this, Chrome prompts for
    permission to read websites — approve it, and the extension injects
    the adapter and populates the form.
-5. **Review the fields** — edit anything the adapter got wrong.
+5. **Review the fields** — edit anything the adapter got wrong, and
+   optionally jot anything you want to remember about the role into
+   *Further notes* (free-form, never auto-filled).
 6. *(Optional)* **Click FitCheck** for an AI analysis of how well the
    posting matches your profile.
 7. **Click Save to Utably.** Done.

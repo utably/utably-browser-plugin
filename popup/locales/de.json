@@ -63,6 +63,8 @@
   "preview.jobText.placeholder": "Inhalte der Anzeige hier einfügen",
   "preview.jobUrl": "Quelle (URL)",
   "preview.jobUrl.placeholder": "https://jobs.utably.com/roles/...",
+  "preview.notes": "Weitere Notizen",
+  "preview.notes.placeholder": "Alles, was du dir merken willst – Empfehlung, Gehaltsvorstellung, Wiedervorlage…",
   "preview.kind": "Speichern als",
   "preview.kind.applied": "Beworben",
   "preview.kind.applied.hint": "Bereits beworben",
