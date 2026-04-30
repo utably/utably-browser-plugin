@@ -61,6 +61,7 @@ function normalizeDraft(rawValue) {
       recruiterName: "",
       jobText: "",
       jobUrl: "",
+      notes: "",
       kind: "Saved",
       updatedAt: 0,
     };
@@ -73,6 +74,7 @@ function normalizeDraft(rawValue) {
     recruiterName: trimOrEmpty(rawValue.recruiterName),
     jobText: trimOrEmpty(rawValue.jobText),
     jobUrl: trimOrEmpty(rawValue.jobUrl),
+    notes: trimOrEmpty(rawValue.notes),
     kind: normalizeKind(rawValue.kind),
     updatedAt: Number(rawValue.updatedAt || 0),
   };
@@ -133,6 +135,7 @@ function buildDraftFromForm(els) {
     recruiterName: trimOrEmpty(els.recruiterName.value),
     jobText: trimOrEmpty(els.jobText.value),
     jobUrl: trimOrEmpty(els.jobUrl.value),
+    notes: trimOrEmpty(els.notes?.value),
     kind: getSelectedKind(els),
     updatedAt: Date.now(),
   };
@@ -147,6 +150,7 @@ function applyDraftToForm(els, rawDraft) {
   els.recruiterName.value = draft.recruiterName || els.recruiterName.value;
   els.jobText.value = draft.jobText || els.jobText.value;
   els.jobUrl.value = draft.jobUrl || els.jobUrl.value;
+  if (els.notes) els.notes.value = draft.notes || els.notes.value;
   setSelectedKind(els, draft.kind);
   return draft;
 }
@@ -482,6 +486,7 @@ function createAuthController(els, setStatusText) {
     els.recruiterName.value = "";
     els.jobText.value = "";
     els.jobUrl.value = "";
+    if (els.notes) els.notes.value = "";
     setPreviewMeta(els, null);
     clearDuplicateNotice(els);
     clearValidationErrors(els);
@@ -556,6 +561,7 @@ async function resetForm(els, setStatusText) {
   els.location.value = "";
   els.recruiterName.value = "";
   els.jobText.value = "";
+  if (els.notes) els.notes.value = "";
   setSelectedKind(els, "Saved");
   await prefillSourceUrl(els);
   await clearDraftFromStorage();
@@ -574,6 +580,7 @@ async function clearFormAfterSave(els) {
   els.recruiterName.value = "";
   els.jobText.value = "";
   els.jobUrl.value = "";
+  if (els.notes) els.notes.value = "";
   setSelectedKind(els, "Saved");
   await clearDraftFromStorage();
 }
@@ -1067,8 +1074,8 @@ function wireListeners(els, auth, sidePanel) {
     setSendAvailability(els, duplicateGate);
     scheduleDuplicateCheck();
   });
-  for (const field of [els.applicationDate, els.location, els.recruiterName, els.jobText]) {
-    field.addEventListener("input", persistDraftSoon);
+  for (const field of [els.applicationDate, els.location, els.recruiterName, els.jobText, els.notes]) {
+    field?.addEventListener("input", persistDraftSoon);
   }
   els.openDuplicateBtn.addEventListener("click", async () => {
     const id = trimOrEmpty(currentDuplicateMatch?.id);
@@ -1370,6 +1377,7 @@ function wireListeners(els, auth, sidePanel) {
     els.location,
     els.recruiterName,
     els.jobText,
+    els.notes,
     els.applicationDate,
   ]) {
     field?.addEventListener("input", dismissSuccessOnEdit);

@@ -63,6 +63,8 @@
   "preview.jobText.placeholder": "Paste role details from the posting",
   "preview.jobUrl": "Source URL",
   "preview.jobUrl.placeholder": "https://jobs.utably.com/roles/...",
+  "preview.notes": "Further notes",
+  "preview.notes.placeholder": "Anything worth remembering — referrer name, salary expectations, follow-up dates…",
   "preview.kind": "Save as",
   "preview.kind.applied": "Applied",
   "preview.kind.applied.hint": "I already applied",

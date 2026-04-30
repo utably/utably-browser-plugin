@@ -61,12 +61,14 @@ Authorization: Bearer <accessToken>
   fitAnalysis: { ... },            // optional, from FitCheck
   interviewDates: [],
   recruiterInteractions: [],
-  notes: "",
+  notes: "Free-form note from the popup's 'Further notes' field.",
   interviewRounds: [],
   attachments: "",
   source: "hostname"
 }
 ```
+
+`notes` is the user's free-form text from the popup's **Further notes** field (under the source URL). The backend trims and caps it at 20,000 chars and stores it on the application record's `notes` attribute, which is what the web app shows on `/applications/<id>` in the Notes panel.
 
 **Success response (201):**
 ```json
