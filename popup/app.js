@@ -529,13 +529,17 @@ async function sendApplication(els, setStatusText) {
     throw err;
   }
   await clearDraftFromStorage();
-  // Build a fallback link in case the backend response is missing one.
-  const fallbackLink = response?.id
-    ? `${getAppUrl(els).replace(/\/+$/u, "")}/applications/${encodeURIComponent(response.id)}`
+  // Always build the link plugin-side: the lambda's APP_BASE_URL doesn't know
+  // about the plugin's local-stage port (e.g. https://app.dev.utably.com:5173)
+  // so backend-provided applicationLink would route to the wrong origin in
+  // local dev. The plugin knows what stage/port the user has configured.
+  const id = trimOrEmpty(response?.id);
+  const applicationLink = id
+    ? `${getAppUrl(els).replace(/\/+$/u, "")}/applications/${encodeURIComponent(id)}`
     : "";
   return {
-    id: trimOrEmpty(response?.id),
-    applicationLink: trimOrEmpty(response?.applicationLink) || fallbackLink,
+    id,
+    applicationLink,
     kind: payload.status,
   };
 }
