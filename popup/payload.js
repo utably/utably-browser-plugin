@@ -124,7 +124,7 @@ export async function buildApplicationPayload(els) {
     fitAnalysis,
     interviewDates: [],
     recruiterInteractions: [],
-    notes: "",
+    notes: trimOrEmpty(els.notes?.value),
     interviewRounds: [],
     attachments: "",
     source: safeHostname(jobUrl),

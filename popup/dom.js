@@ -34,6 +34,7 @@ export function getDom() {
     recruiterName: document.getElementById("recruiterName"),
     jobText: document.getElementById("jobText"),
     jobUrl: document.getElementById("jobUrl"),
+    notes: document.getElementById("notes"),
     duplicateNotice: document.getElementById("duplicateNotice"),
     duplicateNoticeText: document.getElementById("duplicateNoticeText"),
     openDuplicateBtn: document.getElementById("openDuplicateBtn"),
