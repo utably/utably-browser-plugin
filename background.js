@@ -16,6 +16,9 @@ const WORKSPACE_PATH = "popup.html?mode=workspace";
 const CAPTURE_SCRIPT_FILE = "content/capture.js";
 const DRAFT_STORAGE_KEY = "utablyDraft";
 const CAPTURE_TABS_KEY = "utablyCaptureTabs";
+const LOCALE_STORAGE_KEY = "utablyLocale";
+const SUPPORTED_LOCALES = ["en", "de"];
+const DEFAULT_LOCALE = "en";
 
 const ACCESS_SKEW_MS = 30_000;
 
@@ -38,6 +41,23 @@ function normalizeLocalPort(rawPort) {
     return DEFAULT_LOCAL_PORT;
   }
   return String(port);
+}
+
+function detectBrowserLocale() {
+  const lang = (typeof navigator !== "undefined" ? navigator.language || "" : "").toLowerCase();
+  if (lang.startsWith("de")) return "de";
+  return DEFAULT_LOCALE;
+}
+
+async function getPluginLocale() {
+  try {
+    const stored = await chrome.storage.local.get([LOCALE_STORAGE_KEY]);
+    const pref = (stored?.[LOCALE_STORAGE_KEY] || "").toString();
+    if (SUPPORTED_LOCALES.includes(pref)) return pref;
+    return detectBrowserLocale();
+  } catch {
+    return detectBrowserLocale();
+  }
 }
 
 async function getSettings() {
@@ -277,6 +297,13 @@ async function sendImport(payload) {
     err.details = json?.details || null;
     throw err;
   }
+
+  const json = await res.json().catch(() => ({}));
+  return {
+    id: trim(json?.id),
+    applicationLink: trim(json?.applicationLink),
+    status: trim(json?.status),
+  };
 }
 
 async function findDuplicateImport(candidate) {
@@ -315,6 +342,8 @@ async function sendFitCheck(jobPosting) {
     throw new Error("Not connected. Please connect to Utably first.");
   }
 
+  const appLocale = await getPluginLocale();
+
   const res = await fetch(`${settings.apiBase}/extension/llm`, {
     method: "POST",
     headers: {
@@ -324,6 +353,7 @@ async function sendFitCheck(jobPosting) {
     body: JSON.stringify({
       mode: "fitcheck",
       jobPosting,
+      languageContext: { appLocale },
     }),
   });
 
@@ -568,8 +598,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "UTABLY_SEND") {
     (async () => {
       try {
-        await sendImport(message.payload || {});
-        sendResponse({ ok: true });
+        const result = await sendImport(message.payload || {});
+        sendResponse({ ok: true, ...result });
       } catch (err) {
         sendResponse({
           ok: false,
