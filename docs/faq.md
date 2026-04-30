@@ -72,7 +72,8 @@ target stage. External contributors should leave this off.
 Only what you explicitly submit:
 
 - **On Save to Utably:** the job title, company, location, description
-  text, URL, and any manual edits you made in the side panel.
+  text, URL, anything you typed in the **Further notes** field, and any
+  other manual edits you made in the side panel.
 - **On FitCheck:** the same payload above, plus a request for LLM
   analysis. The extension itself has no access to your Utably profile
   data — the LLM reads it server-side.
