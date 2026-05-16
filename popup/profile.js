@@ -101,6 +101,8 @@ const SECTION_ICONS = {
   chev: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
   copy: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
   check: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  download: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>',
+  target: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>',
 };
 
 function makeIconSpan(svgString) {
@@ -558,6 +560,315 @@ function buildChip(els, label, { tone, copyLabel } = {}) {
   return chip;
 }
 
+// ---- Attachment helpers ----
+function formatBytes(bytes) {
+  const n = Number(bytes || 0);
+  if (!n) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const ATTACHMENT_KIND_META = {
+  cv:          { tone: "ink",    iconKey: "briefcase" },
+  document:    { tone: "cream",  iconKey: "award" },
+  certificate: { tone: "cream",  iconKey: "award" },
+  image:       { tone: "mint",   iconKey: "user" },
+  export:      { tone: "mint",   iconKey: "sparkle" },
+};
+
+function buildAttachmentCard(els, attachment) {
+  const meta = ATTACHMENT_KIND_META[attachment.kind] || ATTACHMENT_KIND_META.document;
+  const card = document.createElement("div");
+  card.className = "attachment-card";
+  card.dataset.attachmentKey = attachment.key;
+
+  const icon = document.createElement("span");
+  icon.className = `attachment-icon tone-${meta.tone}`;
+  icon.appendChild(makeIconSpan(SECTION_ICONS[meta.iconKey] || SECTION_ICONS.sparkle));
+  card.appendChild(icon);
+
+  const body = document.createElement("div");
+  body.className = "attachment-body";
+  const name = document.createElement("div");
+  name.className = "attachment-name";
+  name.textContent = attachment.name;
+  body.appendChild(name);
+
+  const metaLine = document.createElement("div");
+  metaLine.className = "attachment-meta";
+  const kindLabel = t(`profile.attachment.kind.${attachment.kind}`) || attachment.kind;
+  metaLine.textContent = [kindLabel, formatBytes(attachment.size)].filter(Boolean).join(" · ");
+  body.appendChild(metaLine);
+  card.appendChild(body);
+
+  const actions = document.createElement("div");
+  actions.className = "attachment-actions";
+
+  const uploadBtn = document.createElement("button");
+  uploadBtn.type = "button";
+  uploadBtn.className = "attachment-action";
+  uploadBtn.appendChild(makeIconSpan(SECTION_ICONS.copy));
+  const at = document.createElement("span");
+  at.textContent = t("profile.attachment.upload");
+  uploadBtn.appendChild(at);
+  uploadBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handleAttachmentUpload(els, attachment, uploadBtn);
+  });
+  actions.appendChild(uploadBtn);
+
+  const downloadBtn = document.createElement("button");
+  downloadBtn.type = "button";
+  downloadBtn.className = "attachment-icon-btn";
+  downloadBtn.title = t("profile.attachment.download");
+  downloadBtn.setAttribute("aria-label", t("profile.attachment.download"));
+  downloadBtn.appendChild(makeIconSpan(SECTION_ICONS.download));
+  downloadBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handleAttachmentDownload(els, attachment, downloadBtn);
+  });
+  actions.appendChild(downloadBtn);
+
+  card.appendChild(actions);
+  return card;
+}
+
+async function handleAttachmentDownload(els, attachment, btn) {
+  if (!attachment) return;
+  const originalLabel = btn?.innerHTML || "";
+  if (btn) {
+    btn.disabled = true;
+  }
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "UTABLY_ATTACHMENT_DOWNLOAD",
+      attachment,
+    });
+    if (!response?.ok) throw new Error(response?.error || "Download failed.");
+    showCopyToast(els, t("profile.attachment.downloaded"), attachment.name);
+  } catch (err) {
+    copyToastError(els, err?.message || "Download failed.");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalLabel;
+    }
+  }
+}
+
+async function handleAttachmentUpload(els, attachment, btn) {
+  if (!els || !attachment) return;
+  const originalLabel = btn ? btn.innerHTML : null;
+  const setBusy = (text) => {
+    if (!btn) return;
+    btn.disabled = true;
+    btn.replaceChildren();
+    btn.appendChild(makeIconSpan(SECTION_ICONS.copy));
+    const span = document.createElement("span");
+    span.textContent = text;
+    btn.appendChild(span);
+  };
+  const restore = () => {
+    if (!btn) return;
+    btn.disabled = false;
+    if (originalLabel) btn.innerHTML = originalLabel;
+  };
+  try {
+    setBusy(t("profile.attachment.checking"));
+    const granted = await requestBroadHostAccessForAttachment();
+    if (!granted) {
+      copyToastError(els, t("errors.hostDenied"));
+      restore();
+      return;
+    }
+    const tab = await getActiveTab();
+    if (!tab?.id) {
+      copyToastError(els, t("profile.attachment.noTab"));
+      restore();
+      return;
+    }
+    const preview = await chrome.runtime.sendMessage({
+      type: "UTABLY_ATTACHMENT_PREVIEW",
+      tabId: tab.id,
+      attachment,
+    });
+    if (!preview?.ok) {
+      throw new Error(preview?.error || "Preview failed.");
+    }
+    const targets = Array.isArray(preview.targets) ? preview.targets : [];
+    const host = preview.host;
+
+    if (!targets.length) {
+      // No direct <input type=file> match. Offer place mode as a fallback.
+      const proceed = await confirmAttachmentPlace(els, { attachment, host });
+      if (!proceed) {
+        restore();
+        return;
+      }
+      setBusy(t("profile.attachment.placing"));
+      const placeResult = await chrome.runtime.sendMessage({
+        type: "UTABLY_ATTACHMENT_PLACE",
+        tabId: tab.id,
+        attachment,
+        expectedHost: host,
+      });
+      if (!placeResult?.ok) {
+        throw new Error(placeResult?.error || "Place failed.");
+      }
+      if (!placeResult.placed) {
+        const reason = placeResult.reason || "";
+        if (reason === "cancelled") {
+          copyToastError(els, t("profile.attachment.cancelled"));
+        } else if (reason === "timeout") {
+          copyToastError(els, t("profile.attachment.timeout"));
+        } else if (reason === "no_targets") {
+          copyToastError(els, t("profile.attachment.noDropzone"));
+        } else {
+          copyToastError(els, t("profile.attachment.noMatch"));
+        }
+      } else {
+        showCopyToast(els, t("profile.attachment.uploaded"), `${attachment.name} → ${host}`);
+      }
+      restore();
+      return;
+    }
+
+    const confirmed = await confirmAttachmentUpload(els, { attachment, host, targets });
+    if (!confirmed) {
+      restore();
+      return;
+    }
+    setBusy(t("profile.attachment.uploading"));
+    const result = await chrome.runtime.sendMessage({
+      type: "UTABLY_ATTACHMENT_UPLOAD",
+      tabId: tab.id,
+      attachment,
+      expectedHost: host,
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Upload failed.");
+    }
+    if (!result.uploaded) {
+      copyToastError(els, t("profile.attachment.noMatch"));
+    } else {
+      showCopyToast(els, t("profile.attachment.uploaded"), `${attachment.name} → ${host}`);
+    }
+  } catch (err) {
+    copyToastError(els, err?.message || "Upload failed.");
+  } finally {
+    restore();
+  }
+}
+
+function confirmAttachmentPlace(els, { attachment, host }) {
+  // Lighter-weight consent than the upload flow: the file STILL doesn't
+  // leave the user's machine until they click a target on the page, but we
+  // still ask once before entering the highlighted-targets mode.
+  if (!els.fillConfirmModal) return Promise.resolve(false);
+  const fauxHosts = [{
+    host,
+    isTopFrame: true,
+    adapter: "place",
+    fields: [
+      `${t("profile.attachment.fileLabel")}: ${attachment.name}`,
+      t("profile.attachment.placeHint"),
+    ],
+  }];
+  return showFillConfirm(els, {
+    hosts: fauxHosts,
+    consentRemembered: false,
+    changedRetry: false,
+  }).then((res) => Boolean(res));
+}
+
+function requestBroadHostAccessForAttachment() {
+  if (!chrome?.permissions?.request) return Promise.resolve(false);
+  try {
+    return chrome.permissions
+      .request({ origins: ["*://*/*"] })
+      .then((granted) => Boolean(granted))
+      .catch(() => false);
+  } catch {
+    return Promise.resolve(false);
+  }
+}
+
+function copyToastError(els, message) {
+  if (!els?.copyToast) return;
+  const toast = els.copyToast;
+  toast.replaceChildren();
+  const lbl = document.createElement("span");
+  lbl.className = "toast-label";
+  lbl.style.color = "#FFB1A8";
+  lbl.textContent = `⚠ ${message}`;
+  toast.appendChild(lbl);
+  toast.classList.add("is-visible");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 2200);
+}
+
+function confirmAttachmentUpload(els, { attachment, host, targets }) {
+  // Reuse the existing fill-confirm modal for visual consistency. The
+  // "hosts" panel here lists where the FILE will land.
+  if (!els.fillConfirmModal) return Promise.resolve(false);
+  const fauxHosts = [{
+    host,
+    isTopFrame: targets[0]?.isTopFrame ?? true,
+    adapter: "attachment",
+    fields: targets.map((target, i) => `${t("profile.attachment.fileLabel")}: ${attachment.name} → ${target.inputDescription || `input #${i + 1}`}`),
+  }];
+  return showFillConfirm(els, {
+    hosts: fauxHosts,
+    consentRemembered: false,
+    changedRetry: false,
+  }).then((res) => Boolean(res));
+}
+
+function renderAttachmentsSection(els, attachments) {
+  if (!els.profileSections) return;
+  // Remove any existing attachments section before re-rendering.
+  const existing = els.profileSections.querySelector('[data-section="attachments"]');
+  if (existing) existing.remove();
+  if (!Array.isArray(attachments) || attachments.length === 0) return;
+
+  const { section, body } = buildSection({
+    id: "attachments",
+    label: t("profile.attachments"),
+    iconKey: "award",
+    tone: "orange",
+    count: attachments.length,
+    defaultOpen: true,
+  });
+
+  const list = document.createElement("div");
+  list.className = "attachment-list";
+  for (const att of attachments) {
+    list.appendChild(buildAttachmentCard(els, att));
+  }
+  body.appendChild(list);
+
+  // Insert AFTER experience (or at the end if no experience section).
+  const expSection = els.profileSections.querySelector('[data-section="experience"]');
+  if (expSection && expSection.nextSibling) {
+    els.profileSections.insertBefore(section, expSection.nextSibling);
+  } else if (expSection) {
+    expSection.after(section);
+  } else {
+    els.profileSections.appendChild(section);
+  }
+}
+
+async function loadAttachments(els) {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "UTABLY_LIST_ATTACHMENTS" });
+    if (!response?.ok) return;
+    renderAttachmentsSection(els, response.attachments || []);
+  } catch (err) {
+    console.warn("[Utably] attachments load failed", err);
+  }
+}
+
 function renderProfileCard(els, profile) {
   if (!els.profileCard || !els.profileSections) return;
   const c = profile?.contact || {};
@@ -826,6 +1137,8 @@ export async function loadProfile(els, { forceRefresh = false } = {}) {
     }
     const profile = response.profile;
     renderProfileCard(els, profile);
+    // Attachments load in parallel — failure here doesn't block the profile.
+    loadAttachments(els).catch(() => {});
     return profile;
   } catch (err) {
     showProfileError(els, err?.message || t("profile.loadFailed"));

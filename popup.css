@@ -2011,6 +2011,116 @@ body.sidepanel-mode .row {
 .link-url a { color: inherit; text-decoration: none; border-bottom: 1px dashed var(--utably-ink-20); }
 .link-url a:hover { border-bottom-color: var(--utably-ink); }
 
+/* ---- Attachments ---- */
+.attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.attachment-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 13px;
+  cursor: default;
+  transition: background 120ms ease;
+}
+.attachment-card + .attachment-card {
+  border-top: 1px solid var(--utably-ink-10);
+}
+.attachment-card:hover {
+  background: var(--utably-cream-soft);
+}
+.attachment-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--utably-mint-soft);
+  color: var(--utably-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.attachment-icon.tone-cream { background: var(--utably-cream-soft); }
+.attachment-icon.tone-ink { background: var(--utably-ink); color: var(--utably-mint); }
+.attachment-icon.tone-orange { background: #FFE9D9; color: var(--utably-orange-deep); }
+.attachment-icon.tone-mint { background: var(--utably-mint-soft); }
+.attachment-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.attachment-name {
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--utably-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attachment-meta {
+  font-size: 11px;
+  color: var(--utably-ink-60);
+  font-weight: 500;
+}
+.attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.attachment-action {
+  flex-shrink: 0;
+  background: var(--utably-ink);
+  color: #ffffff;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: inherit;
+  transition: background 120ms ease;
+}
+.attachment-action:hover:not(:disabled) {
+  background: var(--utably-ink-80);
+}
+.attachment-action:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.attachment-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--utably-ink-60);
+  border: 1px solid var(--utably-ink-10);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+  flex-shrink: 0;
+}
+.attachment-icon-btn:hover:not(:disabled) {
+  color: var(--utably-ink);
+  border-color: var(--utably-ink);
+  background: var(--utably-cream-soft);
+}
+.attachment-icon-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.attachment-icon-btn span { display: inline-flex; }
+
 /* ---- Toast for copy feedback ---- */
 .copy-toast {
   position: fixed;

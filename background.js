@@ -28,6 +28,13 @@ const FILL_SCRIPT_FILES = [
   "content/fill/generic.js",
   "content/fill/router.js",
 ];
+const ATTACHMENT_SCRIPT_FILES = [
+  "content/fill/attachments.js",
+];
+const DROPMODE_SCRIPT_FILES = [
+  "content/fill/dropmode.js",
+];
+const ATTACHMENT_MAX_BYTES = 12 * 1024 * 1024;
 const LOCALE_STORAGE_KEY = "utablyLocale";
 const SUPPORTED_LOCALES = ["en", "de"];
 const DEFAULT_LOCALE = "en";
@@ -504,6 +511,154 @@ async function fetchProfile({ forceRefresh = false } = {}) {
   }
   await writeProfileCache({ profile, fetchedAt: Date.now(), locale });
   return { profile, cached: false };
+}
+
+async function fetchAttachments({ forceRefresh = false } = {}) {
+  // No on-disk caching — presigned URLs expire in 5 minutes and the metadata
+  // is small. Each call re-issues the request so the URLs are always fresh.
+  const settings = await getSettings();
+  const token = await ensureAccessToken(settings);
+  if (!token) {
+    throw new Error("Not connected. Please connect to Utably first.");
+  }
+
+  const res = await fetch(`${settings.apiBase}/extension/attachments`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  const json = await res.json().catch(() => null);
+  if (!json || !Array.isArray(json.attachments)) {
+    throw new Error("Invalid attachments response.");
+  }
+  return { attachments: json.attachments, forceRefresh };
+}
+
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  const chunk = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function fetchAttachmentBytes(presignedUrl) {
+  const res = await fetch(presignedUrl);
+  if (!res.ok) {
+    throw new Error(`Attachment fetch failed: HTTP ${res.status}`);
+  }
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > ATTACHMENT_MAX_BYTES) {
+    throw new Error("Attachment exceeds 12 MB limit for browser injection.");
+  }
+  return arrayBufferToBase64(buf);
+}
+
+async function previewAttachmentUpload({ tabId, fileName, mime, kind }) {
+  if (!Number.isInteger(tabId) || tabId <= 0) {
+    throw new Error("Invalid tab id.");
+  }
+  await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    files: ATTACHMENT_SCRIPT_FILES,
+  });
+  const frameResults = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: (params) => {
+      if (typeof globalThis.__utablyPreviewAttachment !== "function") return null;
+      return globalThis.__utablyPreviewAttachment(params);
+    },
+    args: [{ fileName, mime, kind }],
+  });
+  const targets = [];
+  for (const entry of frameResults || []) {
+    const r = entry?.result;
+    if (r?.matched) {
+      targets.push({
+        host: r.host,
+        isTopFrame: Boolean(r.isTopFrame),
+        inputDescription: r.inputDescription || "",
+      });
+    }
+  }
+  return { targets };
+}
+
+async function uploadAttachmentToPage({ tabId, attachment, expectedHost }) {
+  if (!Number.isInteger(tabId) || tabId <= 0) {
+    throw new Error("Invalid tab id.");
+  }
+  if (!attachment?.presignedUrl) {
+    throw new Error("Missing presigned URL.");
+  }
+  await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    files: ATTACHMENT_SCRIPT_FILES,
+  });
+
+  const base64 = await fetchAttachmentBytes(attachment.presignedUrl);
+  const frameResults = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: (params) => {
+      if (typeof globalThis.__utablyUploadAttachment !== "function") return null;
+      return globalThis.__utablyUploadAttachment(params);
+    },
+    args: [{
+      base64,
+      fileName: attachment.name,
+      mime: attachment.mime,
+      kind: attachment.kind,
+      expectedHost,
+    }],
+  });
+
+  let uploaded = 0;
+  const reports = [];
+  for (const entry of frameResults || []) {
+    const r = entry?.result;
+    if (!r) continue;
+    if (r.uploaded) uploaded += 1;
+    reports.push(r);
+  }
+  return { uploaded, reports };
+}
+
+async function placeAttachmentOnPage({ tabId, attachment, expectedHost }) {
+  if (!Number.isInteger(tabId) || tabId <= 0) {
+    throw new Error("Invalid tab id.");
+  }
+  if (!attachment?.presignedUrl) {
+    throw new Error("Missing presigned URL.");
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId }, // place mode runs in the top frame only — the user
+                       // can only click in the frame they can see
+    files: DROPMODE_SCRIPT_FILES,
+  });
+
+  const base64 = await fetchAttachmentBytes(attachment.presignedUrl);
+  const [{ result } = {}] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async (params) => {
+      if (typeof globalThis.__utablyEnterDropMode !== "function") return null;
+      return await globalThis.__utablyEnterDropMode(params);
+    },
+    args: [{
+      base64,
+      fileName: attachment.name,
+      mime: attachment.mime,
+      kind: attachment.kind,
+      expectedHost,
+    }],
+  });
+
+  return result || { placed: false, reason: "no_result" };
 }
 
 async function runFormFill({ tabId, profile, dryRun = false, expectedHosts = null }) {
@@ -1026,6 +1181,127 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, host, report });
       } catch (err) {
         sendResponse({ ok: false, error: err?.message || "Failed to fill page." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_ATTACHMENT_DOWNLOAD") {
+    (async () => {
+      try {
+        const attachment = message.attachment || {};
+        if (!attachment.presignedUrl) {
+          sendResponse({ ok: false, error: "Missing presigned URL." });
+          return;
+        }
+        const downloadId = await chrome.downloads.download({
+          url: attachment.presignedUrl,
+          filename: attachment.name || "utably-download",
+          saveAs: Boolean(message.saveAs),
+          conflictAction: "uniquify",
+        });
+        sendResponse({ ok: true, downloadId });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Download failed." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_LIST_ATTACHMENTS") {
+    (async () => {
+      try {
+        const result = await fetchAttachments({ forceRefresh: Boolean(message.forceRefresh) });
+        sendResponse({ ok: true, attachments: result.attachments });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to list attachments." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_ATTACHMENT_PREVIEW") {
+    (async () => {
+      try {
+        const tabId = Number(message.tabId);
+        if (!Number.isInteger(tabId) || tabId <= 0) {
+          sendResponse({ ok: false, error: "Invalid tab id." });
+          return;
+        }
+        const host = await getActiveHost(tabId);
+        if (!host) {
+          sendResponse({ ok: false, error: "Cannot determine page host." });
+          return;
+        }
+        const { targets } = await previewAttachmentUpload({
+          tabId,
+          fileName: message.attachment?.name,
+          mime: message.attachment?.mime,
+          kind: message.attachment?.kind,
+        });
+        sendResponse({ ok: true, host, targets });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Preview failed." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_ATTACHMENT_PLACE") {
+    (async () => {
+      try {
+        const tabId = Number(message.tabId);
+        if (!Number.isInteger(tabId) || tabId <= 0) {
+          sendResponse({ ok: false, error: "Invalid tab id." });
+          return;
+        }
+        const host = await getActiveHost(tabId);
+        if (!host) {
+          sendResponse({ ok: false, error: "Cannot determine page host." });
+          return;
+        }
+        if (message.expectedHost && message.expectedHost !== host) {
+          sendResponse({ ok: false, code: "HOST_CHANGED", error: "Page navigated since consent." });
+          return;
+        }
+        const result = await placeAttachmentOnPage({
+          tabId,
+          attachment: message.attachment || {},
+          expectedHost: host,
+        });
+        sendResponse({ ok: true, host, ...result });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Place failed." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_ATTACHMENT_UPLOAD") {
+    (async () => {
+      try {
+        const tabId = Number(message.tabId);
+        if (!Number.isInteger(tabId) || tabId <= 0) {
+          sendResponse({ ok: false, error: "Invalid tab id." });
+          return;
+        }
+        const host = await getActiveHost(tabId);
+        if (!host) {
+          sendResponse({ ok: false, error: "Cannot determine page host." });
+          return;
+        }
+        if (message.expectedHost && message.expectedHost !== host) {
+          sendResponse({ ok: false, code: "HOST_CHANGED", error: "Page navigated since consent." });
+          return;
+        }
+        const result = await uploadAttachmentToPage({
+          tabId,
+          attachment: message.attachment || {},
+          expectedHost: host,
+        });
+        sendResponse({ ok: true, host, ...result });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Upload failed." });
       }
     })();
     return true;
