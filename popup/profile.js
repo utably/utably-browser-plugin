@@ -1149,16 +1149,23 @@ export async function loadProfile(els, { forceRefresh = false } = {}) {
 }
 
 export function setActiveView(els, view) {
+  const isImport = view === "import";
   const isProfile = view === "profile";
-  els.importView?.classList.toggle("hidden", isProfile);
+  const isSaved = view === "saved";
+  els.importView?.classList.toggle("hidden", !isImport);
   els.profileView?.classList.toggle("hidden", !isProfile);
+  els.savedView?.classList.toggle("hidden", !isSaved);
   if (els.viewTabImport) {
-    els.viewTabImport.classList.toggle("is-active", !isProfile);
-    els.viewTabImport.setAttribute("aria-selected", String(!isProfile));
+    els.viewTabImport.classList.toggle("is-active", isImport);
+    els.viewTabImport.setAttribute("aria-selected", String(isImport));
   }
   if (els.viewTabProfile) {
     els.viewTabProfile.classList.toggle("is-active", isProfile);
     els.viewTabProfile.setAttribute("aria-selected", String(isProfile));
+  }
+  if (els.viewTabSaved) {
+    els.viewTabSaved.classList.toggle("is-active", isSaved);
+    els.viewTabSaved.setAttribute("aria-selected", String(isSaved));
   }
 }
 

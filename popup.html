@@ -322,6 +322,17 @@
           >
             My profile
           </button>
+          <button
+            type="button"
+            id="viewTabSaved"
+            class="view-tab"
+            role="tab"
+            aria-selected="false"
+            data-view="saved"
+            data-i18n="tabs.saved"
+          >
+            Saved
+          </button>
         </div>
 
         <section id="importView" class="view view-import">
@@ -468,6 +479,33 @@
 
           <div id="fillReport" class="notice fill-report hidden" role="status"></div>
           <div id="copyToast" class="copy-toast" role="status" aria-live="polite"></div>
+        </section>
+
+        <section id="savedView" class="view view-saved hidden">
+          <div class="saved-search-wrap">
+            <input
+              id="savedSearch"
+              class="saved-search-input"
+              type="search"
+              autocomplete="off"
+              data-i18n-placeholder="saved.searchPlaceholder"
+              placeholder="Search title, company, location…"
+              aria-label="Search saved applications"
+            />
+            <button id="savedSearchClear" class="saved-search-clear hidden" type="button" aria-label="Clear search">×</button>
+          </div>
+          <div id="savedFilters" class="jobs-filter" role="tablist"></div>
+          <div id="savedLoading" class="profile-loading hidden" data-i18n="saved.loading">Loading saved jobs…</div>
+          <div id="savedError" class="notice notice-error hidden"></div>
+          <div id="savedEmpty" class="no-results hidden">
+            <img class="no-results-bot" src="assets/bot_small_heart.webp" alt="" />
+            <div class="no-results-title" data-i18n="saved.emptyTitle">Nothing here yet</div>
+            <div data-i18n="saved.emptySub">Save a job from a posting page using the Import tab.</div>
+          </div>
+          <div id="savedList" class="jobs-list"></div>
+          <div class="row saved-actions">
+            <button id="refreshSavedBtn" class="link" type="button" data-i18n="saved.refresh">Refresh</button>
+          </div>
         </section>
       </div>
 

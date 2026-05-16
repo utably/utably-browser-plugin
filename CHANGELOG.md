@@ -9,6 +9,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Saved tab** in the side panel — third surface alongside Import and My
+  profile. Lists the user's imported applications as cards with a colored
+  initials-logo, title, company, location, time-since-saved, and a status
+  badge (Saved / Applied / Interview / Offer / Rejected). Filter chips for
+  All / Saved / Applied / Interview with live counts. Per-card click-to-copy
+  for Title / Company / URL and an Open button that jumps to the
+  application in the Utably web app. No client-side persistence — list is
+  fetched fresh on tab open or Refresh.
+- **Attachments section** on the profile tab — lists the user's personal-
+  data files (CVs, certificates, profile photos). Each card has:
+  - **Upload to page** — direct DataTransfer injection into a matching
+    `<input type="file">` on the active page. Auto-falls-back to **place
+    mode** when no input matches: the content script highlights every
+    plausible drop target (file inputs + heuristic-matched dropzone divs)
+    and synthesizes the full `dragenter` → `dragover` → `drop` event
+    sequence with a crafted DataTransfer when the user clicks one.
+  - **Download** — saves the file to the user's Downloads folder via the
+    `downloads` permission (added). Escape hatch for sites where injection
+    or place mode fails.
+- **`downloads` permission** in `manifest.json` to support the Attachments
+  download button. Justified in the manifest permissions test.
+- **Design system port** from `claude.ai/design` handoff bundle —
+  Utably brand tokens (mint / ink / cream / paper), Red Hat Display
+  weights, new dark-header tab bar, redesigned profile card with mascot
+  hero, identity strip, tone-colored section icon badges, click-to-copy
+  pills on every value, role/education cards with collapsible per-field
+  rows, role description + company description blocks, skill / language /
+  certification chips. White panel background.
+- **Profile photo** in the identity avatar — backend presigns the
+  `users/{userId}/personal-data/pictures/...` S3 key and the plugin
+  renders it with `referrerPolicy="no-referrer"` and an initials fallback.
+- **Profile variants merge** — backend `/extension/profile` resolves the
+  user's preferred locale variant (from `?locale=` query param, falling
+  back to `profileVariants.defaultLocale`), merges variant-only fields
+  (`academic_title`, `title`, skills, licenses, certificates, experience
+  titles/positions/descriptions/achievements, education degrees/fields/
+  descriptions) on top of the base profile, walking ordered variants so
+  legacy base values are never read. Plugin passes its UI locale and
+  keys its in-memory cache by locale.
+- **`GET /extension/applications`** — backend endpoint returning a
+  minimised application list (no notes/fitAnalysis/recruiter/attachments)
+  for the Saved tab. Same auth, rate limit, audit log, and Cache-Control
+  posture as `/extension/profile`. See `docs/api.md`.
+- **`GET /extension/attachments`** — backend endpoint listing files under
+  `users/{userId}/personal-data/` (CVs, photos, certificates, exports
+  excluded) with 5-minute presigned URLs. Capped at 50 files. Same
+  privacy posture as the other extension reads.
+- **`Cache-Control: private, no-store` on PII responses** —
+  `/extension/profile`, `/extension/attachments`, `/extension/applications`
+  all set the header so no intermediate cache (CDN, proxy, browser HTTP
+  cache) retains PII.
+- **`chrome.storage.session` for the profile cache** — PII no longer
+  written to disk-backed storage. Falls back to no-cache if
+  `storage.session` is unavailable rather than silently downgrading. One-
+  time install hook wipes any legacy `chrome.storage.local` entry.
+- **Per-domain consent storage** for the autofill flow, with 30-day TTL
+  and a "Clear consents" / "Clear cache" pair under Settings → Autofill
+  privacy. Consents wiped on logout alongside auth.
+- **Place-mode synthesized drop** — `content/fill/dropmode.js` extends
+  attachment uploads to custom drop-zone widgets (Workday-style) that
+  don't expose a writable `<input type="file">`. Heuristic match on
+  class / data-testid / aria / inner text. 60-second timeout, ESC
+  cancels. Documented in `docs/fill.md`.
+- **TOCTOU-safe autofill** — adapters now plan, verify against the
+  user-consented field set, and apply in one synchronous frame execution.
+  If the page mutates between consent and apply, the fill aborts with
+  `PAGE_CHANGED` and the side panel re-prompts (capped at 3 attempts).
 - **Profile autofill** for Greenhouse, Lever, and Ashby application
   forms. New *My profile* tab in the side panel shows your Utably
   profile (contact, top experiences, skills); a *Fill this page*
@@ -68,6 +135,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `externally_connectable`.
 
 ### Security
+- New `SECURITY.md` invariants (9–14) covering the Saved tab and
+  Attachments flows: gesture-gated reads, render-only application list
+  (never injected into pages), no client persistence of the list,
+  attachment uploads never auto-submit, attachment bytes leave Utably
+  only on per-host consent, place-mode is top-frame-only with host
+  cross-check.
 - Profile cache moved from `chrome.storage.local` (disk-backed) to
   `chrome.storage.session` (in-memory, wiped on browser restart). No
   PII at rest. Defensive cleanup wipes any legacy `local` entry on

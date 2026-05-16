@@ -161,3 +161,52 @@ Bypassing any of the above (e.g., a code path that fills without rendering
 the consent modal, a frame that fills despite not being in the consented
 host list, a way to coerce the cache onto disk) is in scope for the
 high-severity bounty bracket.
+
+## Application List & Attachments Threat Model
+
+The *Saved* tab and the *Attachments* section on the profile tab read the
+user's own application history and personal-data file index from the Utably
+backend. Neither surface ever sends PII to a third-party origin; these are
+strictly user-to-Utably reads. The invariants below complement (and reuse)
+the profile-autofill ones above.
+
+**Invariant 9 — Reads happen only on user gesture.**
+`GET /extension/applications` fires on Saved tab open or Refresh click.
+`GET /extension/attachments` fires after the profile load completes. There
+is no background poll, no preload outside of an explicit message handler.
+
+**Invariant 10 — Application list is render-only.**
+The Saved tab is rendered in the side panel only. The list is never
+injected into a page, never copied into form fields automatically, never
+passed to a content script. Per-card "Copy" actions write to the user's
+clipboard (same as the profile tab); the "Open" button opens the Utably
+web app — never a third-party URL.
+
+**Invariant 11 — No client-side persistence of the application list.**
+`cachedApplications` lives in the side-panel JS context only. Closing the
+side panel collects the array. There is no `chrome.storage.local` or
+`chrome.storage.session` write for application data, no IndexedDB, no
+file-system cache. Each tab open re-fetches.
+
+**Invariant 12 — Attachment uploads never auto-submit.**
+The DataTransfer + DragEvent injection in `content/fill/attachments.js`
+populates the file input. Form submission requires the user's own click on
+the destination site's submit button. The plugin never dispatches a
+`submit` event.
+
+**Invariant 13 — Attachment bytes leave Utably only on consent.**
+The presigned S3 URL is included in the `/extension/attachments`
+response (TTL: 5 minutes). The bytes are fetched by the service worker
+*only* when the user clicks **Upload to page** or **Download**, and *only*
+after the per-host consent modal is confirmed. The 12 MB cap in
+`runFormFill` prevents accidental large-payload transfers.
+
+**Invariant 14 — Place-mode hosts must be the active top frame.**
+`dropmode.js` runs in the top frame only and cross-checks `location.hostname`
+against the user-consented host before synthesizing any drop event. A frame
+whose host doesn't match aborts with `host_not_consented`.
+
+Reports that defeat any invariant (e.g., a code path that lists
+applications without a user click, a way to surface the list in a content
+script, an attachment upload that bypasses the consent modal) are high
+severity.

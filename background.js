@@ -1186,6 +1186,77 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "UTABLY_UPDATE_APPLICATION_STATUS") {
+    (async () => {
+      try {
+        const id = String(message.applicationId || "").trim();
+        const status = String(message.status || "").trim();
+        if (!id) {
+          sendResponse({ ok: false, error: "Missing application id." });
+          return;
+        }
+        const settings = await getSettings();
+        const token = await ensureAccessToken(settings);
+        if (!token) {
+          sendResponse({ ok: false, error: "Not connected. Please connect to Utably first." });
+          return;
+        }
+        const res = await fetch(
+          `${settings.apiBase}/extension/applications/${encodeURIComponent(id)}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status }),
+          }
+        );
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          sendResponse({ ok: false, error: text || `HTTP ${res.status}` });
+          return;
+        }
+        const json = await res.json().catch(() => null);
+        sendResponse({ ok: true, application: json });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to update status." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_LIST_APPLICATIONS") {
+    (async () => {
+      try {
+        const settings = await getSettings();
+        const token = await ensureAccessToken(settings);
+        if (!token) {
+          sendResponse({ ok: false, error: "Not connected. Please connect to Utably first." });
+          return;
+        }
+        const res = await fetch(`${settings.apiBase}/extension/applications`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          sendResponse({ ok: false, error: text || `HTTP ${res.status}` });
+          return;
+        }
+        const json = await res.json().catch(() => null);
+        if (!json || !Array.isArray(json.applications)) {
+          sendResponse({ ok: false, error: "Invalid applications response." });
+          return;
+        }
+        sendResponse({ ok: true, applications: json.applications });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to list applications." });
+      }
+    })();
+    return true;
+  }
+
   if (message?.type === "UTABLY_ATTACHMENT_DOWNLOAD") {
     (async () => {
       try {

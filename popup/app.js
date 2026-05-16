@@ -19,6 +19,7 @@ import {
 } from "./extraction.js";
 import { applyTranslations, getLocale, loadLocale, setLocalePreference, t } from "./i18n.js";
 import { wireProfileTab, setActiveView, wirePrivacySettings } from "./profile.js";
+import { wireSavedTab } from "./saved.js";
 
 const DRAFT_STORAGE_KEY = "utablyDraft";
 const CONNECT_PENDING_KEY = "utablyConnectPending";
@@ -1518,6 +1519,14 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   wirePrivacySettings(els, { setStatusText });
+
+  wireSavedTab(els, {
+    openInUtably: async (path) => {
+      const base = getAppUrl(els).replace(/\/+$/u, "");
+      const suffix = path ? (path.startsWith("/") ? path : `/${path}`) : "";
+      await chrome.tabs.create({ url: `${base}${suffix}` });
+    },
+  });
 
   // Reset to the Import view when authentication state changes so the user
   // never lands on an empty Profile view post-login.

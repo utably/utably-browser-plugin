@@ -164,6 +164,80 @@ publications, references, awards, motivation, career compass, etc.) are not
 returned. Adding fields requires a backend change and a documentation update
 here.
 
+### List saved applications
+```
+GET /extension/applications
+Authorization: Bearer <accessToken>
+```
+
+Returns the user's saved/applied jobs for the Saved tab. Headers:
+
+- `Cache-Control: private, no-store, max-age=0`
+- `Pragma: no-cache`
+- Per-user per-minute rate cap (shared counter with `/extension/profile`)
+- Audit log line `extension.applications.list` (CloudWatch, DSGVO Art. 30)
+
+**Success response (200):**
+```javascript
+{
+  applications: [
+    {
+      id: "uuid-v4",
+      jobTitle: "Senior Product Designer",
+      companyName: "Stripe",
+      location: "Berlin · Hybrid",
+      status: "Applied",           // "Saved" | "Applied" | "Interview" | "Offer" | "Rejected"
+      applicationDate: "2026-05-12",
+      jobUrl: "https://stripe.com/jobs/listing/...",
+      source: "linkedin.com",
+      createdAt: "2026-05-12T09:30:00.000Z",
+      updatedAt: "2026-05-13T08:14:21.000Z"
+    }
+    // ... newest first
+  ]
+}
+```
+
+Notes, interview rounds, fitAnalysis, recruiter interactions, attachments,
+and other application fields are **not returned** — those stay on the web
+app side. Plugin renders read-only cards; mutations happen via the web app.
+
+### List personal attachments
+```
+GET /extension/attachments
+Authorization: Bearer <accessToken>
+```
+
+Returns the user's personal-data file index for the Attachments section on
+the profile tab. Lists files under `users/{userId}/personal-data/`,
+filtered to office/image extensions (pdf/doc/docx/txt/rtf/png/jpg/jpeg/
+webp/gif/heic). Capped at 50 items. Each item includes a presigned S3 URL
+with a 5-minute TTL. Same Cache-Control, rate cap, and audit log shape as
+applications.
+
+**Success response (200):**
+```javascript
+{
+  attachments: [
+    {
+      key: "users/{userId}/personal-data/cv/resume-2026.pdf",
+      name: "resume-2026.pdf",
+      kind: "cv",                // "cv" | "document" | "certificate" | "image" | "export"
+      mime: "application/pdf",
+      size: 412345,
+      lastModified: "2026-05-10T11:33:26.295Z",
+      presignedUrl: "https://utably.s3.eu-north-1.amazonaws.com/users/.../resume-2026.pdf?X-Amz-..."
+    }
+    // ... CVs first, then documents/certificates/images
+  ]
+}
+```
+
+The `presignedUrl` is the only path by which file bytes leave Utably's
+perimeter. The plugin fetches it from the **service worker** (not from the
+content script) when the user clicks **Upload to page** or **Download**.
+See `docs/fill.md` for the injection mechanism.
+
 ## Analysis Endpoints
 
 ### FitCheck
