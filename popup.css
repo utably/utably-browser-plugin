@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   /* ===== Utably brand tokens (from claude.ai/design handoff) ===== */
   --utably-mint:        #87FFDE;
   --utably-mint-soft:   #B8FFEA;
@@ -1254,6 +1254,22 @@ body.sidepanel-mode .row {
     --preview-meta-bg: rgba(28, 66, 65, 0.82);
     --slider-bg: #355d60;
     --slider-knob: #eaf5f3;
+
+    /* Profile + Saved redesign brand tokens (dark) */
+    --utably-ink: #e6f6f4;
+    --utably-ink-80: #cfe7e3;
+    --utably-ink-60: #9cc6c2;
+    --utably-ink-40: #7aa7a3;
+    --utably-ink-20: rgba(120, 168, 162, 0.42);
+    --utably-ink-10: rgba(120, 168, 162, 0.22);
+    --utably-cream: #6b4a1f;
+    --utably-cream-soft: rgba(73, 58, 25, 0.55);
+    --utably-cream-deep: rgba(245, 200, 140, 0.42);
+    --utably-orange: #f59963;
+    --utably-orange-deep: #ffbc8a;
+    --utably-paper: #152327;
+    --utably-paper-sunk: #0f1c1f;
+    --utably-mint-soft: rgba(46, 192, 180, 0.18);
   }
 
   .fitcheck-traffic-light.good {
@@ -2675,3 +2691,102 @@ body.sidepanel-mode .row {
   color: var(--text-muted);
 }
 
+/* ============================================================
+   Profile + Saved dark-mode selector overrides
+
+   Must live AT THE END of the file: the redesign rules
+   (`.section`, `.job-card`, `.filter-chip`, etc.) hardcode
+   `background: #ffffff` and appear later than the main dark
+   `@media` block. Equal specificity + later source order means
+   those rules would otherwise win in dark mode. Keeping these
+   overrides last ensures they apply.
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  /* Hardcoded white surfaces flip to the dark surface token. */
+  .section,
+  .mini-btn,
+  .filter-chip,
+  .job-card,
+  .fit-badge.fit-empty {
+    background: var(--surface-1);
+  }
+  .saved-search-input {
+    background: var(--input-bg);
+  }
+
+  /* Header logo tile was translucent white. */
+  .logo {
+    background: rgba(230, 246, 244, 0.08);
+  }
+
+  /* `--utably-ink` doubles as a dark contrast surface in light mode
+     (buttons, active chips, toasts). In dark mode the token flips to
+     a light text color, so we swap these to a brand-mint accent so
+     they stay readable. */
+  .copy-pill,
+  .attachment-action,
+  .filter-chip.is-active,
+  .saved-search-clear:hover {
+    background: var(--utably-mint-deep);
+    color: var(--page-bg);
+  }
+  .copy-pill:hover,
+  .attachment-action:hover:not(:disabled) {
+    background: var(--utably-mint);
+  }
+  .filter-chip.is-active {
+    border-color: var(--utably-mint-deep);
+  }
+  .section-icon.tone-ink,
+  .chip.tone-ink,
+  .attachment-icon.tone-ink,
+  .job-status.tone-interview {
+    background: var(--utably-mint-deep);
+    color: var(--page-bg);
+  }
+  .view-tabs {
+    background: rgba(8, 20, 22, 0.72);
+  }
+  .view-tab.is-active {
+    background: var(--utably-mint-deep);
+    color: var(--page-bg);
+  }
+  .view-tab {
+    color: rgba(230, 246, 244, 0.6);
+  }
+  .view-tab:hover {
+    color: rgba(230, 246, 244, 0.9);
+  }
+  .copy-toast {
+    background: rgba(8, 20, 22, 0.96);
+    border: 1px solid var(--border-soft);
+  }
+
+  /* Translucent-white count pill on the active filter chip. */
+  .filter-chip.is-active .filter-chip-count {
+    background: rgba(8, 20, 22, 0.32);
+    color: var(--page-bg);
+  }
+
+  /* Locked overlay hover used a translucent white wash. */
+  .locked-overlay:hover {
+    background: rgba(8, 20, 22, 0.4);
+  }
+
+  /* Mint/cream badges keep their bright brand background; their text was
+     `var(--utably-ink)` which is now light, so lock it back to the dark
+     page color so the label stays readable. */
+  .fit-badge.fit-perfect,
+  .fit-badge.fit-good,
+  .job-status.tone-applied {
+    color: var(--page-bg);
+  }
+
+  /* Card-flash keyframe transitions to #ffffff in light mode. The later
+     `@keyframes card-flash` at the source's saved section would override
+     a dark version placed earlier, so redefine it here. */
+  @keyframes card-flash {
+    0%   { background: var(--ok-bg); }
+    100% { background: var(--surface-1); }
+  }
+}

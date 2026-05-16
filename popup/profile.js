@@ -571,6 +571,8 @@ function formatBytes(bytes) {
 
 const ATTACHMENT_KIND_META = {
   cv:          { tone: "ink",    iconKey: "briefcase" },
+  coverletter: { tone: "ink",    iconKey: "briefcase" },
+  appendix:    { tone: "cream",  iconKey: "award" },
   document:    { tone: "cream",  iconKey: "award" },
   certificate: { tone: "cream",  iconKey: "award" },
   image:       { tone: "mint",   iconKey: "user" },
@@ -826,10 +828,10 @@ function confirmAttachmentUpload(els, { attachment, host, targets }) {
 }
 
 // Surface only the kinds that make sense for application autofill:
-// CVs (the "favourite document" from /user-data/profile) and certificates.
-// Profile pictures and bulk exports are hidden from the side panel — they
-// don't drop into application forms cleanly.
-const ATTACHMENT_VISIBLE_KINDS = new Set(["cv", "certificate"]);
+// project exports (cv / coverletter / appendix) and certificate documents
+// the user curated under /user-data/profile → Documents. Profile pictures
+// and bulk exports are hidden — they don't drop into application forms.
+const ATTACHMENT_VISIBLE_KINDS = new Set(["cv", "coverletter", "appendix", "certificate"]);
 
 function renderAttachmentsSection(els, attachments) {
   if (!els.profileSections) return;
