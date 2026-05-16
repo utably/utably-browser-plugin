@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-05-16
+
 ### Added
 - **Saved tab** in the side panel — third surface alongside Import and My
   profile. Lists the user's imported applications as cards with a colored
@@ -17,17 +19,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for Title / Company / URL and an Open button that jumps to the
   application in the Utably web app. No client-side persistence — list is
   fetched fresh on tab open or Refresh.
-- **Attachments section** on the profile tab — lists the user's personal-
-  data files (CVs, certificates, profile photos). Each card has:
+- **Saved-tab search bar** — debounced (120ms) substring match across
+  title / company / location / source / host, combined with the filter
+  chip selection.
+- **Saved-tab status `<select>`** — per-card status changer with
+  optimistic UI: writes through `PATCH /extension/applications/{id}`
+  (whitelisted statuses only) and rolls back on backend failure.
+- **Saved-tab Posting button** — was clipboard-copy of the URL; now
+  opens the posting page directly in a new tab.
+- **Saved-tab FitCheck score badge** — three states:
+  - **scored** (tone-colored chip with the existing score),
+  - **runnable** (dashed mint chip — clicking re-runs FitCheck via
+    `UTABLY_FITCHECK` and persists the result via
+    `PATCH /extension/applications/{id}` with `{ fitAnalysis }`),
+  - **disabled** (dashed grey — application has no `jobText`, tooltip
+    asks the user to re-import the job).
+  Clicking a scored badge opens the same FitCheck modal the Import tab
+  uses. `popup/saved.js` normalizes the persisted shape
+  (`fitSummary` / `confidence` / `strengths` / `gaps`) into the raw LLM
+  shape (`summary` / `overallScore` / `topStrengths` / `topConcerns`)
+  the modal expects.
+- **Branded per-section FitCheck lock** — every empty section in the
+  FitCheck modal now renders a branded SVG lock
+  (`assets/lock-basic.svg`, gradient teal/mint padlock with "BASIC"
+  plaque) plus "Upgrade to unlock" text. The whole overlay is a
+  clickable `<button>` that opens `/subscription/plans` (was
+  `/settings/subscription`) on the user's current stage. Blurred
+  content under the lock has `user-select: none` and `pointer-events:
+  none` so clipboard, right-click copy, and drag-select are all
+  blocked. New locale keys: `fitcheck.locked.text`,
+  `fitcheck.upgradeTitle`, `fitcheck.upgradeCta`.
+- **Attachments section** on the profile tab — lists the user's
+  personal-data files (CVs, certificates, school/university
+  transcripts, employment references). Last section on the tab,
+  default-collapsed, filtered to `cv` + `certificate` kinds
+  (Zeugnisse / Arbeitszeugnisse / Zertifikate all map to
+  `certificate`). Each card has:
   - **Upload to page** — direct DataTransfer injection into a matching
-    `<input type="file">` on the active page. Auto-falls-back to **place
-    mode** when no input matches: the content script highlights every
-    plausible drop target (file inputs + heuristic-matched dropzone divs)
-    and synthesizes the full `dragenter` → `dragover` → `drop` event
-    sequence with a crafted DataTransfer when the user clicks one.
-  - **Download** — saves the file to the user's Downloads folder via the
-    `downloads` permission (added). Escape hatch for sites where injection
-    or place mode fails.
+    `<input type="file">` on the active page. Auto-falls-back to
+    **place mode** when no input matches: the content script highlights
+    every plausible drop target (file inputs + heuristic-matched
+    dropzone divs) and synthesizes the full
+    `dragenter` → `dragover` → `drop` event sequence with a crafted
+    DataTransfer when the user clicks one. 60-second timeout, ESC
+    cancels.
+  - **Download** — saves the file to the user's Downloads folder via
+    the `downloads` permission (added). Escape hatch for sites where
+    injection or place mode fails.
 - **`downloads` permission** in `manifest.json` to support the Attachments
   download button. Justified in the manifest permissions test.
 - **Design system port** from `claude.ai/design` handoff bundle —
@@ -52,6 +90,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   minimised application list (no notes/fitAnalysis/recruiter/attachments)
   for the Saved tab. Same auth, rate limit, audit log, and Cache-Control
   posture as `/extension/profile`. See `docs/api.md`.
+- **`GET /extension/applications/{id}`** — single-application read used
+  by the Saved tab's FitCheck rerun flow to fetch `jobText` and the
+  current `fitAnalysis` before opening the modal.
+- **`PATCH /extension/applications/{id}`** — partial update accepting
+  only `{ status }` from a whitelist (`Saved` / `Applied` /
+  `Interview` / `Offer` / `Rejected`) and/or `{ fitAnalysis }`. Audit
+  log line per mutation. Used by the Saved-tab status selector and
+  FitCheck rerun.
 - **`GET /extension/attachments`** — backend endpoint listing files under
   `users/{userId}/personal-data/` (CVs, photos, certificates, exports
   excluded) with 5-minute presigned URLs. Capped at 50 files. Same
@@ -128,6 +174,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/adapters.md` expanded with worked example, broken-adapter fix
   playbook, and explicit safety rules.
 
+### Fixed
+- **Attachment download extension** — presigned URLs for
+  `/extension/attachments` now set `ResponseContentType` and
+  `ResponseContentDisposition`, so PDFs save with the correct
+  extension. Previously a CV stored with an S3 mime mismatch was
+  written to disk as `resume.pdf.txt`.
+
 ### Removed
 - Verbose debug logging from the side panel and service worker code
   paths.
@@ -154,6 +207,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hypothetical XSS via hostile hostnames.
 - Published security disclosure policy in `SECURITY.md` with
   `security@utably.com` as the contact mailbox.
+- **Backend S3 access is now IAM-scoped per user across all eight
+  user-PII lambdas**, not just the extension paths. Each request
+  assumes a dedicated role with a session policy narrowing S3 ops to
+  `users/{userId}/*`; resulting credentials live 15 minutes max and
+  are cached per warm container. Covers `applicationsAPI`,
+  `utablyAPI_v2`, `imageUpload`, `dataGovernanceAPI`,
+  `dataDeletionWorker`, `pdfExport` (Puppeteer), `profileImport`, and
+  `postSignupTriggerStripeID`. Even a full RCE on any of these
+  lambdas cannot read or write another user's prefix — rejection is
+  enforced by the AWS API itself, with the existing code-layer prefix
+  check kept as belt-and-suspenders. See `SECURITY.md` Invariant 15.
 
 ## [0.1.5] — Pre-open-source baseline
 
@@ -166,5 +230,6 @@ log.
 
 ---
 
-[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/utably/utably-browser-plugin/compare/v0.1.5...v0.16.0
 [0.1.5]: https://github.com/utably/utably-browser-plugin/releases/tag/v0.1.5

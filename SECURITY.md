@@ -207,15 +207,34 @@ against the user-consented host before synthesizing any drop event. A frame
 whose host doesn't match aborts with `host_not_consented`.
 
 **Invariant 15 — Backend S3 access is IAM-scoped per user, not just
-code-scoped.** The `applicationsAPI` lambda has **no direct S3 grant**. At
-the start of each `/extension/profile` and `/extension/attachments`
-request, the lambda calls `sts:AssumeRole` on a dedicated role with a
-session policy narrowing S3 ops to `users/{userId}/*`. The resulting
-temporary credentials (15-minute lifetime) are used for both the
-`ListBucket` and `GetObject`/presign calls. Even a full RCE on the lambda
-runtime cannot read another user's prefix — the AWS API itself rejects it.
-The code-layer prefix check (`key.startsWith('users/{userId}/')`) is
-retained as belt-and-suspenders.
+code-scoped.** Every lambda that touches user PII on S3 holds **no direct
+S3 grant** on the assets bucket. At the start of each request, the lambda
+calls `sts:AssumeRole` on a dedicated scoped role with a session policy
+narrowing S3 ops to `users/{userId}/*`. Resulting temporary credentials
+(15-minute lifetime, cached per warm container) are used for all S3 ops
+in that request. Even a full RCE on the lambda runtime cannot read or
+write another user's prefix — the AWS API itself rejects cross-user
+access. The code-layer prefix check is retained as belt-and-suspenders.
+
+Lambdas with this protection:
+
+| Lambda | Surface | Mode |
+|---|---|---|
+| `applicationsAPI` | `/extension/profile` photo presign, `/extension/attachments` list+presign | read |
+| `utablyAPI_v2` | All `/userfiles/*` CRUD (presign, list, download, save, delete) — main web app file API | read+write |
+| `imageUpload` | Profile picture upload + delete | read+write |
+| `dataGovernanceAPI` | GDPR export bundle creation, job tracking | read+write |
+| `dataDeletionWorker` | Right-to-erasure batch deletes | list+delete |
+| `pdfExport` (Puppeteer) | CV PDF generation (read templates, write user exports) | read+write |
+| `profileImport` | CV ingestion → S3 `personal-data/cv/` | read+write |
+| `postSignupTriggerStripeID` | Post-signup picture seeding | write |
+
+CDK helper: `addUserScopedS3Role(name, bucket, [bucketActions], [objectActions])`
+in `infra/lib/core/lambda-constructs.ts`. Layer module:
+`lambdas/lambdaLayer/utably-utils-session-cors-js/nodejs/userScopedS3.js`
+(loaded at runtime from `/opt/nodejs/userScopedS3`). Credentials are
+cached per `(region, roleArn, bucket, userId, actions, prefixes)` until
+60s before expiry; opportunistic eviction keeps the in-process Map bounded.
 
 Reports that defeat any invariant (e.g., a code path that lists
 applications without a user click, a way to surface the list in a content

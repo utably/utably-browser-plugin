@@ -57,6 +57,46 @@ locking happens server-side — see [`fitcheck.md`](fitcheck.md).
    its best. A site-specific adapter would work better — see the
    [10-minute walkthrough](adapters.md#write-your-first-adapter-in-10-minutes).
 
+### What is the Saved tab?
+
+The third side-panel tab (after Import and My profile). It lists the
+applications you've already saved to Utably as cards with title,
+company, location, source, and time-since-saved. From a card you can:
+
+- **Filter** by status (All / Saved / Applied / Interview) and
+  **search** across title / company / location / source / host.
+- **Change status** via the per-card `<select>`. The change writes
+  through to the backend immediately and rolls back if the request
+  fails.
+- **Copy** the title, company, or open the original posting URL.
+- **Open** the application in the Utably web app.
+- **Re-run FitCheck** by clicking the score chip on the card — opens
+  the same FitCheck modal the Import tab uses. The chip is greyed out
+  if the application has no stored `jobText` (re-import the job from
+  its posting page to enable it).
+
+The list isn't cached on disk; closing the side panel discards it and
+the next open re-fetches.
+
+### How does the Attachments upload work?
+
+In **My profile**, the Attachments section lists your stored CVs and
+certificates. Each card has two actions:
+
+1. **Upload to page** — the extension finds a matching
+   `<input type="file">` on the active page and injects the file via
+   `DataTransfer`. If no input matches (custom Workday-style drop
+   zones), the side panel switches to **place mode**: every plausible
+   drop target on the page is highlighted, you click one, and the
+   extension synthesizes a real drag-and-drop event sequence onto it.
+   The destination site receives the same DOM events it would see
+   from a manual desktop drag.
+2. **Download** — saves the file to your Downloads folder. Use this
+   when the page's upload widget is broken or unrecognized.
+
+The extension never submits the form for you. After the file is
+attached you still click the page's own submit button.
+
 ### Can I use it against a non-production Utably environment?
 
 Yes, if you're a Utably developer with an account on a dev/test stage.

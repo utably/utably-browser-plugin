@@ -825,38 +825,38 @@ function confirmAttachmentUpload(els, { attachment, host, targets }) {
   }).then((res) => Boolean(res));
 }
 
+// Surface only the kinds that make sense for application autofill:
+// CVs (the "favourite document" from /user-data/profile) and certificates.
+// Profile pictures and bulk exports are hidden from the side panel — they
+// don't drop into application forms cleanly.
+const ATTACHMENT_VISIBLE_KINDS = new Set(["cv", "certificate"]);
+
 function renderAttachmentsSection(els, attachments) {
   if (!els.profileSections) return;
-  // Remove any existing attachments section before re-rendering.
   const existing = els.profileSections.querySelector('[data-section="attachments"]');
   if (existing) existing.remove();
-  if (!Array.isArray(attachments) || attachments.length === 0) return;
+  const visible = (Array.isArray(attachments) ? attachments : [])
+    .filter((a) => ATTACHMENT_VISIBLE_KINDS.has(a.kind));
+  if (visible.length === 0) return;
 
   const { section, body } = buildSection({
     id: "attachments",
     label: t("profile.attachments"),
     iconKey: "award",
     tone: "orange",
-    count: attachments.length,
-    defaultOpen: true,
+    count: visible.length,
+    defaultOpen: false,
   });
 
   const list = document.createElement("div");
   list.className = "attachment-list";
-  for (const att of attachments) {
+  for (const att of visible) {
     list.appendChild(buildAttachmentCard(els, att));
   }
   body.appendChild(list);
 
-  // Insert AFTER experience (or at the end if no experience section).
-  const expSection = els.profileSections.querySelector('[data-section="experience"]');
-  if (expSection && expSection.nextSibling) {
-    els.profileSections.insertBefore(section, expSection.nextSibling);
-  } else if (expSection) {
-    expSection.after(section);
-  } else {
-    els.profileSections.appendChild(section);
-  }
+  // Always append last — Attachments is supporting context, not the headline.
+  els.profileSections.appendChild(section);
 }
 
 async function loadAttachments(els) {

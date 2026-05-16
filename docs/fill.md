@@ -253,3 +253,61 @@ These will be rejected at review:
 - **Not a way to apply to many jobs at once.** Each fill requires a
   user gesture (click), a consent, and a confirmation. There is no
   bulk-apply mode and we have no plans to add one.
+
+## Attachment upload
+
+Profile-tab attachment cards (CVs, certificates, references) reuse the
+same `chrome.scripting.executeScript` injection surface as the text-field
+adapters, but they hand the destination page a real file object rather
+than a string value. Three paths, in order of preference:
+
+### 1. Direct file-input injection
+
+[`content/fill/attachments.js`](../content/fill/attachments.js) builds a
+`DataTransfer`, calls `dataTransfer.items.add(file)`, and assigns
+`input.files = dataTransfer.files` on a matching `<input type="file">`.
+A native `change` event is dispatched so React/Vue form bindings pick
+the value up. The script picks the file input by visibility, type
+filter (`accept="..."` match), and proximity to upload-button text;
+ambiguous pages prompt the user to click the target.
+
+### 2. Place mode (synthesized drop)
+
+If no `<input type="file">` matches, the side panel falls back to
+[`content/fill/dropmode.js`](../content/fill/dropmode.js). The script:
+
+1. Runs in the **top frame only** and cross-checks `location.hostname`
+   against the user-consented host before starting.
+2. Highlights every plausible drop target (heuristic-matched dropzone
+   `<div>` / `<label>` elements by class, `data-testid`, `aria-*`,
+   inner text).
+3. Waits up to 60 seconds for the user to click one. ESC cancels.
+4. On click, synthesizes a full `dragenter` → `dragover` → `drop` event
+   sequence with a `DataTransfer` whose `.files` contains the chosen
+   attachment. The page sees the same DOM events it would see from a
+   real OS-level drag.
+
+There is no awaitable boundary inside the synthesized sequence; the
+events fire in one microtask burst. The user's click is the gesture
+that authorizes the drop. Place mode never auto-submits and never
+fires `submit` on the surrounding form.
+
+### 3. Download
+
+Every attachment card has a **Download** button that saves the file to
+the user's Downloads folder via `chrome.downloads.download` (added
+`downloads` permission). Use this when the destination form's upload
+UI is broken or unrecognized; the user uploads from disk manually.
+
+### Security invariants
+
+Reuses every invariant from the profile-fill flow, plus:
+
+- **No auto-submit.** Like text fills, attachment uploads only populate
+  the input — the user clicks submit.
+- **Bytes leave Utably only on consent.** The presigned S3 URL
+  (5-minute TTL) is fetched by the service worker after the per-host
+  consent modal is confirmed, not before. A 12 MB cap in `runFormFill`
+  guards against accidental large-payload transfers.
+- **Place mode is top-frame-only.** Sub-frames cannot synthesize drops;
+  see [`SECURITY.md`](../SECURITY.md) Invariant 14.

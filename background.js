@@ -307,6 +307,31 @@ async function revokeToken(apiBase, token) {
   await clearAuth();
 }
 
+// Single-flight refresh. Refresh tokens rotate on every successful refresh
+// (server rewrites the DDB hash), so two concurrent refreshes from the same
+// extension racing to the server will deterministically log the user out:
+// the second one arrives with a now-stale refresh token, server returns
+// 401 "Refresh token mismatch", clearAuth() fires.
+//
+// With ~10 ensureAccessToken call sites firing in parallel as the user
+// opens Saved/Profile/Import tabs, this race was the cause of the
+// "logs out every few minutes" reports. Coalesce all in-flight refresh
+// requests onto a single shared promise so only one token rotation
+// happens at a time.
+let pendingRefresh = null;
+
+async function performRefresh(apiBase, refreshToken) {
+  if (pendingRefresh) return pendingRefresh;
+  pendingRefresh = (async () => {
+    try {
+      return await refreshAccessToken(apiBase, refreshToken);
+    } finally {
+      pendingRefresh = null;
+    }
+  })();
+  return pendingRefresh;
+}
+
 async function ensureAccessToken(settings) {
   const now = Date.now();
   if (settings.accessToken && settings.accessExpiresAt > now + ACCESS_SKEW_MS) {
@@ -319,8 +344,17 @@ async function ensureAccessToken(settings) {
   }
 
   try {
-    return await refreshAccessToken(settings.apiBase, settings.refreshToken);
+    return await performRefresh(settings.apiBase, settings.refreshToken);
   } catch {
+    // If the in-flight refresh already rotated the token (race we lost),
+    // re-read storage one more time before giving up — the winning refresh
+    // may have just written fresh tokens we can use.
+    try {
+      const fresh = await getSettings();
+      if (fresh.accessToken && fresh.accessExpiresAt > Date.now() + ACCESS_SKEW_MS) {
+        return fresh.accessToken;
+      }
+    } catch {}
     await clearAuth();
     return "";
   }

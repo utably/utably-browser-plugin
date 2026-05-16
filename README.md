@@ -40,6 +40,17 @@ profile, and click **Save**. That's the whole extension.
   Utably profile. You see exactly which fields go to which host before
   any data leaves the extension; the page must not change between
   preview and fill (see [`docs/fill.md`](docs/fill.md)).
+- **Saved tab** — a third side-panel tab listing your imported
+  applications. Filter by Saved / Applied / Interview, search across
+  title / company / location / source, change status with optimistic
+  write-back, copy fields, or open the application in the Utably web
+  app. Click the FitCheck score chip on any card to re-run or view
+  the analysis in the same modal the Import tab uses.
+- **Attachments** — your stored CVs, certificates, and references
+  surface as cards in *My profile*. Each card can either **upload** the
+  file directly into a matching `<input type="file">` on the active
+  page (with a fall-back **place mode** for custom Workday-style drop
+  zones) or **download** the file to disk.
 - **Text Capture** — select any text on a page, hit copy, and drop it
   into a form field via a floating card.
 - **Side panel UI** — no popups, no new tabs, never steals focus.
@@ -210,8 +221,10 @@ The short version:
 - **`manifest.json`** — Manifest V3 declaration.
 - **`background.js`** — service worker, auth, API calls, token rotation,
   profile cache (in `chrome.storage.session`), fill-adapter injection.
-- **`popup.html` + `popup/`** — the side panel UI and its controllers,
-  including the profile tab and the fill-confirm modal.
+- **`popup.html` + `popup/`** — the side panel UI and its controllers.
+  Tab controllers split out: `popup/app.js` (Import + FitCheck modal),
+  `popup/profile.js` (My profile + attachment cards), `popup/saved.js`
+  (Saved tab, status write-back, per-card FitCheck rerun).
 - **`webpages/`** — one **extract** adapter per supported job board,
   plus `router.js` which picks the highest-priority match for the
   current page.
@@ -219,6 +232,13 @@ The short version:
 - **`content/fill/`** — fill adapters for Greenhouse, Lever, Ashby, and
   a top-frame-only generic fallback. Plan-verify-apply runs in one
   synchronous frame execution. See [`docs/fill.md`](docs/fill.md).
+- **`content/fill/attachments.js`** — DataTransfer injection of stored
+  files into matching `<input type="file">` elements on the active
+  page.
+- **`content/fill/dropmode.js`** — fall-back drop synthesizer for
+  sites that hide their file input behind a custom drop zone
+  (Workday-style). User clicks a highlighted target, the script
+  synthesizes the full `dragenter` → `dragover` → `drop` sequence.
 - **`scripts/`** — build tools (zero-dependency file copying).
 
 Deeper dive in [`docs/architecture.md`](docs/architecture.md).

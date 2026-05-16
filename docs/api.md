@@ -199,8 +199,71 @@ Returns the user's saved/applied jobs for the Saved tab. Headers:
 ```
 
 Notes, interview rounds, fitAnalysis, recruiter interactions, attachments,
-and other application fields are **not returned** — those stay on the web
-app side. Plugin renders read-only cards; mutations happen via the web app.
+and other application fields are **not returned** — those are fetched
+per-application via `GET /extension/applications/{id}` when the Saved tab
+opens or re-runs FitCheck. The Saved tab itself renders read-only cards
+plus a status `<select>` and a FitCheck score chip.
+
+### Get one saved application
+```
+GET /extension/applications/{id}
+Authorization: Bearer <accessToken>
+```
+
+Returns the full application record for the Saved tab's FitCheck rerun
+flow. Headers + rate posture identical to the list endpoint; audit log line
+`extension.applications.get`.
+
+**Success response (200):**
+```javascript
+{
+  application: {
+    id: "uuid-v4",
+    jobTitle: "Senior Product Designer",
+    companyName: "Stripe",
+    location: "Berlin · Hybrid",
+    status: "Applied",
+    jobUrl: "https://stripe.com/jobs/listing/...",
+    jobText: "Job description text used for FitCheck...",
+    fitAnalysis: { /* see fitcheck.md */ },
+    // ...remaining fields
+  }
+}
+```
+
+The plugin only reads `jobText` (FitCheck input) and `fitAnalysis`
+(currently stored shape) from this response.
+
+### Update one saved application
+```
+PATCH /extension/applications/{id}
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+Partial update. The plugin sends one of two payload shapes:
+
+```javascript
+// Status change (Saved-tab status select)
+{ "status": "Applied" }
+
+// FitCheck rerun (Saved-tab fit chip)
+{ "fitAnalysis": { /* see fitcheck.md */ } }
+```
+
+`status` is validated against the whitelist `"Saved" | "Applied" |
+"Interview" | "Offer" | "Rejected"`. Any other value returns 400.
+
+`fitAnalysis` is stored as-is; the plugin remaps the LLM output before
+sending so the persisted shape matches what `/extension/applications/{id}`
+will return on the next fetch.
+
+Each mutation is audit-logged (`extension.applications.update` with the
+changed-fields list) and rate-limited from the same per-user counter as
+the other extension reads.
+
+**Success response (200):** the updated application, same shape as
+`GET /extension/applications/{id}`.
 
 ### List personal attachments
 ```
