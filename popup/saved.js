@@ -449,6 +449,15 @@ function buildCard(els, app, openInUtably) {
   // every never-FitChecked application with a misleading "0".
   const hasScore = typeof app.fitScore === "number" && Number.isFinite(app.fitScore);
   const score = hasScore ? app.fitScore : 0;
+  // FitCheck needs job description text to run. If the badge has no stored
+  // result AND no job text on file, the user physically can't get a fit
+  // analysis — render a disabled state instead of a clickable run button.
+  // Legacy responses that don't include hasJobText default to "true" so
+  // we never DISABLE a badge under uncertainty (errs on the side of
+  // letting the user try; the click handler will surface "missing text"
+  // if it really is missing).
+  const hasJobText = app.hasJobText !== false;
+  const canRunFitCheck = hasJobText;
   const fit = document.createElement("button");
   fit.type = "button";
   fit.className = "fit-badge";
@@ -464,7 +473,7 @@ function buildCard(els, app, openInUtably) {
     num.className = "fit-num";
     num.textContent = String(score);
     fit.appendChild(num);
-  } else {
+  } else if (canRunFitCheck) {
     fit.classList.add("fit-empty");
     fit.title = t("saved.fitRun");
     const dot = document.createElement("span");
@@ -474,9 +483,26 @@ function buildCard(els, app, openInUtably) {
     num.className = "fit-num";
     num.textContent = t("saved.fitRunShort");
     fit.appendChild(num);
+  } else {
+    fit.classList.add("fit-disabled");
+    fit.disabled = true;
+    fit.title = t("saved.fitNoTextTooltip");
+    const dot = document.createElement("span");
+    dot.className = "fit-dot";
+    fit.appendChild(dot);
+    const num = document.createElement("span");
+    num.className = "fit-num";
+    num.textContent = t("saved.fitNoTextShort");
+    fit.appendChild(num);
   }
   fit.addEventListener("click", (e) => {
     e.stopPropagation();
+    if (!hasScore && !canRunFitCheck) {
+      // Disabled — surface a friendly toast pointing the user at the import
+      // tab so they can re-capture the job description.
+      flashCopyToast(els, t("saved.fitNoText"), "");
+      return;
+    }
     handleFitBadgeClick(els, app, fit);
   });
   rightCol.appendChild(fit);

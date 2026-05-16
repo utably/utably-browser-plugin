@@ -1077,8 +1077,19 @@ body.sidepanel-mode .row {
 .fitcheck-locked {
   position: relative;
   min-height: 48px;
+  /* Anything under the lock overlay must NOT be selectable or copyable —
+     the blur layer alone doesn't block text selection / right-click copy. */
+  user-select: none;
+  -webkit-user-select: none;
 }
-
+.fitcheck-locked > *:not(.locked-overlay) {
+  /* Hide the content from accessibility tree + clipboard. The overlay
+     itself remains interactive (so the Upgrade CTA stays clickable). */
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  filter: blur(3px);
+}
 .fitcheck-empty {
   list-style: none;
   font-size: 12px;
@@ -1109,22 +1120,43 @@ body.sidepanel-mode .row {
   align-items: center;
   justify-content: center;
   z-index: 2;
-  pointer-events: none;
+  /* It's a <button> — reset native styling and make it click-the-whole-thing
+     to upgrade. The .fitcheck-locked rule still keeps the *content* under
+     pointer-events: none so taps land on the overlay, not the data. */
+  background: transparent;
+  border: 0;
+  padding: 8px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  pointer-events: auto;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.locked-overlay:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+.locked-overlay:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.locked-overlay:active {
+  transform: scale(0.98);
 }
 
 .locked-icon {
-  font-size: 18px;
-  opacity: 0.6;
-  margin-bottom: 2px;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 4px;
+  display: block;
+  /* The branded SVG carries its own colors + drop shadow — no opacity dim. */
 }
 
 .locked-text {
-  font-size: 9px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  opacity: 0.8;
+  letter-spacing: 0.06em;
+  color: var(--utably-ink-80);
 }
 
 /* FitCheck Upgrade Banner */
@@ -2291,6 +2323,22 @@ body.sidepanel-mode .row {
   border-color: var(--utably-ink);
 }
 .fit-badge.fit-empty .fit-dot { background: var(--utably-ink-40); }
+.fit-badge.fit-disabled {
+  background: var(--utably-paper-sunk);
+  color: var(--utably-ink-40);
+  border-color: var(--utably-ink-10);
+  border-style: dashed;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.fit-badge.fit-disabled:hover {
+  transform: none;
+  filter: none;
+}
+.fit-badge.fit-disabled .fit-dot {
+  background: var(--utably-ink-40);
+  opacity: 0.5;
+}
 .fit-badge .fit-dot {
   width: 6px;
   height: 6px;

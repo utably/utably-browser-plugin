@@ -85,6 +85,7 @@
   "fitcheck.reanalyzing": "Reanalyzing...",
   "fitcheck.upgradeTitle": "Unlock Full Insights",
   "fitcheck.upgradeCta": "Upgrade",
+  "fitcheck.locked.text": "Upgrade to unlock",
 
   "actions.captureOff": "Capture: Off",
   "actions.captureOn": "Capture: On",
@@ -154,6 +155,8 @@
   "saved.fitLoading": "Loading…",
   "saved.fitRunning": "Analyzing…",
   "saved.fitNoText": "Job description missing — re-import the job to enable FitCheck.",
+  "saved.fitNoTextShort": "No text",
+  "saved.fitNoTextTooltip": "FitCheck needs the job description. Re-import this job from its posting page to enable it.",
   "saved.fitLoadFailed": "Couldn't load application detail.",
   "saved.fitRunFailed": "FitCheck failed.",
   "saved.fitUnavailable": "FitCheck modal unavailable.",

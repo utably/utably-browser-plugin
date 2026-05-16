@@ -789,18 +789,36 @@ function renderFitCheckResult(els, result) {
     scoreValue.textContent = Math.round(score);
   }
 
-  // Helper to render locked section
+  // Helper to render locked section using the branded Utably lock SVG.
+  // The whole overlay is itself a button — clicking anywhere on a locked
+  // section sends the user to the plans page on whichever stage the plugin
+  // is talking to. No content underneath is selectable (see popup.css for
+  // the pointer-events / user-select rules on .fitcheck-locked).
+  const lockIconUrl = (() => {
+    try { return chrome.runtime.getURL("assets/lock-basic.svg"); }
+    catch { return "assets/lock-basic.svg"; }
+  })();
+  const goToUpgrade = async () => {
+    const base = getAppUrl(els).replace(/\/+$/u, "");
+    await chrome.tabs.create({ url: `${base}/subscription/plans` });
+  };
   const renderLockedOverlay = (container) => {
     if (!container) return;
     container.classList.add("fitcheck-locked");
     const existingOverlay = container.querySelector(".locked-overlay");
     if (!existingOverlay) {
-      const overlay = document.createElement("div");
+      const overlay = document.createElement("button");
+      overlay.type = "button";
       overlay.className = "locked-overlay";
+      overlay.setAttribute("aria-label", t("fitcheck.locked.text"));
       overlay.innerHTML = `
-        <div class="locked-icon">&#128274;</div>
-        <div class="locked-text">Upgrade to unlock</div>
+        <img class="locked-icon" src="${lockIconUrl}" alt="" aria-hidden="true" />
+        <div class="locked-text">${escapeHtml(t("fitcheck.locked.text"))}</div>
       `;
+      overlay.addEventListener("click", (e) => {
+        e.stopPropagation();
+        goToUpgrade().catch(() => {});
+      });
       container.appendChild(overlay);
     }
   };
@@ -812,24 +830,21 @@ function renderFitCheckResult(els, result) {
     if (overlay) overlay.remove();
   };
 
-  // Per-section "show what's there, lock what's missing" pattern. The
-  // user's tier may have changed since the FitCheck was originally run,
-  // or the LLM may have skipped some sections — either way we render the
-  // data we have and only lock the empty ones (and only show the lock
-  // overlay if the user is currently locked; for paid-but-empty we show
-  // a softer "not analyzed" placeholder).
-  const renderSection = (container, { hasData, fillData, emptyText }) => {
+  // Every section that has data renders it; every empty section locks
+  // and offers an upgrade CTA. We don't branch on insightsLocked here —
+  // the tier is captured in the upgrade banner above. This way:
+  // * Free-tier fresh result (most body sections empty) → most lock.
+  // * Paid-tier fresh result (everything populated) → nothing locks.
+  // * Old import with partial data → only empty sections lock; the
+  //   populated ones (which the user originally paid for) stay visible.
+  // Uniform "data or lock", no third soft-placeholder state.
+  const renderSection = (container, { hasData, fillData }) => {
     if (!container) return;
     if (hasData) {
       clearLockedOverlay(container);
       fillData?.();
-      return;
-    }
-    if (insightsLocked) {
-      renderLockedOverlay(container);
     } else {
-      clearLockedOverlay(container);
-      fillData?.({ emptyText });
+      renderLockedOverlay(container);
     }
   };
 

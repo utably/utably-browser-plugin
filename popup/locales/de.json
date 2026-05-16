@@ -85,6 +85,7 @@
   "fitcheck.reanalyzing": "Analysiere erneut...",
   "fitcheck.upgradeTitle": "Volle Auswertung freischalten",
   "fitcheck.upgradeCta": "Upgrade",
+  "fitcheck.locked.text": "Upgrade zum Freischalten",
 
   "actions.captureOff": "Capture: Aus",
   "actions.captureOn": "Capture: An",
@@ -154,6 +155,8 @@
   "saved.fitLoading": "Lade…",
   "saved.fitRunning": "Analysiere…",
   "saved.fitNoText": "Stellenbeschreibung fehlt — importiere den Job erneut.",
+  "saved.fitNoTextShort": "Kein Text",
+  "saved.fitNoTextTooltip": "FitCheck benötigt die Stellenbeschreibung. Importiere den Job erneut von der Anzeige, um FitCheck zu aktivieren.",
   "saved.fitLoadFailed": "Bewerbungsdetails konnten nicht geladen werden.",
   "saved.fitRunFailed": "FitCheck fehlgeschlagen.",
   "saved.fitUnavailable": "FitCheck-Dialog nicht verfügbar.",
