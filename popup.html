@@ -437,62 +437,37 @@
         </section>
 
         <section id="profileView" class="view view-profile hidden">
-          <div class="section-head">
-            <div class="section-title" data-i18n="profile.title">Your profile</div>
-            <button id="refreshProfileBtn" class="link" type="button" data-i18n="profile.refresh">Refresh</button>
+          <div class="mascot-hero">
+            <img src="assets/bot_small_heart.webp" alt="" />
+            <div class="mascot-hero-text">
+              <div class="mascot-hero-title" data-i18n="profile.heroTitle">Your profile, on tap.</div>
+              <div class="mascot-hero-sub" data-i18n="profile.heroSub">Click any field to copy it. Nothing leaves your browser.</div>
+            </div>
           </div>
 
           <div id="profileLoading" class="profile-loading hidden" data-i18n="profile.loading">Loading profile…</div>
           <div id="profileError" class="notice notice-error hidden"></div>
 
           <div id="profileCard" class="profile-card hidden">
-            <div class="profile-row">
-              <div class="profile-name"></div>
-              <div class="profile-email"></div>
-            </div>
-            <div class="profile-meta">
-              <span class="profile-phone"></span>
-              <span class="profile-location"></span>
-              <span class="profile-nationality"></span>
+            <div class="identity">
+              <div class="identity-avatar" id="identityAvatar"></div>
+              <div class="identity-body">
+                <div id="identityName" class="identity-name"></div>
+                <div id="identityMeta" class="identity-meta"></div>
+              </div>
             </div>
 
-            <div class="profile-section profile-section-links hidden">
-              <div class="profile-section-title" data-i18n="profile.links">Links</div>
-              <ul class="profile-links"></ul>
-            </div>
-
-            <div class="profile-section profile-section-experience hidden">
-              <div class="profile-section-title" data-i18n="profile.experience">Experience</div>
-              <ul class="profile-experience"></ul>
-            </div>
-
-            <div class="profile-section profile-section-education hidden">
-              <div class="profile-section-title" data-i18n="profile.education">Education</div>
-              <ul class="profile-education"></ul>
-            </div>
-
-            <div class="profile-section profile-section-skills hidden">
-              <div class="profile-section-title" data-i18n="profile.skills">Skills</div>
-              <div class="profile-skills"></div>
-            </div>
-
-            <div class="profile-section profile-section-languages hidden">
-              <div class="profile-section-title" data-i18n="profile.languages">Languages</div>
-              <div class="profile-languages"></div>
-            </div>
-
-            <div class="profile-section profile-section-certifications hidden">
-              <div class="profile-section-title" data-i18n="profile.certifications">Licenses & certificates</div>
-              <div class="profile-certifications"></div>
-            </div>
+            <div id="profileSections" class="sections"></div>
           </div>
 
           <div class="row profile-actions">
             <button id="fillPageBtn" class="primary" data-i18n="profile.fillPage">Fill this page</button>
             <button id="openProfileAppBtn" class="secondary" data-i18n="profile.openInApp">Edit in Utably</button>
+            <button id="refreshProfileBtn" class="link" type="button" data-i18n="profile.refresh">Refresh</button>
           </div>
 
           <div id="fillReport" class="notice fill-report hidden" role="status"></div>
+          <div id="copyToast" class="copy-toast" role="status" aria-live="polite"></div>
         </section>
       </div>
 

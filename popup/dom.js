@@ -80,6 +80,11 @@ export function getDom() {
     fillPageBtn: document.getElementById("fillPageBtn"),
     openProfileAppBtn: document.getElementById("openProfileAppBtn"),
     fillReport: document.getElementById("fillReport"),
+    identityAvatar: document.getElementById("identityAvatar"),
+    identityName: document.getElementById("identityName"),
+    identityMeta: document.getElementById("identityMeta"),
+    profileSections: document.getElementById("profileSections"),
+    copyToast: document.getElementById("copyToast"),
     // Fill confirmation modal
     fillConfirmModal: document.getElementById("fillConfirmModal"),
     closeFillConfirmBtn: document.getElementById("closeFillConfirmBtn"),

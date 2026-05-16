@@ -37,238 +37,683 @@ function formatLocation(profile) {
   return [a.city, a.country].filter(Boolean).join(", ");
 }
 
-function showOrHideSection(card, selector, hasContent) {
-  const section = card.querySelector(selector);
-  if (section) section.classList.toggle("hidden", !hasContent);
+// ---- Clipboard helper + toast ----
+let toastTimer = null;
+let copyTracker = null; // { el, key, timer }
+
+function copyToClipboard(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+      return true;
+    }
+  } catch {}
+  return false;
 }
 
-function renderChipList(container, items) {
-  container.replaceChildren();
-  for (const item of items) {
-    const span = document.createElement("span");
-    span.className = "skill-chip";
-    span.textContent = item;
-    container.appendChild(span);
+function showCopyToast(els, label, preview) {
+  const toast = els.copyToast;
+  if (!toast) return;
+  toast.replaceChildren();
+  const lbl = document.createElement("span");
+  lbl.className = "toast-label";
+  lbl.textContent = `${t("profile.copied")} · ${label || ""}`.trim();
+  const pre = document.createElement("span");
+  pre.className = "toast-preview";
+  pre.textContent = preview || "";
+  toast.appendChild(lbl);
+  toast.appendChild(pre);
+  toast.classList.add("is-visible");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 1400);
+}
+
+function flashCopied(targetEl, copiedClass = "is-copied") {
+  if (!targetEl) return;
+  if (copyTracker) {
+    copyTracker.el.classList.remove(copyTracker.cls);
+    clearTimeout(copyTracker.timer);
   }
+  targetEl.classList.add(copiedClass);
+  copyTracker = {
+    el: targetEl,
+    cls: copiedClass,
+    timer: setTimeout(() => targetEl.classList.remove(copiedClass), 1400),
+  };
+}
+
+function copyAction(els, value, label, flashEl) {
+  if (!value) return;
+  copyToClipboard(value);
+  showCopyToast(els, label, value);
+  if (flashEl) flashCopied(flashEl);
+}
+
+// ---- Section icon SVGs (inline, design tokens) ----
+const SECTION_ICONS = {
+  user: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  briefcase: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  graduation: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>',
+  sparkle: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6 8.4 8.4M15.6 15.6l2.8 2.8M5.6 18.4 8.4 15.6M15.6 8.4l2.8-2.8"/></svg>',
+  languages: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h10M5 4v4M9 4v0M9 18l4-10 4 10M11 14h4M19 22l-3-8"/></svg>',
+  award: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M9 13.5 7 22l5-3 5 3-2-8.5"/></svg>',
+  link: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 1 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 1 0 7 7l1-1"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  check: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+};
+
+function makeIconSpan(svgString) {
+  const span = document.createElement("span");
+  span.innerHTML = svgString;
+  span.setAttribute("aria-hidden", "true");
+  return span;
+}
+
+// ---- Section builder ----
+function buildSection({ id, label, iconKey, tone, count, defaultOpen = true }) {
+  const section = document.createElement("section");
+  section.className = `section${defaultOpen ? " is-open" : ""}`;
+  section.dataset.section = id;
+
+  const head = document.createElement("button");
+  head.type = "button";
+  head.className = "section-head";
+  head.setAttribute("aria-expanded", String(defaultOpen));
+
+  const icon = document.createElement("span");
+  icon.className = `section-icon tone-${tone || "mint"}`;
+  icon.appendChild(makeIconSpan(SECTION_ICONS[iconKey] || SECTION_ICONS.sparkle));
+  head.appendChild(icon);
+
+  const title = document.createElement("span");
+  title.className = "section-title";
+  title.textContent = label;
+  head.appendChild(title);
+
+  if (typeof count === "number" && count > 0) {
+    const c = document.createElement("span");
+    c.className = "section-count";
+    c.textContent = String(count);
+    head.appendChild(c);
+  }
+
+  const chev = document.createElement("span");
+  chev.className = "section-chev";
+  chev.appendChild(makeIconSpan(SECTION_ICONS.chev));
+  head.appendChild(chev);
+
+  const body = document.createElement("div");
+  body.className = "section-body";
+
+  head.addEventListener("click", () => {
+    const isOpen = section.classList.toggle("is-open");
+    head.setAttribute("aria-expanded", String(isOpen));
+    body.style.display = isOpen ? "" : "none";
+  });
+  if (!defaultOpen) body.style.display = "none";
+
+  section.appendChild(head);
+  section.appendChild(body);
+  return { section, body };
+}
+
+// ---- Entry row (label + value + hover copy pill) ----
+function buildEntry(els, { id, label, value, href, copyValue }) {
+  const row = document.createElement("div");
+  row.className = "entry";
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  row.setAttribute("aria-label", `${t("profile.copyAria")} ${label}`);
+  if (id) row.dataset.entryId = id;
+
+  const lbl = document.createElement("div");
+  lbl.className = "entry-label";
+  lbl.textContent = label;
+  row.appendChild(lbl);
+
+  const val = document.createElement("div");
+  val.className = "entry-value";
+  if (href) {
+    const a = document.createElement("a");
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = value;
+    a.addEventListener("click", (e) => e.stopPropagation());
+    val.appendChild(a);
+  } else {
+    val.textContent = value;
+  }
+  row.appendChild(val);
+
+  const pill = document.createElement("button");
+  pill.type = "button";
+  pill.className = "copy-pill";
+  pill.setAttribute("aria-label", `${t("profile.copyAria")} ${label}`);
+  pill.appendChild(makeIconSpan(SECTION_ICONS.copy));
+  const pillText = document.createElement("span");
+  pillText.textContent = t("profile.copy");
+  pill.appendChild(pillText);
+  row.appendChild(pill);
+
+  const doCopy = (e) => {
+    e?.stopPropagation();
+    copyAction(els, copyValue || value, label, row);
+    pill.classList.add("is-copied");
+    pill.replaceChildren();
+    pill.appendChild(makeIconSpan(SECTION_ICONS.check));
+    const t2 = document.createElement("span");
+    t2.textContent = t("profile.copied");
+    pill.appendChild(t2);
+    setTimeout(() => {
+      pill.classList.remove("is-copied");
+      pill.replaceChildren();
+      pill.appendChild(makeIconSpan(SECTION_ICONS.copy));
+      const t3 = document.createElement("span");
+      t3.textContent = t("profile.copy");
+      pill.appendChild(t3);
+    }, 1400);
+  };
+  row.addEventListener("click", doCopy);
+  pill.addEventListener("click", doCopy);
+  row.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      doCopy(e);
+    }
+  });
+  return row;
+}
+
+// ---- Role card builder ----
+function buildRoleCard(els, role) {
+  const wrap = document.createElement("div");
+  wrap.className = "role is-collapsed";
+
+  const head = document.createElement("div");
+  head.className = "role-head";
+
+  // Toggle handle covers the title area. Mini-buttons stop propagation so
+  // they don't collapse the card when the user clicks a copy action.
+  const titleWrap = document.createElement("button");
+  titleWrap.type = "button";
+  titleWrap.className = "role-title-wrap";
+  titleWrap.setAttribute("aria-expanded", "false");
+
+  const title = document.createElement("div");
+  title.className = "role-title";
+  const titleText = role.title || role.position || "";
+  title.textContent = titleText;
+  if (role.company) {
+    const sub = document.createElement("span");
+    sub.className = "role-sub";
+    sub.textContent = ` · ${role.company}`;
+    title.appendChild(sub);
+  }
+  titleWrap.appendChild(title);
+
+  const meta = document.createElement("div");
+  meta.className = "role-meta";
+  const dates = formatPeriod(role.startDate, role.endDate, role.isCurrent);
+  if (dates) {
+    const s = document.createElement("span");
+    s.textContent = dates;
+    meta.appendChild(s);
+  }
+  if (role.location) {
+    if (dates) {
+      const d = document.createElement("span");
+      d.className = "dot";
+      d.textContent = "·";
+      meta.appendChild(d);
+    }
+    const l = document.createElement("span");
+    l.textContent = role.location;
+    meta.appendChild(l);
+  }
+  if (meta.childElementCount > 0) titleWrap.appendChild(meta);
+
+  const chev = document.createElement("span");
+  chev.className = "role-chev";
+  chev.appendChild(makeIconSpan(SECTION_ICONS.chev));
+  titleWrap.appendChild(chev);
+
+  head.appendChild(titleWrap);
+
+  // Action buttons: copy header, copy all bullets
+  const actions = document.createElement("div");
+  actions.className = "role-actions";
+  const headerBtn = document.createElement("button");
+  headerBtn.type = "button";
+  headerBtn.className = "mini-btn";
+  headerBtn.appendChild(makeIconSpan(SECTION_ICONS.copy));
+  const hbT = document.createElement("span");
+  hbT.textContent = t("profile.header");
+  headerBtn.appendChild(hbT);
+  const headerString = [titleText, role.company, dates].filter(Boolean).join(" — ");
+  headerBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    copyAction(els, headerString, t("profile.header"), headerBtn);
+    flashCopied(headerBtn);
+  });
+  actions.appendChild(headerBtn);
+
+  const bullets = Array.isArray(role.achievementsBullets) ? role.achievementsBullets.filter(Boolean) : [];
+  if (bullets.length > 0) {
+    const allBtn = document.createElement("button");
+    allBtn.type = "button";
+    allBtn.className = "mini-btn";
+    allBtn.appendChild(makeIconSpan(SECTION_ICONS.copy));
+    const abT = document.createElement("span");
+    abT.textContent = t("profile.all");
+    allBtn.appendChild(abT);
+    const allString = bullets.map((b) => `• ${b}`).join("\n");
+    allBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      copyAction(els, allString, t("profile.all"), allBtn);
+      flashCopied(allBtn);
+    });
+    actions.appendChild(allBtn);
+  }
+  head.appendChild(actions);
+  wrap.appendChild(head);
+
+  // Body — hidden until the title row is clicked. Houses the description
+  // blocks + achievement bullets. Each block stays click-to-copy.
+  const body = document.createElement("div");
+  body.className = "role-body";
+
+  const ul = document.createElement("ul");
+  ul.className = "bullets";
+
+  const addBlock = (text, blockLabel, variant) => {
+    if (!text) return;
+    const li = document.createElement("li");
+    li.className = `bullet${variant ? ` bullet-${variant}` : ""}`;
+    li.tabIndex = 0;
+    li.setAttribute("role", "button");
+    const inner = document.createElement("div");
+    inner.className = "bullet-text";
+    if (variant) {
+      const tag = document.createElement("span");
+      tag.className = "bullet-tag";
+      tag.textContent = blockLabel;
+      inner.appendChild(tag);
+    }
+    const bodyText = document.createElement("span");
+    bodyText.className = "bullet-body";
+    bodyText.textContent = text;
+    inner.appendChild(bodyText);
+    const copyHint = document.createElement("div");
+    copyHint.className = "bullet-copy";
+    copyHint.textContent = t("profile.copy");
+    li.appendChild(inner);
+    li.appendChild(copyHint);
+    const doCopy = (e) => {
+      e?.stopPropagation();
+      copyAction(els, text, blockLabel, li);
+    };
+    li.addEventListener("click", doCopy);
+    li.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        doCopy(e);
+      }
+    });
+    ul.appendChild(li);
+  };
+
+  addBlock(role.description, t("profile.detail.role"), "role");
+  addBlock(role.companyDescription, t("profile.detail.company"), "company");
+  for (const b of bullets) addBlock(b, t("profile.bullet"), null);
+
+  const hasBody = ul.childElementCount > 0;
+  if (hasBody) {
+    body.appendChild(ul);
+    wrap.appendChild(body);
+  } else {
+    // Nothing to expand — hide the chevron so the row doesn't look interactive.
+    titleWrap.classList.add("is-empty");
+    chev.style.display = "none";
+  }
+
+  titleWrap.addEventListener("click", (e) => {
+    if (!hasBody) return;
+    e.stopPropagation();
+    const isOpen = wrap.classList.toggle("is-collapsed");
+    titleWrap.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  });
+
+  return wrap;
+}
+
+// ---- Education card (similar to role but with degree+institution) ----
+function buildEducationCard(els, edu) {
+  const wrap = document.createElement("div");
+  wrap.className = "role";
+
+  const head = document.createElement("div");
+  head.className = "role-head";
+  const titleWrap = document.createElement("div");
+  titleWrap.className = "role-title-wrap";
+
+  const title = document.createElement("div");
+  title.className = "role-title";
+  const titleText = [edu.degree, edu.field].filter(Boolean).join(", ") || edu.course || edu.institution || "";
+  title.textContent = titleText;
+  if (edu.degree && edu.institution) {
+    const sub = document.createElement("span");
+    sub.className = "role-sub";
+    sub.textContent = ` · ${edu.institution}`;
+    title.appendChild(sub);
+  }
+  titleWrap.appendChild(title);
+
+  const meta = document.createElement("div");
+  meta.className = "role-meta";
+  const dates = formatPeriod(edu.startDate, edu.endDate, edu.currentlyAttending);
+  if (dates) {
+    const s = document.createElement("span");
+    s.textContent = dates;
+    meta.appendChild(s);
+  }
+  if (edu.gpa) {
+    if (dates) {
+      const d = document.createElement("span");
+      d.className = "dot";
+      d.textContent = "·";
+      meta.appendChild(d);
+    }
+    const g = document.createElement("span");
+    g.textContent = `GPA ${edu.gpa}`;
+    meta.appendChild(g);
+  }
+  if (meta.childElementCount > 0) titleWrap.appendChild(meta);
+  head.appendChild(titleWrap);
+
+  const actions = document.createElement("div");
+  actions.className = "role-actions";
+  const allBtn = document.createElement("button");
+  allBtn.type = "button";
+  allBtn.className = "mini-btn";
+  allBtn.appendChild(makeIconSpan(SECTION_ICONS.copy));
+  const abT = document.createElement("span");
+  abT.textContent = t("profile.all");
+  allBtn.appendChild(abT);
+  const allString = [titleText, edu.institution, dates].filter(Boolean).join(" — ");
+  allBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    copyAction(els, allString, t("profile.education"), allBtn);
+    flashCopied(allBtn);
+  });
+  actions.appendChild(allBtn);
+  head.appendChild(actions);
+  wrap.appendChild(head);
+
+  const detail = edu.description || edu.thesisTopic;
+  if (detail) {
+    const ul = document.createElement("ul");
+    ul.className = "bullets";
+    const li = document.createElement("li");
+    li.className = "bullet";
+    li.tabIndex = 0;
+    li.setAttribute("role", "button");
+    const text = document.createElement("div");
+    text.className = "bullet-text";
+    text.textContent = detail;
+    const copyHint = document.createElement("div");
+    copyHint.className = "bullet-copy";
+    copyHint.textContent = t("profile.copy");
+    li.appendChild(text);
+    li.appendChild(copyHint);
+    li.addEventListener("click", (e) => {
+      e.stopPropagation();
+      copyAction(els, detail, t("profile.description"), li);
+    });
+    ul.appendChild(li);
+    wrap.appendChild(ul);
+  }
+  return wrap;
+}
+
+// ---- Chip (click-to-copy) ----
+function buildChip(els, label, { tone, copyLabel } = {}) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = `chip${tone ? ` tone-${tone}` : ""}`;
+  chip.textContent = label;
+  chip.addEventListener("click", (e) => {
+    e.stopPropagation();
+    copyAction(els, label, copyLabel || label, chip);
+  });
+  return chip;
 }
 
 function renderProfileCard(els, profile) {
-  if (!els.profileCard) return;
-  const card = els.profileCard;
+  if (!els.profileCard || !els.profileSections) return;
   const c = profile?.contact || {};
-  const fullName = [c.academicTitle, c.firstName, c.middleName, c.lastName].filter(Boolean).join(" ");
-  card.querySelector(".profile-name").textContent = fullName || t("profile.empty");
-  card.querySelector(".profile-email").textContent = c.email || "";
-  card.querySelector(".profile-phone").textContent = c.phone || "";
-  card.querySelector(".profile-location").textContent = formatLocation(profile);
-  const nationalityEl = card.querySelector(".profile-nationality");
-  if (nationalityEl) nationalityEl.textContent = c.nationality || "";
 
-  // Links
-  const linksList = card.querySelector(".profile-links");
+  // Identity strip
+  const fullName = [c.academicTitle, c.firstName, c.middleName, c.lastName].filter(Boolean).join(" ");
+  if (els.identityName) els.identityName.textContent = fullName || t("profile.empty");
+  if (els.identityMeta) {
+    const headline = [
+      profile?.experience?.[0]?.title || profile?.experience?.[0]?.position,
+      formatLocation(profile),
+    ].filter(Boolean).join(" · ");
+    els.identityMeta.textContent = headline;
+  }
+  if (els.identityAvatar) {
+    els.identityAvatar.replaceChildren();
+    const initials = [c.firstName, c.lastName].filter(Boolean).map((s) => s[0]).join("").toUpperCase().slice(0, 2);
+    if (c.photoUrl) {
+      const img = document.createElement("img");
+      img.src = c.photoUrl;
+      img.alt = fullName || "Profile photo";
+      img.referrerPolicy = "no-referrer";
+      img.addEventListener("error", () => {
+        // Presigned URL expired or fetch failed — fall back to initials.
+        els.identityAvatar.replaceChildren();
+        els.identityAvatar.textContent = initials || "·";
+      });
+      els.identityAvatar.appendChild(img);
+    } else {
+      els.identityAvatar.textContent = initials || "·";
+    }
+  }
+
+  // Rebuild sections
+  const sectionsRoot = els.profileSections;
+  sectionsRoot.replaceChildren();
+
+  // ---- Contact section ----
+  const contactItems = [
+    { id: "email", label: t("fillField.email"), value: c.email, href: c.email ? `mailto:${c.email}` : null },
+    { id: "phone", label: t("fillField.phone"), value: c.phone, href: c.phone ? `tel:${c.phone.replace(/\s+/g, "")}` : null },
+    { id: "city", label: t("fillField.city"), value: c.city || profile?.address?.city },
+    {
+      id: "address",
+      label: t("profile.address"),
+      value: [
+        [profile?.address?.street, profile?.address?.houseNumber].filter(Boolean).join(" "),
+        [profile?.address?.zip, profile?.address?.city].filter(Boolean).join(" "),
+        profile?.address?.country,
+      ].filter(Boolean).join(", "),
+    },
+    { id: "nationality", label: t("profile.nationality"), value: c.nationality },
+  ].filter((entry) => Boolean(entry.value));
+  if (contactItems.length > 0) {
+    const { section, body } = buildSection({
+      id: "contact",
+      label: t("profile.contact"),
+      iconKey: "user",
+      tone: "mint",
+      count: contactItems.length,
+    });
+    for (const entry of contactItems) body.appendChild(buildEntry(els, entry));
+    sectionsRoot.appendChild(section);
+  }
+
+  // ---- Links section ----
   const links = profile?.links || {};
   const linkEntries = [
     ["LinkedIn", links.linkedin],
     ["GitHub", links.github],
     ["Website", links.website],
   ].filter(([, url]) => Boolean(url));
-  linksList.replaceChildren();
-  for (const [label, url] of linkEntries) {
-    const li = document.createElement("li");
-    const lbl = document.createElement("span");
-    lbl.className = "link-label";
-    lbl.textContent = label;
-    const a = document.createElement("a");
-    a.className = "link-url";
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.textContent = url;
-    li.appendChild(lbl);
-    li.appendChild(a);
-    linksList.appendChild(li);
+  if (linkEntries.length > 0) {
+    const { section, body } = buildSection({
+      id: "links",
+      label: t("profile.links"),
+      iconKey: "link",
+      tone: "cream",
+      count: linkEntries.length,
+    });
+    for (const [label, url] of linkEntries) {
+      body.appendChild(buildEntry(els, { id: `link-${label}`, label, value: url, href: url, copyValue: url }));
+    }
+    sectionsRoot.appendChild(section);
   }
-  showOrHideSection(card, ".profile-section-links", linkEntries.length > 0);
 
-  // Experience (expandable)
-  const expList = card.querySelector(".profile-experience");
+  // ---- Experience section ----
   const experiences = Array.isArray(profile?.experience) ? profile.experience.slice(0, MAX_EXPERIENCES) : [];
-  expList.replaceChildren();
-  for (const exp of experiences) {
-    expList.appendChild(buildExperienceEntry(exp));
+  if (experiences.length > 0) {
+    const { section, body } = buildSection({
+      id: "experience",
+      label: t("profile.experience"),
+      iconKey: "briefcase",
+      tone: "ink",
+      count: experiences.length,
+    });
+    for (const exp of experiences) body.appendChild(buildRoleCard(els, exp));
+    sectionsRoot.appendChild(section);
   }
-  showOrHideSection(card, ".profile-section-experience", experiences.length > 0);
 
-  // Education (expandable)
-  const eduList = card.querySelector(".profile-education");
+  // ---- Education section ----
   const education = Array.isArray(profile?.education) ? profile.education.slice(0, MAX_EDUCATION) : [];
-  eduList.replaceChildren();
-  for (const edu of education) {
-    eduList.appendChild(buildEducationEntry(edu));
+  if (education.length > 0) {
+    const { section, body } = buildSection({
+      id: "education",
+      label: t("profile.education"),
+      iconKey: "graduation",
+      tone: "cream",
+      count: education.length,
+      defaultOpen: false,
+    });
+    for (const edu of education) body.appendChild(buildEducationCard(els, edu));
+    sectionsRoot.appendChild(section);
   }
-  showOrHideSection(card, ".profile-section-education", education.length > 0);
 
-  // Skills (hard + soft + other, capped)
-  const skills = [
-    ...(profile?.skills?.hard || []),
-    ...(profile?.skills?.soft || []),
-    ...(profile?.skills?.other || []),
-  ].slice(0, MAX_SKILLS);
-  renderChipList(card.querySelector(".profile-skills"), skills);
-  showOrHideSection(card, ".profile-section-skills", skills.length > 0);
+  // ---- Skills section (grouped) ----
+  const hardSkills = (profile?.skills?.hard || []).slice(0, MAX_SKILLS);
+  const softSkills = (profile?.skills?.soft || []).slice(0, MAX_SKILLS);
+  const otherSkills = (profile?.skills?.other || []).slice(0, MAX_SKILLS);
+  const totalSkills = hardSkills.length + softSkills.length + otherSkills.length;
+  if (totalSkills > 0) {
+    const { section, body } = buildSection({
+      id: "skills",
+      label: t("profile.skills"),
+      iconKey: "sparkle",
+      tone: "mint",
+      count: totalSkills,
+    });
+    const renderGroup = (groupLabel, list, tone) => {
+      if (!list.length) return;
+      const headRow = document.createElement("div");
+      headRow.className = "chip-group-head";
+      const groupSpan = document.createElement("span");
+      groupSpan.textContent = groupLabel;
+      headRow.appendChild(groupSpan);
+      const copyAllBtn = document.createElement("button");
+      copyAllBtn.type = "button";
+      copyAllBtn.className = "mini-btn";
+      copyAllBtn.appendChild(makeIconSpan(SECTION_ICONS.copy));
+      const txt = document.createElement("span");
+      txt.textContent = t("profile.copyAll");
+      copyAllBtn.appendChild(txt);
+      copyAllBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        copyAction(els, list.join(", "), groupLabel, copyAllBtn);
+        flashCopied(copyAllBtn);
+      });
+      headRow.appendChild(copyAllBtn);
+      body.appendChild(headRow);
 
-  // Languages
+      const grid = document.createElement("div");
+      grid.className = "chip-grid";
+      for (const skill of list) grid.appendChild(buildChip(els, skill, { tone, copyLabel: t("profile.skill") }));
+      body.appendChild(grid);
+    };
+    renderGroup(t("profile.skillHard"), hardSkills, undefined);
+    renderGroup(t("profile.skillSoft"), softSkills, "cream");
+    renderGroup(t("profile.skillOther"), otherSkills, "cream");
+    sectionsRoot.appendChild(section);
+  }
+
+  // ---- Languages section ----
   const languages = (profile?.skills?.languages || []).slice(0, MAX_LANGUAGES);
-  renderChipList(card.querySelector(".profile-languages"), languages);
-  showOrHideSection(card, ".profile-section-languages", languages.length > 0);
-
-  // Licenses + certificates (merged into one chip list)
-  const certs = [
-    ...((profile?.certifications?.licenses) || []),
-    ...((profile?.certifications?.certificates) || []),
-  ].slice(0, MAX_CERTS);
-  renderChipList(card.querySelector(".profile-certifications"), certs);
-  showOrHideSection(card, ".profile-section-certifications", certs.length > 0);
-
-  card.classList.remove("hidden");
-}
-
-function appendDetailRow(container, labelKey, value) {
-  if (!value) return;
-  const row = document.createElement("div");
-  row.className = "entry-detail-row";
-  const lbl = document.createElement("span");
-  lbl.className = "entry-detail-label";
-  lbl.textContent = t(labelKey);
-  const val = document.createElement("span");
-  val.className = "entry-detail-value";
-  val.textContent = value;
-  row.appendChild(lbl);
-  row.appendChild(val);
-  container.appendChild(row);
-}
-
-function appendBulletList(container, labelKey, bullets) {
-  if (!Array.isArray(bullets) || bullets.length === 0) return;
-  const row = document.createElement("div");
-  row.className = "entry-detail-row entry-detail-row-block";
-  const lbl = document.createElement("div");
-  lbl.className = "entry-detail-label";
-  lbl.textContent = t(labelKey);
-  row.appendChild(lbl);
-  const ul = document.createElement("ul");
-  ul.className = "entry-detail-bullets";
-  for (const b of bullets) {
-    const li = document.createElement("li");
-    li.textContent = b;
-    ul.appendChild(li);
+  if (languages.length > 0) {
+    const { section, body } = buildSection({
+      id: "languages",
+      label: t("profile.languages"),
+      iconKey: "languages",
+      tone: "mint",
+      count: languages.length,
+      defaultOpen: false,
+    });
+    const grid = document.createElement("div");
+    grid.className = "chip-grid";
+    for (const lang of languages) grid.appendChild(buildChip(els, lang, { copyLabel: t("profile.language") }));
+    body.appendChild(grid);
+    sectionsRoot.appendChild(section);
   }
-  row.appendChild(ul);
-  container.appendChild(row);
-}
 
-function appendParagraph(container, labelKey, text) {
-  if (!text) return;
-  const row = document.createElement("div");
-  row.className = "entry-detail-row entry-detail-row-block";
-  const lbl = document.createElement("div");
-  lbl.className = "entry-detail-label";
-  lbl.textContent = t(labelKey);
-  const p = document.createElement("p");
-  p.className = "entry-detail-paragraph";
-  p.textContent = text;
-  row.appendChild(lbl);
-  row.appendChild(p);
-  container.appendChild(row);
-}
+  // ---- Certifications + licenses section ----
+  const licenses = (profile?.certifications?.licenses) || [];
+  const certificates = (profile?.certifications?.certificates) || [];
+  const totalCerts = licenses.length + certificates.length;
+  if (totalCerts > 0) {
+    const { section, body } = buildSection({
+      id: "certifications",
+      label: t("profile.certifications"),
+      iconKey: "award",
+      tone: "cream",
+      count: totalCerts,
+      defaultOpen: false,
+    });
+    if (certificates.length > 0) {
+      const headRow = document.createElement("div");
+      headRow.className = "chip-group-head";
+      const span = document.createElement("span");
+      span.textContent = t("profile.certificates");
+      headRow.appendChild(span);
+      body.appendChild(headRow);
+      const grid = document.createElement("div");
+      grid.className = "chip-grid";
+      for (const cert of certificates.slice(0, MAX_CERTS)) {
+        grid.appendChild(buildChip(els, cert, { tone: "cream", copyLabel: t("profile.certificate") }));
+      }
+      body.appendChild(grid);
+    }
+    if (licenses.length > 0) {
+      const headRow = document.createElement("div");
+      headRow.className = "chip-group-head";
+      const span = document.createElement("span");
+      span.textContent = t("profile.licenses");
+      headRow.appendChild(span);
+      body.appendChild(headRow);
+      const grid = document.createElement("div");
+      grid.className = "chip-grid";
+      for (const lic of licenses.slice(0, MAX_CERTS)) {
+        grid.appendChild(buildChip(els, lic, { tone: "cream", copyLabel: t("profile.license") }));
+      }
+      body.appendChild(grid);
+    }
+    sectionsRoot.appendChild(section);
+  }
 
-function buildEntrySummary(primary, secondary, dates) {
-  const summary = document.createElement("summary");
-  summary.className = "entry-summary";
-  const chevron = document.createElement("span");
-  chevron.className = "entry-chevron";
-  chevron.setAttribute("aria-hidden", "true");
-  chevron.textContent = "›";
-  summary.appendChild(chevron);
-  const body = document.createElement("span");
-  body.className = "entry-summary-body";
-  if (primary) {
-    const a = document.createElement("span");
-    a.className = "exp-title";
-    a.textContent = primary;
-    body.appendChild(a);
-  }
-  if (secondary) {
-    const b = document.createElement("span");
-    b.className = "exp-company";
-    b.textContent = secondary;
-    body.appendChild(b);
-  }
-  if (dates) {
-    const c = document.createElement("span");
-    c.className = "exp-dates";
-    c.textContent = dates;
-    body.appendChild(c);
-  }
-  summary.appendChild(body);
-  return summary;
-}
-
-function buildExperienceEntry(exp) {
-  const li = document.createElement("li");
-  const details = document.createElement("details");
-  details.className = "entry-details";
-  const primary = exp.title || exp.position || "";
-  const secondary = exp.company || "";
-  const dates = formatPeriod(exp.startDate, exp.endDate, exp.isCurrent);
-  details.appendChild(buildEntrySummary(primary, secondary, dates));
-
-  const detail = document.createElement("div");
-  detail.className = "entry-detail";
-  appendDetailRow(detail, "profile.detail.location", exp.location);
-  appendParagraph(detail, "profile.detail.role", exp.description);
-  if (Array.isArray(exp.achievementsBullets) && exp.achievementsBullets.length) {
-    appendBulletList(detail, "profile.detail.achievements", exp.achievementsBullets);
-  } else if (exp.achievements) {
-    appendParagraph(detail, "profile.detail.achievements", exp.achievements);
-  }
-  appendParagraph(detail, "profile.detail.company", exp.companyDescription);
-  if (!detail.childElementCount) {
-    const empty = document.createElement("div");
-    empty.className = "entry-detail-empty";
-    empty.textContent = t("profile.detail.empty");
-    detail.appendChild(empty);
-  }
-  details.appendChild(detail);
-  li.appendChild(details);
-  return li;
-}
-
-function buildEducationEntry(edu) {
-  const li = document.createElement("li");
-  const details = document.createElement("details");
-  details.className = "entry-details";
-  const primary = [edu.degree, edu.field].filter(Boolean).join(", ") || edu.course || edu.type || "";
-  const secondary = edu.institution || "";
-  const dates = formatPeriod(edu.startDate, edu.endDate, edu.currentlyAttending);
-  details.appendChild(buildEntrySummary(primary, secondary, dates));
-
-  const detail = document.createElement("div");
-  detail.className = "entry-detail";
-  appendDetailRow(detail, "profile.detail.location", edu.location);
-  appendDetailRow(detail, "profile.detail.gpa", edu.gpa);
-  appendDetailRow(detail, "profile.detail.course", edu.course);
-  appendDetailRow(detail, "profile.detail.thesis", edu.thesisTopic);
-  appendParagraph(detail, "profile.detail.description", edu.description);
-  if (!detail.childElementCount) {
-    const empty = document.createElement("div");
-    empty.className = "entry-detail-empty";
-    empty.textContent = t("profile.detail.empty");
-    detail.appendChild(empty);
-  }
-  details.appendChild(detail);
-  li.appendChild(details);
-  return li;
+  els.profileCard.classList.remove("hidden");
 }
 
 function showProfileError(els, message) {
