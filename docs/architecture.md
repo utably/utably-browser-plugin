@@ -2,12 +2,14 @@
 
 ## Runtime Components
 
-1. `manifest.json` — Manifest V3 configuration (permissions, service worker, side panel)
-2. `background.js` — Service worker handling auth, API calls, token management, external messaging
+1. `manifest.json` — Manifest V3 configuration (permissions, service worker, side panel). `downloads` permission added for the Attachments download action.
+2. `background.js` — Service worker handling auth, API calls, token management, external messaging, profile cache, fill-adapter injection, and attachment list/preview/upload/place/download message routes.
 3. Side panel UI — `popup.html` + `popup.css` + `popup.js` (module loader)
-4. App modules — `popup/app.js` (46KB core logic), `config.js`, `dom.js`, `extraction.js`, `payload.js`, `settings.js`
-5. Extraction adapters — 17 adapters in `webpages/` with priority-based routing
-6. Content scripts — `content/capture.js` (text capture), `content/extract.js` (reserved)
+4. App modules — `popup/app.js` (Import tab + FitCheck modal), `config.js`, `dom.js`, `extraction.js`, `payload.js`, `settings.js`, `i18n.js`, `popup/profile.js` (My profile tab + attachment cards + place-mode handler), `popup/saved.js` (Saved tab, search, status write-back, FitCheck rerun)
+5. Extraction adapters — 17 adapters in `webpages/` with priority-based routing (job-data extraction)
+6. Fill adapters — 4 adapters in `content/fill/` (`greenhouse.js`, `lever.js`, `ashby.js`, `generic.js`) with plan-verify-apply pattern. See [`fill.md`](fill.md)
+7. Attachment-injection scripts — `content/fill/attachments.js` (DataTransfer into matching `<input type="file">`), `content/fill/dropmode.js` (synthesized drop on user-clicked drop zone, top-frame only)
+8. Content scripts — `content/capture.js` (text capture), `content/fill/` (autofill + attachment upload), `content/extract.js` (reserved)
 
 ## User Flow
 
@@ -55,6 +57,8 @@ sequenceDiagram
 
 ## Storage Keys
 
+### `chrome.storage.local` (disk-backed, persists across browser restart)
+
 | Key | Purpose |
 |-----|---------|
 | `extAccessToken` | Current access token |
@@ -69,6 +73,13 @@ sequenceDiagram
 | `utablyConnectPending` | OAuth session ID + expiry |
 | `utablyManualFallbackUntil` | Manual code fallback timeout |
 | `utablyFitCheckCache` | FitCheck results cache (24h, max 20) |
+| `utablyFillConsents` | Per-host "remember autofill consent" map. Value is `{ts}` per host; auto-expires after 30 days. Wiped on logout and via *Settings → Autofill privacy → Clear consents*. **Never contains PII.** |
+
+### `chrome.storage.session` (in-memory, wiped on browser restart)
+
+| Key | Purpose |
+|-----|---------|
+| `utablyProfileCache` | Fillable subset of the user's Utably profile (see [`api.md`](api.md) `GET /extension/profile`). TTL 5 minutes. **Disabled** if the host browser does not provide `chrome.storage.session` — there is no disk fallback. |
 
 ## Stage Routing
 

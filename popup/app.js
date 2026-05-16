@@ -18,6 +18,8 @@ import {
   refreshActiveTabContext,
 } from "./extraction.js";
 import { applyTranslations, getLocale, loadLocale, setLocalePreference, t } from "./i18n.js";
+import { wireProfileTab, setActiveView, wirePrivacySettings } from "./profile.js";
+import { wireSavedTab } from "./saved.js";
 
 const DRAFT_STORAGE_KEY = "utablyDraft";
 const CONNECT_PENDING_KEY = "utablyConnectPending";
@@ -787,18 +789,36 @@ function renderFitCheckResult(els, result) {
     scoreValue.textContent = Math.round(score);
   }
 
-  // Helper to render locked section
+  // Helper to render locked section using the branded Utably lock SVG.
+  // The whole overlay is itself a button — clicking anywhere on a locked
+  // section sends the user to the plans page on whichever stage the plugin
+  // is talking to. No content underneath is selectable (see popup.css for
+  // the pointer-events / user-select rules on .fitcheck-locked).
+  const lockIconUrl = (() => {
+    try { return chrome.runtime.getURL("assets/lock-basic.svg"); }
+    catch { return "assets/lock-basic.svg"; }
+  })();
+  const goToUpgrade = async () => {
+    const base = getAppUrl(els).replace(/\/+$/u, "");
+    await chrome.tabs.create({ url: `${base}/subscription/plans` });
+  };
   const renderLockedOverlay = (container) => {
     if (!container) return;
     container.classList.add("fitcheck-locked");
     const existingOverlay = container.querySelector(".locked-overlay");
     if (!existingOverlay) {
-      const overlay = document.createElement("div");
+      const overlay = document.createElement("button");
+      overlay.type = "button";
       overlay.className = "locked-overlay";
+      overlay.setAttribute("aria-label", t("fitcheck.locked.text"));
       overlay.innerHTML = `
-        <div class="locked-icon">&#128274;</div>
-        <div class="locked-text">Upgrade to unlock</div>
+        <img class="locked-icon" src="${lockIconUrl}" alt="" aria-hidden="true" />
+        <div class="locked-text">${escapeHtml(t("fitcheck.locked.text"))}</div>
       `;
+      overlay.addEventListener("click", (e) => {
+        e.stopPropagation();
+        goToUpgrade().catch(() => {});
+      });
       container.appendChild(overlay);
     }
   };
@@ -810,19 +830,36 @@ function renderFitCheckResult(els, result) {
     if (overlay) overlay.remove();
   };
 
+  // Every section that has data renders it; every empty section locks
+  // and offers an upgrade CTA. We don't branch on insightsLocked here —
+  // the tier is captured in the upgrade banner above. This way:
+  // * Free-tier fresh result (most body sections empty) → most lock.
+  // * Paid-tier fresh result (everything populated) → nothing locks.
+  // * Old import with partial data → only empty sections lock; the
+  //   populated ones (which the user originally paid for) stay visible.
+  // Uniform "data or lock", no third soft-placeholder state.
+  const renderSection = (container, { hasData, fillData }) => {
+    if (!container) return;
+    if (hasData) {
+      clearLockedOverlay(container);
+      fillData?.();
+    } else {
+      renderLockedOverlay(container);
+    }
+  };
+
   // Summary
   const summaryText = els.fitCheckSummary.querySelector(".fitcheck-summary-text");
-  if (insightsLocked) {
-    renderLockedOverlay(els.fitCheckSummary);
-    if (summaryText) summaryText.textContent = "";
-  } else {
-    clearLockedOverlay(els.fitCheckSummary);
-    if (summaryText) {
-      summaryText.textContent = fitcheck.summary || "No summary available.";
-    }
-  }
+  const summaryValue = (fitcheck.summary || "").trim();
+  renderSection(els.fitCheckSummary, {
+    hasData: !!summaryValue,
+    fillData: ({ emptyText } = {}) => {
+      if (summaryText) summaryText.textContent = emptyText ?? summaryValue;
+    },
+    emptyText: "Not analyzed in this run.",
+  });
 
-  // Qualification
+  // Qualification — badge always rendered (it's the headline), signals locked when empty
   const qual = fitcheck.qualificationAnalysis || {};
   const qualBadge = els.fitCheckQualification.querySelector(".fitcheck-qualification-badge");
   if (qualBadge) {
@@ -830,93 +867,90 @@ function renderFitCheckResult(els, result) {
     qualBadge.className = `fitcheck-qualification-badge ${level}`;
     qualBadge.textContent = level.replace("_", " ");
   }
-
   const signalsList = els.fitCheckQualification.querySelector(".fitcheck-signals");
-  if (insightsLocked) {
-    if (signalsList) signalsList.innerHTML = "";
-    renderLockedOverlay(els.fitCheckQualification);
-  } else {
-    clearLockedOverlay(els.fitCheckQualification);
-    if (signalsList) {
-      const signals = Array.isArray(qual.signals) ? qual.signals : [];
-      signalsList.innerHTML = signals.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-    }
-  }
+  const signals = Array.isArray(qual.signals) ? qual.signals : [];
+  renderSection(els.fitCheckQualification, {
+    hasData: signals.length > 0,
+    fillData: ({ emptyText } = {}) => {
+      if (!signalsList) return;
+      if (emptyText) {
+        signalsList.innerHTML = `<li class="fitcheck-empty">${escapeHtml(emptyText)}</li>`;
+      } else {
+        signalsList.innerHTML = signals.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+      }
+    },
+    emptyText: "Not analyzed in this run.",
+  });
 
   // Skills
-  if (insightsLocked) {
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), []);
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), []);
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), []);
-    renderLockedOverlay(els.fitCheckSkills);
-  } else {
-    clearLockedOverlay(els.fitCheckSkills);
-    const skills = fitcheck.skillsBreakdown || {};
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), skills.matching || []);
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), skills.gaps || []);
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), skills.bonus || []);
-  }
+  const skills = fitcheck.skillsBreakdown || {};
+  const hasAnySkill =
+    (Array.isArray(skills.matching) && skills.matching.length > 0)
+    || (Array.isArray(skills.gaps) && skills.gaps.length > 0)
+    || (Array.isArray(skills.bonus) && skills.bonus.length > 0);
+  renderSection(els.fitCheckSkills, {
+    hasData: hasAnySkill,
+    fillData: () => {
+      renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), skills.matching || []);
+      renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), skills.gaps || []);
+      renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), skills.bonus || []);
+    },
+  });
 
   // Preferences
-  if (insightsLocked) {
-    renderLockedOverlay(els.fitCheckPreferences);
-    for (const pref of ["salary", "location", "remote"]) {
-      const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
-      if (item) {
-        item.className = "pref-item unknown";
-        const statusEl = item.querySelector(".pref-status");
-        if (statusEl) statusEl.textContent = "";
-      }
-    }
-  } else {
-    clearLockedOverlay(els.fitCheckPreferences);
-    const prefs = fitcheck.preferencesAlignment || {};
-    for (const pref of ["salary", "location", "remote"]) {
-      const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
-      if (item) {
-        const status = prefs[pref]?.status || "unknown";
+  const prefs = fitcheck.preferencesAlignment || null;
+  const hasAnyPref = prefs && ["salary", "location", "remote"].some((k) => prefs[k]?.status);
+  renderSection(els.fitCheckPreferences, {
+    hasData: !!hasAnyPref,
+    fillData: () => {
+      const p = prefs || {};
+      for (const pref of ["salary", "location", "remote"]) {
+        const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
+        if (!item) continue;
+        const status = p[pref]?.status || "unknown";
         item.className = `pref-item ${status}`;
         const statusEl = item.querySelector(".pref-status");
-        if (statusEl) {
-          statusEl.textContent = status;
-        }
+        if (statusEl) statusEl.textContent = status;
       }
-    }
-  }
+    },
+  });
 
   // Personality
   const personalityText = els.fitCheckPersonality.querySelector(".fitcheck-personality-text");
-  if (insightsLocked) {
-    renderLockedOverlay(els.fitCheckPersonality);
-    if (personalityText) personalityText.textContent = "";
-  } else {
-    clearLockedOverlay(els.fitCheckPersonality);
-    const personality = fitcheck.personalityFit || {};
-    if (personalityText) {
-      personalityText.textContent = personality.workStyle || "No personality analysis available.";
-    }
-  }
+  const personalityValue = ((fitcheck.personalityFit || {}).workStyle || "").trim();
+  renderSection(els.fitCheckPersonality, {
+    hasData: !!personalityValue,
+    fillData: ({ emptyText } = {}) => {
+      if (personalityText) personalityText.textContent = emptyText ?? personalityValue;
+    },
+    emptyText: "Not analyzed in this run.",
+  });
 
-  // Key Points
+  // Key Points — strengths + concerns share one section; lock only if BOTH empty
   const strengthsList = els.fitCheckKeyPoints.querySelector(".fitcheck-strengths-list");
   const concernsList = els.fitCheckKeyPoints.querySelector(".fitcheck-concerns-list");
-  if (insightsLocked) {
-    renderLockedOverlay(els.fitCheckKeyPoints);
-    if (strengthsList) strengthsList.innerHTML = "";
-    if (concernsList) concernsList.innerHTML = "";
-  } else {
-    clearLockedOverlay(els.fitCheckKeyPoints);
-    if (strengthsList) {
-      const strengths = Array.isArray(fitcheck.topStrengths) ? fitcheck.topStrengths : [];
-      strengthsList.innerHTML = strengths.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-    }
-    if (concernsList) {
-      const concerns = Array.isArray(fitcheck.topConcerns) ? fitcheck.topConcerns : [];
-      concernsList.innerHTML = concerns.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-    }
-  }
+  const strengthsArr = Array.isArray(fitcheck.topStrengths) ? fitcheck.topStrengths : [];
+  const concernsArr = Array.isArray(fitcheck.topConcerns) ? fitcheck.topConcerns : [];
+  renderSection(els.fitCheckKeyPoints, {
+    hasData: strengthsArr.length > 0 || concernsArr.length > 0,
+    fillData: ({ emptyText } = {}) => {
+      if (strengthsList) {
+        strengthsList.innerHTML = strengthsArr.length
+          ? strengthsArr.map((s) => `<li>${escapeHtml(s)}</li>`).join("")
+          : (emptyText ? `<li class="fitcheck-empty">${escapeHtml(emptyText)}</li>` : "");
+      }
+      if (concernsList) {
+        concernsList.innerHTML = concernsArr.length
+          ? concernsArr.map((s) => `<li>${escapeHtml(s)}</li>`).join("")
+          : "";
+      }
+    },
+    emptyText: "Not analyzed in this run.",
+  });
 
-  // Show upgrade banner for free users
+  // Show upgrade banner for locked (free-tier) results. Link points to the
+  // plans page on whichever stage the plugin is configured for, so a user
+  // on dev/test lands on the matching app — not always prod.
   const existingBanner = els.fitCheckModal.querySelector(".fitcheck-upgrade-banner");
   if (insightsLocked) {
     if (!existingBanner) {
@@ -925,12 +959,16 @@ function renderFitCheckResult(els, result) {
       banner.innerHTML = `
         <div class="upgrade-icon">&#9889;</div>
         <div class="upgrade-content">
-          <div class="upgrade-title">Unlock Full Insights</div>
+          <div class="upgrade-title">${escapeHtml(t("fitcheck.upgradeTitle"))}</div>
           <div class="upgrade-text">${escapeHtml(upgradeMessage)}</div>
         </div>
-        <a href="https://app.utably.com/settings/subscription" target="_blank" class="upgrade-btn">Upgrade</a>
+        <button type="button" class="upgrade-btn" id="fitCheckUpgradeBtn">${escapeHtml(t("fitcheck.upgradeCta"))}</button>
       `;
       els.fitCheckModal.querySelector(".fitcheck-body")?.prepend(banner);
+      banner.querySelector("#fitCheckUpgradeBtn")?.addEventListener("click", async () => {
+        const base = getAppUrl(els).replace(/\/+$/u, "");
+        await chrome.tabs.create({ url: `${base}/subscription/plans` });
+      });
     }
   } else if (existingBanner) {
     existingBanner.remove();
@@ -1506,6 +1544,29 @@ function wireListeners(els, auth, sidePanel) {
     scheduleDuplicateCheck(0);
   }
   setSendAvailability(els, duplicateGate);
+
+  wireProfileTab(els, {
+    requestHostAccess: requestBroadHostAccessFromGesture,
+    openInUtably: async (path) => {
+      const base = getAppUrl(els).replace(/\/+$/u, "");
+      const suffix = path ? (path.startsWith("/") ? path : `/${path}`) : "";
+      await chrome.tabs.create({ url: `${base}${suffix}` });
+    },
+  });
+
+  wirePrivacySettings(els, { setStatusText });
+
+  wireSavedTab(els, {
+    openInUtably: async (path) => {
+      const base = getAppUrl(els).replace(/\/+$/u, "");
+      const suffix = path ? (path.startsWith("/") ? path : `/${path}`) : "";
+      await chrome.tabs.create({ url: `${base}${suffix}` });
+    },
+  });
+
+  // Reset to the Import view when authentication state changes so the user
+  // never lands on an empty Profile view post-login.
+  setActiveView(els, "import");
 }
 
 export async function startPopupApp() {

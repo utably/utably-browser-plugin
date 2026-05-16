@@ -57,6 +57,46 @@ locking happens server-side — see [`fitcheck.md`](fitcheck.md).
    its best. A site-specific adapter would work better — see the
    [10-minute walkthrough](adapters.md#write-your-first-adapter-in-10-minutes).
 
+### What is the Saved tab?
+
+The third side-panel tab (after Import and My profile). It lists the
+applications you've already saved to Utably as cards with title,
+company, location, source, and time-since-saved. From a card you can:
+
+- **Filter** by status (All / Saved / Applied / Interview) and
+  **search** across title / company / location / source / host.
+- **Change status** via the per-card `<select>`. The change writes
+  through to the backend immediately and rolls back if the request
+  fails.
+- **Copy** the title, company, or open the original posting URL.
+- **Open** the application in the Utably web app.
+- **Re-run FitCheck** by clicking the score chip on the card — opens
+  the same FitCheck modal the Import tab uses. The chip is greyed out
+  if the application has no stored `jobText` (re-import the job from
+  its posting page to enable it).
+
+The list isn't cached on disk; closing the side panel discards it and
+the next open re-fetches.
+
+### How does the Attachments upload work?
+
+In **My profile**, the Attachments section lists your stored CVs and
+certificates. Each card has two actions:
+
+1. **Upload to page** — the extension finds a matching
+   `<input type="file">` on the active page and injects the file via
+   `DataTransfer`. If no input matches (custom Workday-style drop
+   zones), the side panel switches to **place mode**: every plausible
+   drop target on the page is highlighted, you click one, and the
+   extension synthesizes a real drag-and-drop event sequence onto it.
+   The destination site receives the same DOM events it would see
+   from a manual desktop drag.
+2. **Download** — saves the file to your Downloads folder. Use this
+   when the page's upload widget is broken or unrecognized.
+
+The extension never submits the form for you. After the file is
+attached you still click the page's own submit button.
+
 ### Can I use it against a non-production Utably environment?
 
 Yes, if you're a Utably developer with an account on a dev/test stage.
@@ -77,8 +117,32 @@ Only what you explicitly submit:
 - **On FitCheck:** the same payload above, plus a request for LLM
   analysis. The extension itself has no access to your Utably profile
   data — the LLM reads it server-side.
+- **On opening the *My profile* tab or clicking *Fill this page*:** the
+  extension fetches a minimised fillable subset of your Utably profile
+  via `GET /extension/profile` (see [`api.md`](api.md)). This is the
+  *only* path where profile data leaves Utably's server, and it lands
+  in the extension only — never in a third-party site without an
+  additional explicit consent.
 - **Nothing else.** No browsing history, no cookies from other sites,
   no form data outside the side panel, no passwords.
+
+### What data does the extension send to third-party sites (autofill)?
+
+Only what you explicitly approve, per fill, per recipient host. The flow is:
+
+1. You click *Fill this page* in the *My profile* tab.
+2. The extension runs a **dry-run** that finds matching form fields in
+   every frame on the page, but mutates nothing.
+3. A consent modal shows every host that would receive data, with an
+   `iframe` tag on sub-frame hosts, plus the list of fields each would
+   get.
+4. If you confirm, the extension re-checks the page (TOCTOU verify) and
+   only then writes values into the form inputs. If the page changed
+   between consent and apply, the fill aborts and you're re-prompted.
+5. Once filled, the destination site can read the values — same as if
+   you'd typed them. The extension never submits the form for you.
+
+See [`fill.md`](fill.md) for the security invariants.
 
 ### Does the extension run in the background?
 
@@ -105,6 +169,16 @@ https://api.test.utably.com/*
 Access to job-board sites is requested **at runtime, per-origin**, the
 first time you click Auto-fill on that site. You can revoke these
 permissions at any time from `chrome://extensions`.
+
+### Where is my Utably profile data cached?
+
+In `chrome.storage.session` — an MV3 in-memory store that is **wiped on
+browser restart and never written to disk**. The cache has a 5-minute
+TTL and is also cleared when you log out or click *Clear cache* in
+*Settings → Autofill privacy*. If your browser doesn't provide
+`chrome.storage.session`, caching is disabled (the extension simply
+re-fetches on each preview) — there is no disk fallback. See
+[`architecture.md`](architecture.md#storage-keys).
 
 ### Where are my auth tokens stored?
 
