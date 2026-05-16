@@ -135,6 +135,167 @@ let currentFilter = "all";
 let currentQuery = "";
 let cachedApplications = [];
 
+// The Import flow persists a remapped, flattened fitAnalysis shape (see
+// popup/payload.js mapFitCheckToFitAnalysis) — fitSummary instead of
+// summary, confidence (0–1) instead of overallScore (0–100), strengths /
+// gaps instead of topStrengths / topConcerns. The FitCheck modal expects
+// the original LLM shape, so normalize before handing it off.
+function normalizeStoredFitAnalysis(stored) {
+  if (!stored || typeof stored !== "object") return null;
+  // If the stored object already looks like the LLM shape (or is the full
+  // LLM envelope), pass it through unchanged.
+  if (stored.insight && typeof stored.insight === "object") return stored;
+  if (stored.overallScore != null && stored.summary != null) return stored;
+
+  const overallScore = (() => {
+    if (Number.isFinite(stored.overallScore)) return Math.round(stored.overallScore);
+    if (Number.isFinite(stored.confidence)) return Math.round(stored.confidence * 100);
+    return 0;
+  })();
+  const summary = stored.summary || stored.fitSummary || "";
+  const strengths = Array.isArray(stored.topStrengths) ? stored.topStrengths
+    : Array.isArray(stored.strengths) ? stored.strengths : [];
+  const concerns = Array.isArray(stored.topConcerns) ? stored.topConcerns
+    : Array.isArray(stored.gaps) ? stored.gaps : [];
+  const skills = stored.skillsBreakdown || {};
+  const noDeepData = !summary
+    && strengths.length === 0
+    && concerns.length === 0
+    && (!Array.isArray(skills.matching) || skills.matching.length === 0)
+    && !stored.preferencesAlignment
+    && !stored.personalityFit;
+  // Lock state: trust explicit flag, otherwise infer from emptiness. Old
+  // imports (pre-flag-persistence) had insightsLocked dropped on the floor,
+  // so a deep-empty result with a score = it was locked.
+  const insightsLocked = stored.insightsLocked === true
+    || (stored.insightsLocked === undefined && noDeepData && overallScore > 0);
+
+  return {
+    insight: {
+      trafficLight: stored.trafficLight,
+      overallScore,
+      summary,
+      qualificationAnalysis: stored.qualificationAnalysis,
+      skillsBreakdown: stored.skillsBreakdown,
+      preferencesAlignment: stored.preferencesAlignment,
+      personalityFit: stored.personalityFit,
+      topStrengths: strengths,
+      topConcerns: concerns,
+    },
+    insightsLocked,
+    upgradeMessage: stored.upgradeMessage
+      || "Upgrade to Basic or Premium to unlock detailed insights on why this job fits you.",
+  };
+}
+
+// ---- Fit-badge click → existing FitCheck modal ----
+async function handleFitBadgeClick(els, app, badgeEl) {
+  const fitCtl = window.__fitCheckController;
+  if (!fitCtl) {
+    flashCopyToast(els, t("saved.fitUnavailable"), "");
+    return;
+  }
+  const originalLabel = badgeEl.innerHTML;
+  const setBusy = (text) => {
+    badgeEl.disabled = true;
+    badgeEl.innerHTML = "";
+    const num = document.createElement("span");
+    num.className = "fit-num";
+    num.textContent = text;
+    badgeEl.appendChild(num);
+  };
+  const restore = () => {
+    badgeEl.disabled = false;
+    badgeEl.innerHTML = originalLabel;
+  };
+
+  try {
+    setBusy(t("saved.fitLoading"));
+    const detailResp = await chrome.runtime.sendMessage({
+      type: "UTABLY_GET_APPLICATION",
+      applicationId: app.id,
+    });
+    if (!detailResp?.ok) {
+      throw new Error(detailResp?.error || t("saved.fitLoadFailed"));
+    }
+    const detail = detailResp.application || {};
+
+    // If a stored FitCheck exists, normalize to the modal's expected shape
+    // and open. The persisted shape (from the Import flow) re-keys several
+    // fields, so without this the modal would show empty summary / strengths
+    // / concerns and a zero score.
+    if (detail.fitAnalysis && typeof detail.fitAnalysis === "object") {
+      const normalized = normalizeStoredFitAnalysis(detail.fitAnalysis);
+      if (normalized) {
+        fitCtl.openFitCheck(normalized);
+        restore();
+        return;
+      }
+    }
+
+    // Otherwise run a fresh FitCheck. Job description is required.
+    const jobText = (detail.jobText || "").trim();
+    if (!jobText) {
+      flashCopyToast(els, t("saved.fitNoText"), "");
+      restore();
+      return;
+    }
+
+    setBusy(t("saved.fitRunning"));
+    const fitResp = await chrome.runtime.sendMessage({
+      type: "UTABLY_FITCHECK",
+      jobPosting: {
+        jobTitle: detail.jobTitle || app.jobTitle,
+        companyName: detail.companyName || app.companyName,
+        jobText,
+        location: detail.location || app.location,
+        jobUrl: detail.jobUrl || app.jobUrl,
+      },
+    });
+    if (!fitResp?.ok) {
+      throw new Error(fitResp?.error || t("saved.fitRunFailed"));
+    }
+    const result = fitResp.result;
+    fitCtl.openFitCheck(result);
+
+    // Persist the result on the application so subsequent clicks just
+    // re-open the modal instead of burning another LLM call.
+    chrome.runtime.sendMessage({
+      type: "UTABLY_SAVE_APPLICATION_FITCHECK",
+      applicationId: app.id,
+      fitAnalysis: result,
+    }).then((saveResp) => {
+      if (saveResp?.ok) {
+        // Patch cache so the next render shows the score + light.
+        const idx = cachedApplications.findIndex((a) => a.id === app.id);
+        if (idx >= 0) {
+          const insight = (result?.insight && typeof result.insight === "object") ? result.insight : result;
+          const rawScore = insight?.overallScore ?? insight?.score;
+          const newScore = typeof rawScore === "number" && Number.isFinite(rawScore)
+            ? Math.round(rawScore)
+            : (typeof rawScore === "string" && Number.isFinite(Number(rawScore))
+              ? Math.round(Number(rawScore))
+              : null);
+          const newLight = typeof insight?.trafficLight === "string" ? insight.trafficLight.toLowerCase() : "";
+          cachedApplications[idx] = {
+            ...cachedApplications[idx],
+            fitScore: newScore != null ? newScore : cachedApplications[idx].fitScore,
+            fitLight: ["perfect", "good", "partial", "review"].includes(newLight) ? newLight : cachedApplications[idx].fitLight,
+            updatedAt: saveResp.application?.updatedAt || cachedApplications[idx].updatedAt,
+          };
+          renderList(els);
+        }
+      }
+    }).catch(() => {});
+  } catch (err) {
+    flashCopyToast(els, err?.message || t("saved.fitRunFailed"), "");
+    restore();
+  } finally {
+    // restore only if we haven't already (success path may have re-rendered).
+    if (badgeEl.disabled) restore();
+  }
+}
+
 async function handleStatusChange(els, applicationId, selectEl, newValue) {
   const card = selectEl.closest(".job-card");
   const previousValue = selectEl.dataset.previousValue || selectEl.value;
@@ -280,16 +441,22 @@ function buildCard(els, app, openInUtably) {
   }
   row.appendChild(text);
 
-  // Right-hand cluster: fit-score badge (if any) above the status pill.
+  // Right-hand cluster: fit-score badge (clickable) above the status pill.
   const rightCol = document.createElement("div");
   rightCol.className = "job-right";
 
-  const score = Number(app.fitScore);
-  if (Number.isFinite(score)) {
+  // Strict null/undefined check — Number(null) === 0 would otherwise paint
+  // every never-FitChecked application with a misleading "0".
+  const hasScore = typeof app.fitScore === "number" && Number.isFinite(app.fitScore);
+  const score = hasScore ? app.fitScore : 0;
+  const fit = document.createElement("button");
+  fit.type = "button";
+  fit.className = "fit-badge";
+  fit.dataset.appId = app.id;
+  if (hasScore) {
     const tone = (app.fitLight && app.fitLight.trim()) || fitLightFromScore(score);
-    const fit = document.createElement("span");
-    fit.className = `fit-badge fit-${tone}`;
-    fit.title = t("saved.fitTitle");
+    fit.classList.add(`fit-${tone}`);
+    fit.title = t("saved.fitOpen");
     const dot = document.createElement("span");
     dot.className = "fit-dot";
     fit.appendChild(dot);
@@ -297,8 +464,22 @@ function buildCard(els, app, openInUtably) {
     num.className = "fit-num";
     num.textContent = String(score);
     fit.appendChild(num);
-    rightCol.appendChild(fit);
+  } else {
+    fit.classList.add("fit-empty");
+    fit.title = t("saved.fitRun");
+    const dot = document.createElement("span");
+    dot.className = "fit-dot";
+    fit.appendChild(dot);
+    const num = document.createElement("span");
+    num.className = "fit-num";
+    num.textContent = t("saved.fitRunShort");
+    fit.appendChild(num);
   }
+  fit.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handleFitBadgeClick(els, app, fit);
+  });
+  rightCol.appendChild(fit);
 
   const status = STATUS_META[statusKey(app.status)] || STATUS_META.saved;
   const select = document.createElement("select");

@@ -1079,6 +1079,14 @@ body.sidepanel-mode .row {
   min-height: 48px;
 }
 
+.fitcheck-empty {
+  list-style: none;
+  font-size: 12px;
+  color: var(--utably-ink-40);
+  font-style: italic;
+  padding: 2px 0;
+}
+
 .fitcheck-locked::before {
   content: "";
   position: absolute;
@@ -2256,8 +2264,33 @@ body.sidepanel-mode .row {
   background: var(--utably-paper-sunk);
   color: var(--utably-ink);
   border: 1px solid var(--utably-ink-10);
-  cursor: default;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease;
 }
+.fit-badge:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(0.97);
+}
+.fit-badge:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.fit-badge:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.fit-badge.fit-empty {
+  background: #ffffff;
+  color: var(--utably-ink-60);
+  border-color: var(--utably-ink-20);
+  border-style: dashed;
+}
+.fit-badge.fit-empty:hover:not(:disabled) {
+  color: var(--utably-ink);
+  border-color: var(--utably-ink);
+}
+.fit-badge.fit-empty .fit-dot { background: var(--utably-ink-40); }
 .fit-badge .fit-dot {
   width: 6px;
   height: 6px;

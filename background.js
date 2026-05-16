@@ -1186,6 +1186,85 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "UTABLY_GET_APPLICATION") {
+    (async () => {
+      try {
+        const id = String(message.applicationId || "").trim();
+        if (!id) {
+          sendResponse({ ok: false, error: "Missing application id." });
+          return;
+        }
+        const settings = await getSettings();
+        const token = await ensureAccessToken(settings);
+        if (!token) {
+          sendResponse({ ok: false, error: "Not connected. Please connect to Utably first." });
+          return;
+        }
+        const res = await fetch(
+          `${settings.apiBase}/extension/applications/${encodeURIComponent(id)}`,
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          sendResponse({ ok: false, error: text || `HTTP ${res.status}` });
+          return;
+        }
+        const json = await res.json().catch(() => null);
+        sendResponse({ ok: true, application: json?.application || null });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to load application." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_SAVE_APPLICATION_FITCHECK") {
+    (async () => {
+      try {
+        const id = String(message.applicationId || "").trim();
+        const fitAnalysis = message.fitAnalysis;
+        if (!id) {
+          sendResponse({ ok: false, error: "Missing application id." });
+          return;
+        }
+        if (!fitAnalysis || typeof fitAnalysis !== "object") {
+          sendResponse({ ok: false, error: "Missing fit analysis." });
+          return;
+        }
+        const settings = await getSettings();
+        const token = await ensureAccessToken(settings);
+        if (!token) {
+          sendResponse({ ok: false, error: "Not connected." });
+          return;
+        }
+        const res = await fetch(
+          `${settings.apiBase}/extension/applications/${encodeURIComponent(id)}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ fitAnalysis }),
+          }
+        );
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          sendResponse({ ok: false, error: text || `HTTP ${res.status}` });
+          return;
+        }
+        const json = await res.json().catch(() => null);
+        sendResponse({ ok: true, application: json });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to save FitCheck." });
+      }
+    })();
+    return true;
+  }
+
   if (message?.type === "UTABLY_UPDATE_APPLICATION_STATUS") {
     (async () => {
       try {

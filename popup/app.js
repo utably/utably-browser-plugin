@@ -812,19 +812,39 @@ function renderFitCheckResult(els, result) {
     if (overlay) overlay.remove();
   };
 
+  // Per-section "show what's there, lock what's missing" pattern. The
+  // user's tier may have changed since the FitCheck was originally run,
+  // or the LLM may have skipped some sections — either way we render the
+  // data we have and only lock the empty ones (and only show the lock
+  // overlay if the user is currently locked; for paid-but-empty we show
+  // a softer "not analyzed" placeholder).
+  const renderSection = (container, { hasData, fillData, emptyText }) => {
+    if (!container) return;
+    if (hasData) {
+      clearLockedOverlay(container);
+      fillData?.();
+      return;
+    }
+    if (insightsLocked) {
+      renderLockedOverlay(container);
+    } else {
+      clearLockedOverlay(container);
+      fillData?.({ emptyText });
+    }
+  };
+
   // Summary
   const summaryText = els.fitCheckSummary.querySelector(".fitcheck-summary-text");
-  if (insightsLocked) {
-    renderLockedOverlay(els.fitCheckSummary);
-    if (summaryText) summaryText.textContent = "";
-  } else {
-    clearLockedOverlay(els.fitCheckSummary);
-    if (summaryText) {
-      summaryText.textContent = fitcheck.summary || "No summary available.";
-    }
-  }
+  const summaryValue = (fitcheck.summary || "").trim();
+  renderSection(els.fitCheckSummary, {
+    hasData: !!summaryValue,
+    fillData: ({ emptyText } = {}) => {
+      if (summaryText) summaryText.textContent = emptyText ?? summaryValue;
+    },
+    emptyText: "Not analyzed in this run.",
+  });
 
-  // Qualification
+  // Qualification — badge always rendered (it's the headline), signals locked when empty
   const qual = fitcheck.qualificationAnalysis || {};
   const qualBadge = els.fitCheckQualification.querySelector(".fitcheck-qualification-badge");
   if (qualBadge) {
@@ -832,93 +852,90 @@ function renderFitCheckResult(els, result) {
     qualBadge.className = `fitcheck-qualification-badge ${level}`;
     qualBadge.textContent = level.replace("_", " ");
   }
-
   const signalsList = els.fitCheckQualification.querySelector(".fitcheck-signals");
-  if (insightsLocked) {
-    if (signalsList) signalsList.innerHTML = "";
-    renderLockedOverlay(els.fitCheckQualification);
-  } else {
-    clearLockedOverlay(els.fitCheckQualification);
-    if (signalsList) {
-      const signals = Array.isArray(qual.signals) ? qual.signals : [];
-      signalsList.innerHTML = signals.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-    }
-  }
+  const signals = Array.isArray(qual.signals) ? qual.signals : [];
+  renderSection(els.fitCheckQualification, {
+    hasData: signals.length > 0,
+    fillData: ({ emptyText } = {}) => {
+      if (!signalsList) return;
+      if (emptyText) {
+        signalsList.innerHTML = `<li class="fitcheck-empty">${escapeHtml(emptyText)}</li>`;
+      } else {
+        signalsList.innerHTML = signals.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+      }
+    },
+    emptyText: "Not analyzed in this run.",
+  });
 
   // Skills
-  if (insightsLocked) {
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), []);
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), []);
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), []);
-    renderLockedOverlay(els.fitCheckSkills);
-  } else {
-    clearLockedOverlay(els.fitCheckSkills);
-    const skills = fitcheck.skillsBreakdown || {};
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), skills.matching || []);
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), skills.gaps || []);
-    renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), skills.bonus || []);
-  }
+  const skills = fitcheck.skillsBreakdown || {};
+  const hasAnySkill =
+    (Array.isArray(skills.matching) && skills.matching.length > 0)
+    || (Array.isArray(skills.gaps) && skills.gaps.length > 0)
+    || (Array.isArray(skills.bonus) && skills.bonus.length > 0);
+  renderSection(els.fitCheckSkills, {
+    hasData: hasAnySkill,
+    fillData: () => {
+      renderSkillsList(els.fitCheckSkills.querySelector(".skills-matching .skills-list"), skills.matching || []);
+      renderSkillsList(els.fitCheckSkills.querySelector(".skills-gaps .skills-list"), skills.gaps || []);
+      renderSkillsList(els.fitCheckSkills.querySelector(".skills-bonus .skills-list"), skills.bonus || []);
+    },
+  });
 
   // Preferences
-  if (insightsLocked) {
-    renderLockedOverlay(els.fitCheckPreferences);
-    for (const pref of ["salary", "location", "remote"]) {
-      const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
-      if (item) {
-        item.className = "pref-item unknown";
-        const statusEl = item.querySelector(".pref-status");
-        if (statusEl) statusEl.textContent = "";
-      }
-    }
-  } else {
-    clearLockedOverlay(els.fitCheckPreferences);
-    const prefs = fitcheck.preferencesAlignment || {};
-    for (const pref of ["salary", "location", "remote"]) {
-      const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
-      if (item) {
-        const status = prefs[pref]?.status || "unknown";
+  const prefs = fitcheck.preferencesAlignment || null;
+  const hasAnyPref = prefs && ["salary", "location", "remote"].some((k) => prefs[k]?.status);
+  renderSection(els.fitCheckPreferences, {
+    hasData: !!hasAnyPref,
+    fillData: () => {
+      const p = prefs || {};
+      for (const pref of ["salary", "location", "remote"]) {
+        const item = els.fitCheckPreferences.querySelector(`[data-pref="${pref}"]`);
+        if (!item) continue;
+        const status = p[pref]?.status || "unknown";
         item.className = `pref-item ${status}`;
         const statusEl = item.querySelector(".pref-status");
-        if (statusEl) {
-          statusEl.textContent = status;
-        }
+        if (statusEl) statusEl.textContent = status;
       }
-    }
-  }
+    },
+  });
 
   // Personality
   const personalityText = els.fitCheckPersonality.querySelector(".fitcheck-personality-text");
-  if (insightsLocked) {
-    renderLockedOverlay(els.fitCheckPersonality);
-    if (personalityText) personalityText.textContent = "";
-  } else {
-    clearLockedOverlay(els.fitCheckPersonality);
-    const personality = fitcheck.personalityFit || {};
-    if (personalityText) {
-      personalityText.textContent = personality.workStyle || "No personality analysis available.";
-    }
-  }
+  const personalityValue = ((fitcheck.personalityFit || {}).workStyle || "").trim();
+  renderSection(els.fitCheckPersonality, {
+    hasData: !!personalityValue,
+    fillData: ({ emptyText } = {}) => {
+      if (personalityText) personalityText.textContent = emptyText ?? personalityValue;
+    },
+    emptyText: "Not analyzed in this run.",
+  });
 
-  // Key Points
+  // Key Points — strengths + concerns share one section; lock only if BOTH empty
   const strengthsList = els.fitCheckKeyPoints.querySelector(".fitcheck-strengths-list");
   const concernsList = els.fitCheckKeyPoints.querySelector(".fitcheck-concerns-list");
-  if (insightsLocked) {
-    renderLockedOverlay(els.fitCheckKeyPoints);
-    if (strengthsList) strengthsList.innerHTML = "";
-    if (concernsList) concernsList.innerHTML = "";
-  } else {
-    clearLockedOverlay(els.fitCheckKeyPoints);
-    if (strengthsList) {
-      const strengths = Array.isArray(fitcheck.topStrengths) ? fitcheck.topStrengths : [];
-      strengthsList.innerHTML = strengths.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-    }
-    if (concernsList) {
-      const concerns = Array.isArray(fitcheck.topConcerns) ? fitcheck.topConcerns : [];
-      concernsList.innerHTML = concerns.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-    }
-  }
+  const strengthsArr = Array.isArray(fitcheck.topStrengths) ? fitcheck.topStrengths : [];
+  const concernsArr = Array.isArray(fitcheck.topConcerns) ? fitcheck.topConcerns : [];
+  renderSection(els.fitCheckKeyPoints, {
+    hasData: strengthsArr.length > 0 || concernsArr.length > 0,
+    fillData: ({ emptyText } = {}) => {
+      if (strengthsList) {
+        strengthsList.innerHTML = strengthsArr.length
+          ? strengthsArr.map((s) => `<li>${escapeHtml(s)}</li>`).join("")
+          : (emptyText ? `<li class="fitcheck-empty">${escapeHtml(emptyText)}</li>` : "");
+      }
+      if (concernsList) {
+        concernsList.innerHTML = concernsArr.length
+          ? concernsArr.map((s) => `<li>${escapeHtml(s)}</li>`).join("")
+          : "";
+      }
+    },
+    emptyText: "Not analyzed in this run.",
+  });
 
-  // Show upgrade banner for free users
+  // Show upgrade banner for locked (free-tier) results. Link points to the
+  // plans page on whichever stage the plugin is configured for, so a user
+  // on dev/test lands on the matching app — not always prod.
   const existingBanner = els.fitCheckModal.querySelector(".fitcheck-upgrade-banner");
   if (insightsLocked) {
     if (!existingBanner) {
@@ -927,12 +944,16 @@ function renderFitCheckResult(els, result) {
       banner.innerHTML = `
         <div class="upgrade-icon">&#9889;</div>
         <div class="upgrade-content">
-          <div class="upgrade-title">Unlock Full Insights</div>
+          <div class="upgrade-title">${escapeHtml(t("fitcheck.upgradeTitle"))}</div>
           <div class="upgrade-text">${escapeHtml(upgradeMessage)}</div>
         </div>
-        <a href="https://app.utably.com/settings/subscription" target="_blank" class="upgrade-btn">Upgrade</a>
+        <button type="button" class="upgrade-btn" id="fitCheckUpgradeBtn">${escapeHtml(t("fitcheck.upgradeCta"))}</button>
       `;
       els.fitCheckModal.querySelector(".fitcheck-body")?.prepend(banner);
+      banner.querySelector("#fitCheckUpgradeBtn")?.addEventListener("click", async () => {
+        const base = getAppUrl(els).replace(/\/+$/u, "");
+        await chrome.tabs.create({ url: `${base}/subscription/plans` });
+      });
     }
   } else if (existingBanner) {
     existingBanner.remove();
