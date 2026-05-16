@@ -206,6 +206,17 @@ after the per-host consent modal is confirmed. The 12 MB cap in
 against the user-consented host before synthesizing any drop event. A frame
 whose host doesn't match aborts with `host_not_consented`.
 
+**Invariant 15 — Backend S3 access is IAM-scoped per user, not just
+code-scoped.** The `applicationsAPI` lambda has **no direct S3 grant**. At
+the start of each `/extension/profile` and `/extension/attachments`
+request, the lambda calls `sts:AssumeRole` on a dedicated role with a
+session policy narrowing S3 ops to `users/{userId}/*`. The resulting
+temporary credentials (15-minute lifetime) are used for both the
+`ListBucket` and `GetObject`/presign calls. Even a full RCE on the lambda
+runtime cannot read another user's prefix — the AWS API itself rejects it.
+The code-layer prefix check (`key.startsWith('users/{userId}/')`) is
+retained as belt-and-suspenders.
+
 Reports that defeat any invariant (e.g., a code path that lists
 applications without a user click, a way to surface the list in a content
 script, an attachment upload that bypasses the consent modal) are high
