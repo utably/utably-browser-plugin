@@ -89,11 +89,75 @@ For context, the extension's design assumes:
   Chrome permission prompt; the user must approve it before any page content
   is read. If the user declines, Auto-fill and Capture fail loudly with an
   actionable error message.
-- The extension never auto-submits data. All imports and FitCheck requests
-  require an explicit user click.
+- The extension never auto-submits data. All imports, FitCheck requests, and
+  autofill operations require an explicit user click.
 - LinkedIn adapter runs in **manual-description mode** by design and does not
   auto-scrape posting descriptions.
 
 Reports that break these assumptions (e.g., token exfiltration from storage,
 silent host permission escalation, bypass of the user-click requirement) are
 considered high severity.
+
+## Profile Autofill Threat Model
+
+Profile autofill is the only path in this extension where **user PII flows
+from Utably to a third-party origin**. It carries a different threat model
+than job-data import (which flows third-party → Utably). The invariants below
+are load-bearing — reports that defeat any of them are high severity.
+
+**Invariant 1 — Profile data is fetched only on user gesture.**
+`GET /extension/profile` is called from the *My profile* tab open event,
+the *Refresh* button, or as the first step of *Fill this page*. There is
+no background fetch, no preload, and no fetch from `background.js` outside
+those explicit message handlers.
+
+**Invariant 2 — Profile data is not persisted to disk.**
+The profile cache lives in `chrome.storage.session` (MV3 in-memory store,
+wiped on browser restart). If `chrome.storage.session` is unavailable in the
+host browser, the cache is disabled — no fallback to disk-backed storage.
+The five-minute TTL is enforced on every read. Logout, *Clear cache*, and the
+defensive install hook all wipe any legacy `chrome.storage.local` entry from
+older builds.
+
+**Invariant 3 — Every recipient origin is shown to the user before fill.**
+The consent modal lists every host whose frame matched a fill adapter and
+holds at least one matched field. Sub-frame hosts are rendered with a visible
+`iframe` tag and a red border. The list is built from the dry-run report and
+rendered with `document.createElement` + `textContent` — no path constructs
+DOM from frame-supplied strings via `innerHTML`.
+
+**Invariant 4 — Frames that appear after consent cannot fill.**
+At apply time, each frame validates its hostname against the user-consented
+hosts list passed in by the side panel. A frame whose host is not on the list
+returns `aborted: host_not_consented` and applies nothing.
+
+**Invariant 5 — Plan / verify / apply runs in one synchronous frame
+execution (TOCTOU bound).** Each adapter calls `buildPlan(...)`, compares the
+canonical field set to the consented one, then calls `applyPlan(...)` in the
+same `chrome.scripting.executeScript` call. There is no awaitable boundary
+between verification and mutation. If the field set differs from what the
+user consented to, the frame returns `aborted: page_changed` and applies
+nothing; the side panel re-runs the preview and re-prompts.
+
+**Invariant 6 — The generic fill adapter is top-frame-only.**
+`content/fill/generic.js` `canHandle()` returns `true` only when
+`window === window.top`. Unknown sub-frames (ad networks, tracking iframes,
+arbitrary third-party widgets) cannot match the generic adapter even if their
+DOM contains an input named "email". ATS-specific adapters
+(`greenhouse.js`, `lever.js`, `ashby.js`) remain frame-agnostic but are
+pinned to known TLD+1 suffixes.
+
+**Invariant 7 — Only empty inputs are filled.**
+`tryFill` and `applyPlan` both bail if the target `<input>` has a non-empty
+trimmed value. User-entered data is never overwritten.
+
+**Invariant 8 — The backend response is uncacheable by intermediates.**
+`GET /extension/profile` returns `Cache-Control: private, no-store` and
+`Pragma: no-cache`. Server side enforces a per-user rate cap on profile
+reads (separate counter from job-import quota) and logs each read in
+CloudWatch as a DSGVO Art. 30 record of processing.
+
+Bypassing any of the above (e.g., a code path that fills without rendering
+the consent modal, a frame that fills despite not being in the consented
+host list, a way to coerce the cache onto disk) is in scope for the
+high-severity bounty bracket.

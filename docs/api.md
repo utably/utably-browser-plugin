@@ -87,6 +87,83 @@ Body: { title, company, url }
 ```
 Returns whether an application with matching title/company/URL already exists.
 
+## Profile Endpoints
+
+### Get fillable profile
+```
+GET /extension/profile
+Authorization: Bearer <accessToken>
+```
+
+Returns a minimised, fillable subset of the user's Utably profile for the autofill flow. Server side adds:
+
+- `Cache-Control: private, no-store, max-age=0`
+- `Pragma: no-cache`
+- Per-user per-minute rate cap (separate counter from `/extension/import-job`)
+- A structured CloudWatch audit log line (`extension.profile.read`) for DSGVO Art. 30 records of processing
+
+**Success response (200):**
+```javascript
+{
+  contact: {
+    firstName: "Ada",
+    lastName: "Lovelace",
+    middleName: "",
+    academicTitle: "",
+    email: "ada@example.com",
+    phone: "+44 20 7946 0958",
+    dateOfBirth: "",
+    nationality: ""
+  },
+  address: {
+    street: "10 Downing Street",
+    houseNumber: "",
+    city: "London",
+    zip: "SW1A 2AA",
+    country: "GB"
+  },
+  links: {
+    linkedin: "https://www.linkedin.com/in/...",
+    github: "",
+    website: ""
+  },
+  experience: [
+    { id, company, title, location, startDate, endDate, isCurrent, description }
+    // up to 10 entries, most recent first
+  ],
+  education: [
+    { id, institution, degree, field, gpa, location, startDate, endDate, currentlyAttending }
+    // up to 10 entries
+  ],
+  skills: {
+    hard: ["Python", "TypeScript", ...],   // up to 50
+    soft: [...],                            // up to 50
+    other: [...],                           // up to 50
+    languages: [...]                        // up to 30
+  },
+  updatedAt: "2026-05-15T12:34:56.789Z"
+}
+```
+
+**Rate-limited response (429):**
+```json
+{
+  "error": "RATE_LIMITED",
+  "message": "Profile read rate limit reached. Please retry shortly.",
+  "details": {
+    "code": "EXT_PROFILE_MINUTE_RATE_LIMIT",
+    "retryAt": "2026-05-15T12:35:00.000Z",
+    "limit": 20
+  }
+}
+```
+
+The response shape is deliberately **strictly smaller** than the full Utably
+profile. Fields that are not needed for form autofill (preferences,
+publications, references, awards, motivation, career compass, etc.) are not
+returned. Adding fields requires a backend change and a documentation update
+here.
+
 ## Analysis Endpoints
 
 ### FitCheck

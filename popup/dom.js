@@ -67,6 +67,32 @@ export function getDom() {
     fitCheckPreferences: document.getElementById("fitCheckPreferences"),
     fitCheckPersonality: document.getElementById("fitCheckPersonality"),
     fitCheckKeyPoints: document.getElementById("fitCheckKeyPoints"),
+    // Profile tab
+    viewTabs: document.getElementById("viewTabs"),
+    viewTabImport: document.getElementById("viewTabImport"),
+    viewTabProfile: document.getElementById("viewTabProfile"),
+    importView: document.getElementById("importView"),
+    profileView: document.getElementById("profileView"),
+    profileLoading: document.getElementById("profileLoading"),
+    profileError: document.getElementById("profileError"),
+    profileCard: document.getElementById("profileCard"),
+    refreshProfileBtn: document.getElementById("refreshProfileBtn"),
+    fillPageBtn: document.getElementById("fillPageBtn"),
+    openProfileAppBtn: document.getElementById("openProfileAppBtn"),
+    fillReport: document.getElementById("fillReport"),
+    // Fill confirmation modal
+    fillConfirmModal: document.getElementById("fillConfirmModal"),
+    closeFillConfirmBtn: document.getElementById("closeFillConfirmBtn"),
+    fillConfirmHosts: document.getElementById("fillConfirmHosts"),
+    fillConfirmChangedNotice: document.getElementById("fillConfirmChangedNotice"),
+    fillConfirmEmpty: document.getElementById("fillConfirmEmpty"),
+    fillConfirmRemember: document.getElementById("fillConfirmRemember"),
+    fillConfirmCancel: document.getElementById("fillConfirmCancel"),
+    fillConfirmApply: document.getElementById("fillConfirmApply"),
+    // Settings: autofill privacy
+    consentCount: document.getElementById("consentCount"),
+    clearConsentsBtn: document.getElementById("clearConsentsBtn"),
+    clearProfileCacheBtn: document.getElementById("clearProfileCacheBtn"),
   };
 }
 

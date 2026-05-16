@@ -35,11 +35,18 @@ profile, and click **Save**. That's the whole extension.
 - **AI FitCheck** — a traffic-light score, skills breakdown, and
   qualification analysis for how well a posting matches your Utably
   profile.
+- **Profile autofill** — fill the contact, employment, and education
+  fields on a Greenhouse, Lever, or Ashby application form from your
+  Utably profile. You see exactly which fields go to which host before
+  any data leaves the extension; the page must not change between
+  preview and fill (see [`docs/fill.md`](docs/fill.md)).
 - **Text Capture** — select any text on a page, hit copy, and drop it
   into a form field via a floating card.
 - **Side panel UI** — no popups, no new tabs, never steals focus.
 - **Privacy-first** — reads only the tab you opened, only when you click
-  Auto-fill, and never sends data to Utably without an explicit Save.
+  Auto-fill, never sends data to Utably without an explicit Save, and
+  never sends profile data to a third-party site without an explicit
+  per-host consent.
 
 ## 🔓 Why is this open source?
 
@@ -201,13 +208,17 @@ The short version:
 ```
 
 - **`manifest.json`** — Manifest V3 declaration.
-- **`background.js`** — service worker, auth, API calls, token rotation.
-- **`popup.html` + `popup/`** — the side panel UI and its controllers.
-- **`webpages/`** — one adapter per supported job board, plus
-  `router.js` which picks the highest-priority match for the current
-  page.
-- **`content/`** — content scripts (only `capture.js` is wired up
-  today).
+- **`background.js`** — service worker, auth, API calls, token rotation,
+  profile cache (in `chrome.storage.session`), fill-adapter injection.
+- **`popup.html` + `popup/`** — the side panel UI and its controllers,
+  including the profile tab and the fill-confirm modal.
+- **`webpages/`** — one **extract** adapter per supported job board,
+  plus `router.js` which picks the highest-priority match for the
+  current page.
+- **`content/capture.js`** — the floating text-capture card.
+- **`content/fill/`** — fill adapters for Greenhouse, Lever, Ashby, and
+  a top-frame-only generic fallback. Plan-verify-apply runs in one
+  synchronous frame execution. See [`docs/fill.md`](docs/fill.md).
 - **`scripts/`** — build tools (zero-dependency file copying).
 
 Deeper dive in [`docs/architecture.md`](docs/architecture.md).
@@ -227,10 +238,19 @@ Deeper dive in [`docs/architecture.md`](docs/architecture.md).
   fields, cookies on third-party sites, or browser sync data.
 - **Tokens** live in `chrome.storage.local` with short-lived access +
   rotating refresh tokens.
+- **Profile data** (used for autofill) is fetched on demand and cached
+  in `chrome.storage.session` — in-memory only, never on disk, wiped
+  when the browser closes. Cache TTL is 5 minutes. You can clear it
+  manually in *Settings → Autofill privacy*.
+- **Profile autofill needs explicit per-fill consent.** Every fill shows
+  a modal listing every recipient host and every field that will be
+  filled. The page is re-checked at fill time; if it changed after you
+  approved, the fill aborts and re-prompts.
 - **LinkedIn description** is manual entry by design — we don't
   auto-scrape posting descriptions on LinkedIn.
 
-Full threat model in [`SECURITY.md`](SECURITY.md).
+Full threat model in [`SECURITY.md`](SECURITY.md). Autofill design
+details in [`docs/fill.md`](docs/fill.md).
 
 ## 🍴 Fork & self-host
 
@@ -259,7 +279,8 @@ adapter parity for third-party forks.
 | [`SECURITY.md`](SECURITY.md) | Reporting vulnerabilities, threat model, scope |
 | [`docs/faq.md`](docs/faq.md) | Common contributor and user questions |
 | [`docs/development.md`](docs/development.md) | Local setup, debugging, multi-browser build |
-| [`docs/adapters.md`](docs/adapters.md) | Adapter system + 10-minute walkthrough |
+| [`docs/adapters.md`](docs/adapters.md) | Extract adapters + 10-minute walkthrough |
+| [`docs/fill.md`](docs/fill.md) | Profile autofill: flow, consent, TOCTOU protection |
 | [`docs/architecture.md`](docs/architecture.md) | Runtime components, auth flow, storage |
 | [`docs/api.md`](docs/api.md) | Backend API contract |
 | [`docs/fitcheck.md`](docs/fitcheck.md) | FitCheck response shape and tier gating |

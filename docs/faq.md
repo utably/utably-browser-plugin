@@ -77,8 +77,32 @@ Only what you explicitly submit:
 - **On FitCheck:** the same payload above, plus a request for LLM
   analysis. The extension itself has no access to your Utably profile
   data — the LLM reads it server-side.
+- **On opening the *My profile* tab or clicking *Fill this page*:** the
+  extension fetches a minimised fillable subset of your Utably profile
+  via `GET /extension/profile` (see [`api.md`](api.md)). This is the
+  *only* path where profile data leaves Utably's server, and it lands
+  in the extension only — never in a third-party site without an
+  additional explicit consent.
 - **Nothing else.** No browsing history, no cookies from other sites,
   no form data outside the side panel, no passwords.
+
+### What data does the extension send to third-party sites (autofill)?
+
+Only what you explicitly approve, per fill, per recipient host. The flow is:
+
+1. You click *Fill this page* in the *My profile* tab.
+2. The extension runs a **dry-run** that finds matching form fields in
+   every frame on the page, but mutates nothing.
+3. A consent modal shows every host that would receive data, with an
+   `iframe` tag on sub-frame hosts, plus the list of fields each would
+   get.
+4. If you confirm, the extension re-checks the page (TOCTOU verify) and
+   only then writes values into the form inputs. If the page changed
+   between consent and apply, the fill aborts and you're re-prompted.
+5. Once filled, the destination site can read the values — same as if
+   you'd typed them. The extension never submits the form for you.
+
+See [`fill.md`](fill.md) for the security invariants.
 
 ### Does the extension run in the background?
 
@@ -105,6 +129,16 @@ https://api.test.utably.com/*
 Access to job-board sites is requested **at runtime, per-origin**, the
 first time you click Auto-fill on that site. You can revoke these
 permissions at any time from `chrome://extensions`.
+
+### Where is my Utably profile data cached?
+
+In `chrome.storage.session` — an MV3 in-memory store that is **wiped on
+browser restart and never written to disk**. The cache has a 5-minute
+TTL and is also cleared when you log out or click *Clear cache* in
+*Settings → Autofill privacy*. If your browser doesn't provide
+`chrome.storage.session`, caching is disabled (the extension simply
+re-fetches on each preview) — there is no disk fallback. See
+[`architecture.md`](architecture.md#storage-keys).
 
 ### Where are my auth tokens stored?
 

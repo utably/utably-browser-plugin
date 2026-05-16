@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Profile autofill** for Greenhouse, Lever, and Ashby application
+  forms. New *My profile* tab in the side panel shows your Utably
+  profile (contact, top experiences, skills); a *Fill this page*
+  button injects the relevant fields into the active job application
+  form. Every fill is gated by a consent modal that lists every
+  recipient host (including iframes, tagged as such) and every field
+  that will be filled. Generic fallback adapter is restricted to the
+  top frame so unknown iframes (ads, trackers) cannot receive PII.
+  See [`docs/fill.md`](docs/fill.md).
+- **TOCTOU-safe apply**: each fill adapter plans, verifies against the
+  user-consented field set, and applies in one synchronous frame
+  execution. If the page mutated between consent and apply, the fill
+  aborts with `PAGE_CHANGED`; the side panel re-runs the preview and
+  asks the user to consent against the new field set (capped at 3
+  attempts before giving up).
+- **Autofill privacy settings**: counter for sites you've allowed
+  autofill on, *Clear consents* button (revokes all stored per-site
+  consents), and *Clear cache* button (wipes the in-memory profile
+  cache).
+- New backend contract: `GET /extension/profile` returns a minimised
+  fillable subset (contact, address, top experiences/educations,
+  skills, social links). See [`docs/api.md`](docs/api.md). Server side
+  rate-limits to 20 requests/min/user, audits each read in CloudWatch
+  for DSGVO Art. 30 records-of-processing, and responds with
+  `Cache-Control: private, no-store`.
 - **Further notes** field in the side panel preview, between the source
   URL and the duplicate-notice block. Free-form text, autosaved to the
   draft in `chrome.storage.local` like the other fields, and forwarded
@@ -43,6 +68,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `externally_connectable`.
 
 ### Security
+- Profile cache moved from `chrome.storage.local` (disk-backed) to
+  `chrome.storage.session` (in-memory, wiped on browser restart). No
+  PII at rest. Defensive cleanup wipes any legacy `local` entry on
+  install.
+- Cross-frame leak prevented: ATS-specific fill adapters are pinned to
+  their TLD+1 suffix (`greenhouse.io`, `lever.co`, `ashbyhq.com`); the
+  generic fallback only runs in the top frame. Frames that appear
+  *after* the user consented refuse to fill.
+- Consent modal renders host names via `document.createElement` +
+  `textContent` (no `innerHTML` with frame data) to prevent any
+  hypothetical XSS via hostile hostnames.
 - Published security disclosure policy in `SECURITY.md` with
   `security@utably.com` as the contact mailbox.
 

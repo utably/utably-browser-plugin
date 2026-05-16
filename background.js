@@ -16,6 +16,18 @@ const WORKSPACE_PATH = "popup.html?mode=workspace";
 const CAPTURE_SCRIPT_FILE = "content/capture.js";
 const DRAFT_STORAGE_KEY = "utablyDraft";
 const CAPTURE_TABS_KEY = "utablyCaptureTabs";
+const PROFILE_CACHE_KEY = "utablyProfileCache";
+const PROFILE_CACHE_TTL_MS = 5 * 60_000;
+const FILL_CONSENTS_KEY = "utablyFillConsents";
+const FILL_CONSENT_TTL_MS = 30 * 24 * 60 * 60_000;
+const FILL_SCRIPT_FILES = [
+  "content/fill/common.js",
+  "content/fill/greenhouse.js",
+  "content/fill/lever.js",
+  "content/fill/ashby.js",
+  "content/fill/generic.js",
+  "content/fill/router.js",
+];
 const LOCALE_STORAGE_KEY = "utablyLocale";
 const SUPPORTED_LOCALES = ["en", "de"];
 const DEFAULT_LOCALE = "en";
@@ -100,13 +112,56 @@ async function saveAuth(auth) {
   });
 }
 
+// Profile data is PII; keep it out of disk-backed local storage. We use
+// chrome.storage.session when available (MV3 in-memory, wiped on browser
+// restart). If unavailable we fall back to NOT caching at all rather than
+// silently downgrading to disk storage.
+function getProfileCacheStorage() {
+  return chrome.storage?.session || null;
+}
+
+async function readProfileCache() {
+  const store = getProfileCacheStorage();
+  if (!store) return null;
+  try {
+    const stored = await store.get([PROFILE_CACHE_KEY]);
+    return stored?.[PROFILE_CACHE_KEY] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeProfileCache(entry) {
+  const store = getProfileCacheStorage();
+  if (!store) return;
+  try {
+    await store.set({ [PROFILE_CACHE_KEY]: entry });
+  } catch {}
+}
+
+async function removeProfileCache() {
+  const store = getProfileCacheStorage();
+  if (store) {
+    try {
+      await store.remove([PROFILE_CACHE_KEY]);
+    } catch {}
+  }
+  // Defensive: older builds wrote the cache to chrome.storage.local. Wipe any
+  // legacy entry so PII doesn't linger on disk after upgrading.
+  try {
+    await chrome.storage.local.remove([PROFILE_CACHE_KEY]);
+  } catch {}
+}
+
 async function clearAuth() {
   await chrome.storage.local.remove([
     "extAccessToken",
     "extRefreshToken",
     "extAccessExpiresAt",
     "extRefreshExpiresAt",
+    FILL_CONSENTS_KEY,
   ]);
+  await removeProfileCache();
 }
 
 function parseTokenResponse(json) {
@@ -366,6 +421,170 @@ async function sendFitCheck(jobPosting) {
   }
 
   return await res.json();
+}
+
+async function getActiveHost(tabId) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const u = new URL(tab?.url || "");
+    return (u.hostname || "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function normalizeConsentRecord(raw) {
+  if (!raw || typeof raw !== "object") return {};
+  const out = {};
+  const cutoff = Date.now() - FILL_CONSENT_TTL_MS;
+  for (const [host, value] of Object.entries(raw)) {
+    const ts = Number(value?.ts || value || 0);
+    if (!host || !Number.isFinite(ts) || ts < cutoff) continue;
+    out[host] = { ts };
+  }
+  return out;
+}
+
+async function loadFillConsents() {
+  const stored = await chrome.storage.local.get([FILL_CONSENTS_KEY]);
+  return normalizeConsentRecord(stored[FILL_CONSENTS_KEY]);
+}
+
+async function saveFillConsent(host) {
+  if (!host) return;
+  const consents = await loadFillConsents();
+  consents[host] = { ts: Date.now() };
+  await chrome.storage.local.set({ [FILL_CONSENTS_KEY]: consents });
+}
+
+async function clearFillConsents() {
+  await chrome.storage.local.remove([FILL_CONSENTS_KEY]);
+}
+
+async function clearProfileCache() {
+  await removeProfileCache();
+}
+
+async function fetchProfile({ forceRefresh = false } = {}) {
+  const locale = await getPluginLocale().catch(() => "");
+  if (!forceRefresh) {
+    const cached = await readProfileCache();
+    if (
+      cached?.profile &&
+      cached?.locale === locale &&
+      Number(cached.fetchedAt) > Date.now() - PROFILE_CACHE_TTL_MS
+    ) {
+      return { profile: cached.profile, cached: true };
+    }
+  }
+
+  const settings = await getSettings();
+  const token = await ensureAccessToken(settings);
+  if (!token) {
+    throw new Error("Not connected. Please connect to Utably first.");
+  }
+
+  // Pass the plugin's active locale so the backend can merge the matching
+  // profile variant (skills, titles, academic_title etc. are localized).
+  const profileUrl = new URL(`${settings.apiBase}/extension/profile`);
+  if (locale) profileUrl.searchParams.set("locale", locale);
+  const res = await fetch(profileUrl.toString(), {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+
+  const profile = await res.json().catch(() => null);
+  if (!profile || typeof profile !== "object") {
+    throw new Error("Invalid profile response.");
+  }
+  await writeProfileCache({ profile, fetchedAt: Date.now(), locale });
+  return { profile, cached: false };
+}
+
+async function runFormFill({ tabId, profile, dryRun = false, expectedHosts = null }) {
+  if (!Number.isInteger(tabId) || tabId <= 0) {
+    throw new Error("Invalid tab id.");
+  }
+  if (!profile || typeof profile !== "object") {
+    throw new Error("Missing profile data.");
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    files: FILL_SCRIPT_FILES,
+  });
+
+  const callOptions = { dryRun: Boolean(dryRun) };
+  if (!dryRun && Array.isArray(expectedHosts)) {
+    callOptions.expectedHosts = expectedHosts;
+  }
+
+  const frameResults = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: (data, options) => {
+      if (typeof globalThis.__utablyRunFill !== "function") return null;
+      return globalThis.__utablyRunFill(data, options || {});
+    },
+    args: [profile, callOptions],
+  });
+
+  // Aggregate per-host. For dry-run we want every host that WOULD receive
+  // data; for real-fill we want what actually got filled. Aborted frames
+  // (page changed mid-flow, or host not in consent list) are reported
+  // separately so the UI can re-prompt instead of silently dropping fields.
+  const byHost = new Map();
+  let totalFilled = 0;
+  let totalSkipped = 0;
+  const aborted = [];
+  for (const entry of frameResults || []) {
+    const r = entry?.result;
+    if (!r || typeof r !== "object") continue;
+    if (r.aborted) {
+      aborted.push({
+        host: (r.host || "").toLowerCase(),
+        reason: r.reason || "unknown",
+        planFields: Array.isArray(r.planFields) ? r.planFields : [],
+      });
+      continue;
+    }
+    if (r.adapter === "none") continue;
+    const host = (r.host || "").toLowerCase();
+    if (!host) continue;
+    const filled = Number(r.filled || 0);
+    const skipped = Number(r.skipped || 0);
+    totalFilled += filled;
+    totalSkipped += skipped;
+    // For dry-run, include hosts where filled is 0 but fields were planned.
+    if (!dryRun && filled === 0) continue;
+    if (dryRun && !(Array.isArray(r.fields) && r.fields.length)) continue;
+    const existing = byHost.get(host) || {
+      host,
+      adapter: r.adapter,
+      isTopFrame: Boolean(r.isTopFrame),
+      filled: 0,
+      fields: [],
+    };
+    existing.filled += filled;
+    if (Array.isArray(r.fields)) {
+      for (const f of r.fields) existing.fields.push(f);
+    }
+    byHost.set(host, existing);
+  }
+  const hosts = Array.from(byHost.values());
+  return {
+    hosts,
+    filled: totalFilled,
+    skipped: totalSkipped,
+    aborted,
+    // Backward-compat fields used by the success toast.
+    adapter: hosts[0]?.adapter || "none",
+    fields: hosts.flatMap((h) => h.fields),
+  };
 }
 
 async function openSidePanelForActiveTab() {
@@ -723,6 +942,132 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "UTABLY_GET_PROFILE") {
+    (async () => {
+      try {
+        const result = await fetchProfile({ forceRefresh: Boolean(message.forceRefresh) });
+        sendResponse({ ok: true, ...result });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to load profile." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_FILL_PREVIEW") {
+    (async () => {
+      try {
+        const tabId = Number(message.tabId);
+        if (!Number.isInteger(tabId) || tabId <= 0) {
+          sendResponse({ ok: false, error: "Invalid tab id." });
+          return;
+        }
+        const host = await getActiveHost(tabId);
+        if (!host) {
+          sendResponse({ ok: false, error: "Cannot determine page host." });
+          return;
+        }
+        const { profile } = await fetchProfile({ forceRefresh: false });
+        const report = await runFormFill({ tabId, profile, dryRun: true });
+        const consents = await loadFillConsents();
+        sendResponse({
+          ok: true,
+          host,
+          report,
+          consentRemembered: Boolean(consents[host]),
+        });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to preview fill." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_FILL_PAGE") {
+    (async () => {
+      try {
+        const tabId = Number(message.tabId);
+        if (!Number.isInteger(tabId) || tabId <= 0) {
+          sendResponse({ ok: false, error: "Invalid tab id." });
+          return;
+        }
+        const host = await getActiveHost(tabId);
+        if (!host) {
+          sendResponse({ ok: false, error: "Cannot determine page host." });
+          return;
+        }
+        const expectedHosts = Array.isArray(message.expectedHosts) ? message.expectedHosts : null;
+        if (!expectedHosts) {
+          // Refuse to fill without an explicit consent list — the user
+          // must have seen the preview and approved each recipient.
+          sendResponse({ ok: false, code: "CONSENT_MISSING", error: "Consent list required." });
+          return;
+        }
+        const { profile } = await fetchProfile({ forceRefresh: false });
+        const report = await runFormFill({ tabId, profile, dryRun: false, expectedHosts });
+
+        // If any frame aborted because its planned fields no longer match
+        // the user-approved set (page mutated between preview and fill),
+        // surface that so the UI can re-preview rather than silently
+        // skipping fields.
+        if (Array.isArray(report.aborted) && report.aborted.length > 0) {
+          sendResponse({
+            ok: false,
+            code: "PAGE_CHANGED",
+            error: "Page changed after consent. Please review again.",
+            aborted: report.aborted,
+            report,
+          });
+          return;
+        }
+        if (message.rememberConsent) {
+          await saveFillConsent(host);
+        }
+        sendResponse({ ok: true, host, report });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to fill page." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_FILL_CONSENT_STATUS") {
+    (async () => {
+      try {
+        const consents = await loadFillConsents();
+        const hosts = Object.keys(consents).sort();
+        sendResponse({ ok: true, consents, hosts });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to read consents." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_CLEAR_FILL_CONSENTS") {
+    (async () => {
+      try {
+        await clearFillConsents();
+        sendResponse({ ok: true });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to clear consents." });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_CLEAR_PROFILE_CACHE") {
+    (async () => {
+      try {
+        await clearProfileCache();
+        sendResponse({ ok: true });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || "Failed to clear profile cache." });
+      }
+    })();
+    return true;
+  }
+
   if (message?.type === "UTABLY_ENSURE_GROUP") {
     (async () => {
       try {
@@ -751,6 +1096,9 @@ chrome.action.onClicked.addListener(async () => {
 
 chrome.runtime.onInstalled.addListener(() => {
   configureActionClickSidePanel().catch(() => {});
+  // One-time migration: wipe any pre-MV3-session PII that older builds left
+  // in chrome.storage.local. Safe to run repeatedly.
+  chrome.storage.local.remove([PROFILE_CACHE_KEY]).catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(() => {
