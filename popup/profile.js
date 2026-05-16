@@ -319,10 +319,38 @@ function buildRoleCard(els, role) {
   head.appendChild(actions);
   wrap.appendChild(head);
 
-  // Body — hidden until the title row is clicked. Houses the description
-  // blocks + achievement bullets. Each block stays click-to-copy.
+  // Body — hidden until the title row is clicked. Houses the per-field
+  // entries (each separately copyable, because application forms have
+  // separate inputs for company / title / dates) plus the description
+  // blocks and achievement bullets.
   const body = document.createElement("div");
   body.className = "role-body";
+
+  // Per-field entries — application forms split company / title / dates,
+  // so each gets its own click-to-copy row.
+  const fieldRows = [
+    { key: "title", label: t("profile.field.title"), value: titleText },
+    { key: "company", label: t("profile.field.company"), value: role.company },
+    { key: "from", label: t("profile.field.from"), value: formatDate(role.startDate) },
+    {
+      key: "to",
+      label: t("profile.field.to"),
+      value: role.isCurrent ? t("profile.current") : formatDate(role.endDate),
+    },
+    { key: "location", label: t("profile.field.location"), value: role.location },
+  ].filter((row) => row.value && row.value !== "N/A");
+  if (fieldRows.length > 0) {
+    const fieldList = document.createElement("div");
+    fieldList.className = "role-fields";
+    for (const row of fieldRows) {
+      fieldList.appendChild(buildEntry(els, {
+        id: `role-${role.id || titleText}-${row.key}`,
+        label: row.label,
+        value: row.value,
+      }));
+    }
+    body.appendChild(fieldList);
+  }
 
   const ul = document.createElement("ul");
   ul.className = "bullets";
@@ -368,13 +396,14 @@ function buildRoleCard(els, role) {
   addBlock(role.companyDescription, t("profile.detail.company"), "company");
   for (const b of bullets) addBlock(b, t("profile.bullet"), null);
 
-  const hasBody = ul.childElementCount > 0;
+  if (ul.childElementCount > 0) body.appendChild(ul);
+  const hasBody = body.childElementCount > 0;
   if (hasBody) {
-    body.appendChild(ul);
     wrap.appendChild(body);
   } else {
     // Nothing to expand — hide the chevron so the row doesn't look interactive.
     titleWrap.classList.add("is-empty");
+    titleWrap.removeAttribute("aria-expanded");
     chev.style.display = "none";
   }
 
@@ -388,15 +417,19 @@ function buildRoleCard(els, role) {
   return wrap;
 }
 
-// ---- Education card (similar to role but with degree+institution) ----
+// ---- Education card — same collapse pattern as experience, with the
+//      per-field entries (institution / degree / field / dates / GPA)
+//      that application forms typically split into separate inputs.
 function buildEducationCard(els, edu) {
   const wrap = document.createElement("div");
-  wrap.className = "role";
+  wrap.className = "role is-collapsed";
 
   const head = document.createElement("div");
   head.className = "role-head";
-  const titleWrap = document.createElement("div");
+  const titleWrap = document.createElement("button");
+  titleWrap.type = "button";
   titleWrap.className = "role-title-wrap";
+  titleWrap.setAttribute("aria-expanded", "false");
 
   const title = document.createElement("div");
   title.className = "role-title";
@@ -430,26 +463,45 @@ function buildEducationCard(els, edu) {
     meta.appendChild(g);
   }
   if (meta.childElementCount > 0) titleWrap.appendChild(meta);
-  head.appendChild(titleWrap);
 
-  const actions = document.createElement("div");
-  actions.className = "role-actions";
-  const allBtn = document.createElement("button");
-  allBtn.type = "button";
-  allBtn.className = "mini-btn";
-  allBtn.appendChild(makeIconSpan(SECTION_ICONS.copy));
-  const abT = document.createElement("span");
-  abT.textContent = t("profile.all");
-  allBtn.appendChild(abT);
-  const allString = [titleText, edu.institution, dates].filter(Boolean).join(" — ");
-  allBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    copyAction(els, allString, t("profile.education"), allBtn);
-    flashCopied(allBtn);
-  });
-  actions.appendChild(allBtn);
-  head.appendChild(actions);
+  const chev = document.createElement("span");
+  chev.className = "role-chev";
+  chev.appendChild(makeIconSpan(SECTION_ICONS.chev));
+  titleWrap.appendChild(chev);
+
+  head.appendChild(titleWrap);
   wrap.appendChild(head);
+
+  // Body with per-field entries + description bullet
+  const body = document.createElement("div");
+  body.className = "role-body";
+
+  const fieldRows = [
+    { key: "institution", label: t("profile.field.institution"), value: edu.institution },
+    { key: "degree", label: t("profile.field.degree"), value: edu.degree },
+    { key: "field", label: t("profile.field.field"), value: edu.field },
+    { key: "course", label: t("profile.field.course"), value: edu.course },
+    { key: "from", label: t("profile.field.from"), value: formatDate(edu.startDate) },
+    {
+      key: "to",
+      label: t("profile.field.to"),
+      value: edu.currentlyAttending ? t("profile.current") : formatDate(edu.endDate),
+    },
+    { key: "gpa", label: t("profile.field.gpa"), value: edu.gpa },
+    { key: "location", label: t("profile.field.location"), value: edu.location },
+  ].filter((row) => Boolean(row.value));
+  if (fieldRows.length > 0) {
+    const fieldList = document.createElement("div");
+    fieldList.className = "role-fields";
+    for (const row of fieldRows) {
+      fieldList.appendChild(buildEntry(els, {
+        id: `edu-${edu.id || titleText}-${row.key}`,
+        label: row.label,
+        value: row.value,
+      }));
+    }
+    body.appendChild(fieldList);
+  }
 
   const detail = edu.description || edu.thesisTopic;
   if (detail) {
@@ -472,8 +524,24 @@ function buildEducationCard(els, edu) {
       copyAction(els, detail, t("profile.description"), li);
     });
     ul.appendChild(li);
-    wrap.appendChild(ul);
+    body.appendChild(ul);
   }
+
+  const hasBody = body.childElementCount > 0;
+  if (hasBody) {
+    wrap.appendChild(body);
+  } else {
+    titleWrap.classList.add("is-empty");
+    titleWrap.removeAttribute("aria-expanded");
+    chev.style.display = "none";
+  }
+  titleWrap.addEventListener("click", (e) => {
+    if (!hasBody) return;
+    e.stopPropagation();
+    const isOpen = wrap.classList.toggle("is-collapsed");
+    titleWrap.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  });
+
   return wrap;
 }
 

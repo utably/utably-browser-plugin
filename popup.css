@@ -1766,11 +1766,32 @@ body.sidepanel-mode .row {
   transform: rotate(180deg);
 }
 .role-body {
-  margin-top: 6px;
+  margin-top: 8px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .role.is-collapsed .role-body {
   display: none;
+}
+
+.role-fields {
+  background: var(--utably-paper);
+  border: 1px solid var(--utably-ink-10);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.role-fields .entry {
+  padding: 6px 11px;
+  grid-template-columns: 76px 1fr auto;
+  gap: 8px;
+}
+.role-fields .entry + .entry {
+  border-top: 1px solid var(--utably-ink-10);
+}
+.role-fields .entry-label {
+  padding-top: 3px;
 }
 .role-title {
   font-weight: 700;
