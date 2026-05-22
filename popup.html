@@ -1,0 +1,517 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Utably Import</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="brand">
+          <img src="icons/32.png" alt="Utably" class="logo" />
+          <div>
+            <div class="title" data-i18n="header.title">Utably Import</div>
+            <div class="subtitle" data-i18n="header.subtitle">Job posting to application in one click.</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button id="openPrivacyBtn" class="link" data-i18n="header.privacy">Privacy</button>
+          <button id="toggleSettings" class="link" data-i18n="header.settings">Settings</button>
+          <button id="logoutBtn" class="link hidden" data-i18n="header.logout">Logout</button>
+        </div>
+      </header>
+
+      <div id="privacyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+        <div class="modal-card">
+          <div class="modal-header">
+            <div id="privacyTitle" class="modal-title" data-i18n="privacy.title">Privacy and Data Use</div>
+            <button id="closePrivacyBtn" class="link" data-i18n="privacy.close">Close</button>
+          </div>
+          <div class="modal-body">
+            <p data-i18n="privacy.intro" data-i18n-html="true">
+              Utably Import is designed for user-controlled imports. We only collect and send data when you explicitly
+              click <strong>Save to Utably</strong> or <strong>FitCheck</strong>.
+            </p>
+            <ul>
+              <li data-i18n="privacy.bullet.userInitiated">User-initiated only: no background crawling across websites.</li>
+              <li data-i18n="privacy.bullet.reviewFirst">Review-first flow: extracted fields are shown for editing before submit.</li>
+              <li data-i18n="privacy.bullet.minimalPerms">Minimal permissions: host access is requested per site only when Auto-fill is used.</li>
+              <li data-i18n="privacy.bullet.noCreds">No credential capture: extension does not read your passwords.</li>
+              <li data-i18n="privacy.bullet.linkedin">LinkedIn mode: manual description entry by design.</li>
+              <li data-i18n="privacy.bullet.tokens">Authentication uses short-lived extension tokens and revocable sessions.</li>
+              <li data-i18n="privacy.bullet.profileFill" data-i18n-html="true">Profile autofill: when you press <strong>Fill this page</strong>, the extension fetches your Utably profile, shows you exactly which fields will be filled on which website, and only places data into the form after you confirm. The target website receives the data only if you submit the form.</li>
+              <li data-i18n="privacy.bullet.profileCache">Profile cache: profile fields are cached in your browser's local storage for up to 5 minutes to power previews. Clear it any time under Settings → Autofill privacy.</li>
+              <li data-i18n="privacy.bullet.profileConsent">Per-site consent: you can revoke the "don't ask again" consent for any site under Settings → Autofill privacy. Consents auto-expire after 30 days.</li>
+            </ul>
+            <p class="modal-footnote" data-i18n="privacy.legalIntro">
+              Operated by Utably Limited (UK). For full legal terms and your data rights see:
+            </p>
+            <ul class="legal-links">
+              <li><a class="legal-link" data-legal-path="/Privacy-Policy#browser-extension" data-i18n="privacy.link.privacy" href="https://app.utably.com/Privacy-Policy#browser-extension" target="_blank" rel="noopener noreferrer">Privacy Policy (Browser Extension)</a></li>
+              <li><a class="legal-link" data-legal-path="/terms-of-service#browser-extension" data-i18n="privacy.link.terms" href="https://app.utably.com/terms-of-service#browser-extension" target="_blank" rel="noopener noreferrer">Terms of Service (Browser Extension)</a></li>
+              <li><a class="legal-link" data-legal-path="/Cookie-Policy" data-i18n="privacy.link.cookie" href="https://app.utably.com/Cookie-Policy" target="_blank" rel="noopener noreferrer">Cookie Policy</a></li>
+              <li><a class="legal-link" data-legal-path="/imprint" data-i18n="privacy.link.imprint" href="https://app.utably.com/imprint" target="_blank" rel="noopener noreferrer">Imprint / Legal Notice</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="fillConfirmModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fillConfirmTitle"
+      >
+        <div class="modal-card fill-confirm-card">
+          <div class="modal-header">
+            <div id="fillConfirmTitle" class="modal-title" data-i18n="fillConfirm.title">Confirm autofill</div>
+            <button id="closeFillConfirmBtn" class="link" data-i18n="fillConfirm.cancel">Cancel</button>
+          </div>
+          <div class="modal-body">
+            <p class="fill-confirm-intro" data-i18n="fillConfirm.intro">
+              You are about to send fields from your Utably profile to a third-party website.
+            </p>
+            <div id="fillConfirmChangedNotice" class="notice notice-error fill-confirm-changed hidden" data-i18n="fillConfirm.changedNotice">
+              The page changed since you last reviewed it. Please review the updated list below.
+            </div>
+            <div class="fill-confirm-hosts-label" data-i18n="fillConfirm.hostsLabel">
+              Sites that will receive data
+            </div>
+            <ul id="fillConfirmHosts" class="fill-confirm-hosts"></ul>
+            <p id="fillConfirmEmpty" class="fill-confirm-empty hidden" data-i18n="fillConfirm.empty">
+              No matching fields detected on this page.
+            </p>
+            <label class="fill-confirm-remember">
+              <input id="fillConfirmRemember" type="checkbox" />
+              <span data-i18n="fillConfirm.remember">Don't ask again on this site</span>
+            </label>
+            <p class="fill-confirm-rights" data-i18n="fillConfirm.rights" data-i18n-html="true">
+              You can withdraw consent any time in <strong>Settings → Autofill privacy</strong>.
+              Data leaves your browser only when you confirm and is placed directly into the page form by you.
+            </p>
+            <div class="confirm-actions">
+              <button id="fillConfirmCancel" class="secondary" data-i18n="fillConfirm.cancel">Cancel</button>
+              <button id="fillConfirmApply" class="primary" data-i18n="fillConfirm.apply">Fill this page</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="resetConfirmModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resetConfirmTitle"
+      >
+        <div class="modal-card confirm-card">
+          <div class="modal-header">
+            <div id="resetConfirmTitle" class="modal-title" data-i18n="reset.title">Reset form?</div>
+          </div>
+          <div class="modal-body">
+            <p data-i18n="reset.body">This clears all current fields in the preview form.</p>
+            <div class="confirm-actions">
+              <button id="resetConfirmNo" class="secondary" data-i18n="reset.no">No</button>
+              <button id="resetConfirmYes" class="primary" data-i18n="reset.yes">Sure</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="fitCheckModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fitCheckTitle"
+      >
+        <div class="modal-card fitcheck-card">
+          <div class="modal-header">
+            <div id="fitCheckTitle" class="modal-title" data-i18n="fitcheck.title">FitCheck Results</div>
+            <div class="modal-header-actions">
+              <button id="reanalyzeFitCheckBtn" class="link" data-i18n="fitcheck.reanalyze" data-i18n-title="fitcheck.reanalyze" title="Run fresh analysis">Reanalyze</button>
+              <button id="closeFitCheckBtn" class="link" data-i18n="fitcheck.close">Close</button>
+            </div>
+          </div>
+          <div class="modal-body fitcheck-body">
+            <div id="fitCheckTrafficLight" class="fitcheck-traffic-light">
+              <div class="traffic-light-icon"></div>
+              <div class="traffic-light-label"></div>
+            </div>
+
+            <div id="fitCheckScore" class="fitcheck-score">
+              <div class="score-circle">
+                <span class="score-value">--</span>
+              </div>
+              <div class="score-label">Overall Fit Score</div>
+            </div>
+
+            <div id="fitCheckSummary" class="fitcheck-section">
+              <div class="fitcheck-section-title">Summary</div>
+              <p class="fitcheck-summary-text"></p>
+            </div>
+
+            <div id="fitCheckQualification" class="fitcheck-section">
+              <div class="fitcheck-section-title">Qualification Fit</div>
+              <div class="fitcheck-qualification-badge"></div>
+              <ul class="fitcheck-signals"></ul>
+            </div>
+
+            <div id="fitCheckSkills" class="fitcheck-section">
+              <div class="fitcheck-section-title">Skills Analysis</div>
+              <div class="fitcheck-skills-grid">
+                <div class="skills-matching">
+                  <div class="skills-label">Matching</div>
+                  <div class="skills-list"></div>
+                </div>
+                <div class="skills-gaps">
+                  <div class="skills-label">Gaps</div>
+                  <div class="skills-list"></div>
+                </div>
+                <div class="skills-bonus">
+                  <div class="skills-label">Bonus</div>
+                  <div class="skills-list"></div>
+                </div>
+              </div>
+            </div>
+
+            <div id="fitCheckPreferences" class="fitcheck-section">
+              <div class="fitcheck-section-title">Preferences Match</div>
+              <div class="fitcheck-preferences-grid">
+                <div class="pref-item" data-pref="salary">
+                  <span class="pref-icon"></span>
+                  <span class="pref-label">Salary</span>
+                  <span class="pref-status"></span>
+                </div>
+                <div class="pref-item" data-pref="location">
+                  <span class="pref-icon"></span>
+                  <span class="pref-label">Location</span>
+                  <span class="pref-status"></span>
+                </div>
+                <div class="pref-item" data-pref="remote">
+                  <span class="pref-icon"></span>
+                  <span class="pref-label">Remote</span>
+                  <span class="pref-status"></span>
+                </div>
+              </div>
+            </div>
+
+            <div id="fitCheckPersonality" class="fitcheck-section">
+              <div class="fitcheck-section-title">Work Style Fit</div>
+              <p class="fitcheck-personality-text"></p>
+            </div>
+
+            <div id="fitCheckKeyPoints" class="fitcheck-section">
+              <div class="fitcheck-columns">
+                <div class="strengths-column">
+                  <div class="fitcheck-section-title">Top Strengths</div>
+                  <ul class="fitcheck-strengths-list"></ul>
+                </div>
+                <div class="concerns-column">
+                  <div class="fitcheck-section-title">Concerns</div>
+                  <ul class="fitcheck-concerns-list"></ul>
+                </div>
+              </div>
+            </div>
+
+            <div class="fitcheck-ai-disclaimer">
+              <span class="disclaimer-icon">&#9432;</span>
+              <span data-i18n="fitcheck.disclaimer">AI-generated analysis based on your profile. Results are suggestions, not guarantees.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="settings" class="panel hidden">
+        <div class="settings-row">
+          <label class="label" data-i18n="settings.debug">Debug mode</label>
+          <label class="switch">
+            <input id="debugMode" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label class="label" for="languageSelect" data-i18n="settings.language">Language</label>
+          <select id="languageSelect">
+            <option value="auto" data-i18n="settings.language.auto">Auto (browser)</option>
+            <option value="en" data-i18n="settings.language.en">English</option>
+            <option value="de" data-i18n="settings.language.de">Deutsch</option>
+          </select>
+        </div>
+
+        <div id="stageRow" class="field hidden">
+          <label class="label" data-i18n="settings.stage">Target stage</label>
+          <select id="stage">
+            <option value="prod">Production</option>
+            <option value="dev">Development</option>
+            <option value="test">Test</option>
+            <option value="local">Local App (Dev API)</option>
+          </select>
+        </div>
+        <div id="localPortRow" class="field hidden">
+          <label class="label" data-i18n="settings.localPort">Local app port</label>
+          <input id="localPort" type="number" min="1" max="65535" step="1" placeholder="5173" />
+        </div>
+        <button id="saveSettings" class="secondary" data-i18n="settings.save">Save settings</button>
+
+        <div class="settings-privacy">
+          <label class="label" data-i18n="settings.privacy.title">Autofill privacy</label>
+          <div class="privacy-row">
+            <span class="privacy-meta">
+              <span data-i18n="settings.privacy.consents">Sites you've allowed autofill on</span>:
+              <strong id="consentCount">0</strong>
+            </span>
+            <button id="clearConsentsBtn" class="link" type="button" data-i18n="settings.privacy.clearConsents">Clear consents</button>
+          </div>
+          <div class="privacy-row">
+            <span class="privacy-meta" data-i18n="settings.privacy.cacheMeta">
+              Profile data is cached locally for 5 minutes for autofill previews.
+            </span>
+            <button id="clearProfileCacheBtn" class="link" type="button" data-i18n="settings.privacy.clearCache">Clear cache</button>
+          </div>
+        </div>
+      </div>
+
+      <section id="authGate" class="panel auth-gate">
+        <div class="auth-brand">UTABLY</div>
+        <img src="assets/utably-bot_welcoming.webp" alt="Utably welcoming bot" class="auth-bot" />
+        <div class="auth-title" data-i18n="auth.title">Hello from Utably Bot</div>
+        <p class="auth-copy" data-i18n="auth.copy">Connect your account to import job postings securely.</p>
+        <div class="auth-actions">
+          <button id="openConnect" class="primary" data-i18n="auth.connect">Connect with Utably</button>
+        </div>
+        <div id="manualCodePanel" class="auth-manual hidden">
+          <label class="label auth-label" for="manualCode" data-i18n="auth.manualLabel">One-time code</label>
+          <textarea
+            id="manualCode"
+            rows="3"
+            data-i18n-placeholder="auth.manualPlaceholder"
+            placeholder="Paste one-time code here if automatic connect does not complete."
+          ></textarea>
+          <button id="manualCodeSubmit" class="secondary" data-i18n="auth.manualSubmit">Connect code</button>
+        </div>
+      </section>
+
+      <div id="appContent" class="hidden">
+        <div class="trust-pill trust-pill-inline" data-i18n="trust.pill">Your data stays local until you Save or run FitCheck.</div>
+
+        <div id="viewTabs" class="view-tabs" role="tablist">
+          <button
+            type="button"
+            id="viewTabImport"
+            class="view-tab is-active"
+            role="tab"
+            aria-selected="true"
+            data-view="import"
+            data-i18n="tabs.import"
+          >
+            Import job
+          </button>
+          <button
+            type="button"
+            id="viewTabProfile"
+            class="view-tab"
+            role="tab"
+            aria-selected="false"
+            data-view="profile"
+            data-i18n="tabs.profile"
+          >
+            My profile
+          </button>
+          <button
+            type="button"
+            id="viewTabSaved"
+            class="view-tab"
+            role="tab"
+            aria-selected="false"
+            data-view="saved"
+            data-i18n="tabs.saved"
+          >
+            Saved
+          </button>
+        </div>
+
+        <section id="importView" class="view view-import">
+
+        <section class="hero">
+          <div class="hero-text">
+            <div class="hero-title" data-i18n="hero.title">Hey there.</div>
+            <div class="hero-body" data-i18n="hero.body">I can auto-fill this page. You stay in control before sending.</div>
+            <div class="hero-actions">
+              <button id="goToAppBtn" class="secondary" data-i18n="hero.goToApp">Go to Utably</button>
+            </div>
+          </div>
+          <img src="assets/bot_small_heart.webp" alt="Utably robot" class="robot" />
+        </section>
+
+        <div id="linkedinNotice" class="notice hidden" data-i18n="linkedin.notice">
+          LinkedIn detected. Auto-import is disabled. Paste the job description manually.
+        </div>
+
+        <div id="saveSuccessNotice" class="notice notice-success hidden" role="status">
+          <div class="success-row">
+            <span id="saveSuccessText" class="success-text"></span>
+          </div>
+          <div class="success-actions">
+            <button id="openSavedBtn" class="link" type="button" data-i18n="success.openApp">Open application</button>
+            <button id="saveAnotherBtn" class="link" type="button" data-i18n="success.saveAnother">Save another</button>
+          </div>
+        </div>
+
+        <section id="previewPanel" class="panel">
+          <div class="section-head">
+            <div class="section-title" data-i18n="preview.title">Preview</div>
+            <div id="previewMeta" class="preview-meta hidden"></div>
+          </div>
+
+          <label class="label" data-i18n="preview.kind">Save as</label>
+          <div id="kindSelector" class="kind-selector" role="radiogroup" aria-label="Save as">
+            <button
+              type="button"
+              class="kind-option is-active"
+              role="radio"
+              aria-checked="true"
+              data-kind="Saved"
+              data-i18n-title="preview.kind.saved.hint"
+              title="Want to apply later"
+            >
+              <span class="kind-icon">&#9734;</span>
+              <span class="kind-label" data-i18n="preview.kind.saved">Saved</span>
+            </button>
+            <button
+              type="button"
+              class="kind-option"
+              role="radio"
+              aria-checked="false"
+              data-kind="Applied"
+              data-i18n-title="preview.kind.applied.hint"
+              title="I already applied"
+            >
+              <span class="kind-icon">&#10003;</span>
+              <span class="kind-label" data-i18n="preview.kind.applied">Applied</span>
+            </button>
+          </div>
+
+          <label class="label" id="applicationDateLabel" data-i18n="preview.appliedDay">Applied day</label>
+          <input id="applicationDate" type="date" />
+
+          <label class="label" data-i18n="preview.jobTitle">Job title</label>
+          <input id="jobTitle" type="text" data-i18n-placeholder="preview.jobTitle.placeholder" placeholder="e.g., Growth Analyst at Utably" />
+          <div id="jobTitleError" class="field-error hidden" role="alert"></div>
+
+          <label class="label" data-i18n="preview.company">Company</label>
+          <input id="companyName" type="text" data-i18n-placeholder="preview.company.placeholder" placeholder="e.g., Utably Ltd" />
+          <div id="companyNameError" class="field-error hidden" role="alert"></div>
+
+          <label class="label" data-i18n="preview.location">Location</label>
+          <input id="location" type="text" data-i18n-placeholder="preview.location.placeholder" placeholder="e.g., Berlin, Germany" />
+
+          <label class="label" data-i18n="preview.recruiter">Recruiter name</label>
+          <input id="recruiterName" type="text" data-i18n-placeholder="preview.recruiter.placeholder" placeholder="e.g., Alex Rivera (Utably)" />
+
+          <label class="label" data-i18n="preview.jobText">Job description</label>
+          <textarea id="jobText" rows="7" data-i18n-placeholder="preview.jobText.placeholder" placeholder="Paste role details from the posting"></textarea>
+
+          <div id="fitCheckInline" class="fitcheck-inline">
+            <div class="fitcheck-source-indicator">
+              <span class="indicator-icon">&#9432;</span>
+              <span class="indicator-text" data-i18n="fitcheck.indicator">Analyzes the job details above against your profile</span>
+            </div>
+            <button id="fitCheckBtn" class="secondary fitcheck-btn" data-i18n-title="fitcheck.btn" title="Analyze how well this job matches your profile">
+              <span class="fitcheck-btn-icon">&#9733;</span>
+              <span class="fitcheck-btn-text" data-i18n="fitcheck.btn">FitCheck</span>
+            </button>
+          </div>
+
+          <label class="label" data-i18n="preview.jobUrl">Source URL</label>
+          <input id="jobUrl" type="text" data-i18n-placeholder="preview.jobUrl.placeholder" placeholder="https://jobs.utably.com/roles/..." />
+
+          <label class="label" data-i18n="preview.notes">Further notes</label>
+          <textarea id="notes" rows="4" data-i18n-placeholder="preview.notes.placeholder" placeholder="Anything worth remembering — referrer name, salary expectations, follow-up dates…"></textarea>
+
+          <div id="duplicateNotice" class="notice notice-error hidden">
+            <span id="duplicateNoticeText" data-i18n="duplicate.alreadyAdded">Already added.</span>
+            <button id="openDuplicateBtn" class="link" type="button" data-i18n="duplicate.openExisting">Open existing</button>
+          </div>
+        </section>
+
+        <div class="row">
+          <button id="captureMode" class="secondary" data-i18n="actions.captureOff">Capture: Off</button>
+          <button id="extract" class="secondary" data-i18n="actions.extract">Auto-fill</button>
+          <button id="reset" class="secondary" data-i18n="actions.reset">Reset</button>
+          <button id="send" class="primary" data-i18n="actions.send">Save to Utably</button>
+        </div>
+        </section>
+
+        <section id="profileView" class="view view-profile hidden">
+          <div class="mascot-hero">
+            <img src="assets/bot_small_heart.webp" alt="" />
+            <div class="mascot-hero-text">
+              <div class="mascot-hero-title" data-i18n="profile.heroTitle">Your profile, on tap.</div>
+              <div class="mascot-hero-sub" data-i18n="profile.heroSub">Click any field to copy it. Nothing leaves your browser.</div>
+            </div>
+          </div>
+
+          <div id="profileLoading" class="profile-loading hidden" data-i18n="profile.loading">Loading profile…</div>
+          <div id="profileError" class="notice notice-error hidden"></div>
+
+          <div id="profileCard" class="profile-card hidden">
+            <div class="identity">
+              <div class="identity-avatar" id="identityAvatar"></div>
+              <div class="identity-body">
+                <div id="identityName" class="identity-name"></div>
+                <div id="identityMeta" class="identity-meta"></div>
+              </div>
+            </div>
+
+            <div id="profileSections" class="sections"></div>
+          </div>
+
+          <div class="row profile-actions">
+            <button id="fillPageBtn" class="primary" data-i18n="profile.fillPage">Fill this page</button>
+            <button id="openProfileAppBtn" class="secondary" data-i18n="profile.openInApp">Edit in Utably</button>
+            <button id="refreshProfileBtn" class="link" type="button" data-i18n="profile.refresh">Refresh</button>
+          </div>
+
+          <div id="fillReport" class="notice fill-report hidden" role="status"></div>
+          <div id="copyToast" class="copy-toast" role="status" aria-live="polite"></div>
+        </section>
+
+        <section id="savedView" class="view view-saved hidden">
+          <div class="saved-search-wrap">
+            <input
+              id="savedSearch"
+              class="saved-search-input"
+              type="search"
+              autocomplete="off"
+              data-i18n-placeholder="saved.searchPlaceholder"
+              placeholder="Search title, company, location…"
+              aria-label="Search saved applications"
+            />
+            <button id="savedSearchClear" class="saved-search-clear hidden" type="button" aria-label="Clear search">×</button>
+          </div>
+          <div id="savedFilters" class="jobs-filter" role="tablist"></div>
+          <div id="savedLoading" class="profile-loading hidden" data-i18n="saved.loading">Loading saved jobs…</div>
+          <div id="savedError" class="notice notice-error hidden"></div>
+          <div id="savedEmpty" class="no-results hidden">
+            <img class="no-results-bot" src="assets/bot_small_heart.webp" alt="" />
+            <div class="no-results-title" data-i18n="saved.emptyTitle">Nothing here yet</div>
+            <div data-i18n="saved.emptySub">Save a job from a posting page using the Import tab.</div>
+          </div>
+          <div id="savedList" class="jobs-list"></div>
+          <div class="row saved-actions">
+            <button id="refreshSavedBtn" class="link" type="button" data-i18n="saved.refresh">Refresh</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="status" class="status hidden" aria-live="polite" role="status"></div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

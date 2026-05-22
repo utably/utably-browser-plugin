@@ -1,0 +1,40 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - utably-dev
+      - utably-test
+      - utably-staging
+      - utably-prod
+      - OSS-Prep-Branch
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: node --test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["18.x", "20.x", "22.x"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      # This repo has zero runtime dependencies and zero devDependencies.
+      # `npm install` is a no-op but we run it anyway so that future
+      # additions to package.json are honored without editing this workflow.
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Run tests
+        run: npm test

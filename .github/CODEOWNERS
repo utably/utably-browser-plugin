@@ -1,0 +1,24 @@
+# Code owners for the Utably Browser Plugin.
+#
+# External contributions are welcome — see CONTRIBUTING.md. Every PR
+# needs approval from a Utably maintainer before it can merge. The
+# patterns below route review requests automatically; additional
+# internal reviewers may be added by maintainers as needed.
+
+# Default owner for everything in the repo.
+* @sievertj
+
+# Security-sensitive paths — auth token handling, the extension manifest
+# surface, and the build scripts that produce distributable artifacts.
+/background.js        @sievertj
+/manifest.json        @sievertj
+/popup/               @sievertj
+/scripts/             @sievertj
+/.github/             @sievertj
+/LICENSE              @sievertj
+/NOTICE               @sievertj
+/SECURITY.md          @sievertj
+
+# Brand assets are not community-editable (see NOTICE).
+/icons/               @sievertj
+/assets/              @sievertj

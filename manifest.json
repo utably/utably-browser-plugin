@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Utably Job Importer",
+  "version": "0.16.0",
+  "description": "Import job postings into Utably with a user-reviewed preview.",
+  "action": {
+    "default_title": "Import job to Utably"
+  },
+  "permissions": ["activeTab", "scripting", "storage", "sidePanel", "tabs", "downloads"],
+  "host_permissions": [
+    "https://api.utably.com/*",
+    "https://api.dev.utably.com/*",
+    "https://api.test.utably.com/*"
+  ],
+  "optional_host_permissions": ["*://*/*"],
+  "externally_connectable": {
+    "matches": [
+      "https://app.utably.com/*",
+      "https://app.dev.utably.com/*",
+      "https://app.test.utably.com/*"
+    ]
+  },
+  "side_panel": {
+    "default_path": "popup.html?mode=sidepanel"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
+}
