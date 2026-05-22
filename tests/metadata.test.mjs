@@ -57,13 +57,16 @@ test("manifest.json declares all required icon sizes", async () => {
 
 test("manifest.json declares the expected minimal permissions", async () => {
   const manifest = await readJson("manifest.json");
-  const required = new Set(["activeTab", "scripting", "storage", "sidePanel", "tabs"]);
+  // `downloads` is required so users can save their own CV/cover-letter/photo
+  // back out to disk when a job application form's upload widget rejects the
+  // extension's synthesized DataTransfer injection. See docs/fill.md.
+  const required = new Set(["activeTab", "scripting", "storage", "sidePanel", "tabs", "downloads"]);
   const actual = new Set(manifest.permissions || []);
   for (const perm of required) {
     assert.ok(actual.has(perm), `missing required permission: ${perm}`);
   }
-  // Block permissions that are almost never appropriate for a job-importer
-  // extension and would widen the review surface dramatically.
+  // Block permissions that are almost never appropriate and would widen the
+  // review surface dramatically.
   const forbidden = [
     "<all_urls>",
     "webRequest",
@@ -75,7 +78,6 @@ test("manifest.json declares the expected minimal permissions", async () => {
     "privacy",
     "history",
     "bookmarks",
-    "downloads",
     "nativeMessaging",
   ];
   for (const perm of forbidden) {

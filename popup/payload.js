@@ -46,6 +46,13 @@ function mapFitCheckToFitAnalysis(fitCheckResult) {
   const insight = fitCheckResult.insight || fitCheckResult;
   if (!insight || !insight.overallScore) return undefined;
 
+  // Preserve the lock state + upgrade copy so re-opening the modal later
+  // (from the Saved tab) shows the same upgrade CTA the user originally saw.
+  const insightsLocked = Boolean(fitCheckResult.insightsLocked);
+  const upgradeMessage = typeof fitCheckResult.upgradeMessage === "string"
+    ? fitCheckResult.upgradeMessage
+    : undefined;
+
   return {
     // Basic fields
     fitSummary: insight.summary || undefined,
@@ -54,6 +61,10 @@ function mapFitCheckToFitAnalysis(fitCheckResult) {
     nextSteps: undefined,
     confidence: insight.overallScore ? insight.overallScore / 100 : undefined,
     generatedAt: new Date().toISOString(),
+
+    // Tier state at the time of analysis
+    insightsLocked,
+    upgradeMessage,
 
     // Extended fields from FitCheck
     trafficLight: insight.trafficLight || undefined,

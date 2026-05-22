@@ -89,11 +89,154 @@ For context, the extension's design assumes:
   Chrome permission prompt; the user must approve it before any page content
   is read. If the user declines, Auto-fill and Capture fail loudly with an
   actionable error message.
-- The extension never auto-submits data. All imports and FitCheck requests
-  require an explicit user click.
+- The extension never auto-submits data. All imports, FitCheck requests, and
+  autofill operations require an explicit user click.
 - LinkedIn adapter runs in **manual-description mode** by design and does not
   auto-scrape posting descriptions.
 
 Reports that break these assumptions (e.g., token exfiltration from storage,
 silent host permission escalation, bypass of the user-click requirement) are
 considered high severity.
+
+## Profile Autofill Threat Model
+
+Profile autofill is the only path in this extension where **user PII flows
+from Utably to a third-party origin**. It carries a different threat model
+than job-data import (which flows third-party → Utably). The invariants below
+are load-bearing — reports that defeat any of them are high severity.
+
+**Invariant 1 — Profile data is fetched only on user gesture.**
+`GET /extension/profile` is called from the *My profile* tab open event,
+the *Refresh* button, or as the first step of *Fill this page*. There is
+no background fetch, no preload, and no fetch from `background.js` outside
+those explicit message handlers.
+
+**Invariant 2 — Profile data is not persisted to disk.**
+The profile cache lives in `chrome.storage.session` (MV3 in-memory store,
+wiped on browser restart). If `chrome.storage.session` is unavailable in the
+host browser, the cache is disabled — no fallback to disk-backed storage.
+The five-minute TTL is enforced on every read. Logout, *Clear cache*, and the
+defensive install hook all wipe any legacy `chrome.storage.local` entry from
+older builds.
+
+**Invariant 3 — Every recipient origin is shown to the user before fill.**
+The consent modal lists every host whose frame matched a fill adapter and
+holds at least one matched field. Sub-frame hosts are rendered with a visible
+`iframe` tag and a red border. The list is built from the dry-run report and
+rendered with `document.createElement` + `textContent` — no path constructs
+DOM from frame-supplied strings via `innerHTML`.
+
+**Invariant 4 — Frames that appear after consent cannot fill.**
+At apply time, each frame validates its hostname against the user-consented
+hosts list passed in by the side panel. A frame whose host is not on the list
+returns `aborted: host_not_consented` and applies nothing.
+
+**Invariant 5 — Plan / verify / apply runs in one synchronous frame
+execution (TOCTOU bound).** Each adapter calls `buildPlan(...)`, compares the
+canonical field set to the consented one, then calls `applyPlan(...)` in the
+same `chrome.scripting.executeScript` call. There is no awaitable boundary
+between verification and mutation. If the field set differs from what the
+user consented to, the frame returns `aborted: page_changed` and applies
+nothing; the side panel re-runs the preview and re-prompts.
+
+**Invariant 6 — The generic fill adapter is top-frame-only.**
+`content/fill/generic.js` `canHandle()` returns `true` only when
+`window === window.top`. Unknown sub-frames (ad networks, tracking iframes,
+arbitrary third-party widgets) cannot match the generic adapter even if their
+DOM contains an input named "email". ATS-specific adapters
+(`greenhouse.js`, `lever.js`, `ashby.js`) remain frame-agnostic but are
+pinned to known TLD+1 suffixes.
+
+**Invariant 7 — Only empty inputs are filled.**
+`tryFill` and `applyPlan` both bail if the target `<input>` has a non-empty
+trimmed value. User-entered data is never overwritten.
+
+**Invariant 8 — The backend response is uncacheable by intermediates.**
+`GET /extension/profile` returns `Cache-Control: private, no-store` and
+`Pragma: no-cache`. Server side enforces a per-user rate cap on profile
+reads (separate counter from job-import quota) and logs each read in
+CloudWatch as a DSGVO Art. 30 record of processing.
+
+Bypassing any of the above (e.g., a code path that fills without rendering
+the consent modal, a frame that fills despite not being in the consented
+host list, a way to coerce the cache onto disk) is in scope for the
+high-severity bounty bracket.
+
+## Application List & Attachments Threat Model
+
+The *Saved* tab and the *Attachments* section on the profile tab read the
+user's own application history and personal-data file index from the Utably
+backend. Neither surface ever sends PII to a third-party origin; these are
+strictly user-to-Utably reads. The invariants below complement (and reuse)
+the profile-autofill ones above.
+
+**Invariant 9 — Reads happen only on user gesture.**
+`GET /extension/applications` fires on Saved tab open or Refresh click.
+`GET /extension/attachments` fires after the profile load completes. There
+is no background poll, no preload outside of an explicit message handler.
+
+**Invariant 10 — Application list is render-only.**
+The Saved tab is rendered in the side panel only. The list is never
+injected into a page, never copied into form fields automatically, never
+passed to a content script. Per-card "Copy" actions write to the user's
+clipboard (same as the profile tab); the "Open" button opens the Utably
+web app — never a third-party URL.
+
+**Invariant 11 — No client-side persistence of the application list.**
+`cachedApplications` lives in the side-panel JS context only. Closing the
+side panel collects the array. There is no `chrome.storage.local` or
+`chrome.storage.session` write for application data, no IndexedDB, no
+file-system cache. Each tab open re-fetches.
+
+**Invariant 12 — Attachment uploads never auto-submit.**
+The DataTransfer + DragEvent injection in `content/fill/attachments.js`
+populates the file input. Form submission requires the user's own click on
+the destination site's submit button. The plugin never dispatches a
+`submit` event.
+
+**Invariant 13 — Attachment bytes leave Utably only on consent.**
+The presigned S3 URL is included in the `/extension/attachments`
+response (TTL: 5 minutes). The bytes are fetched by the service worker
+*only* when the user clicks **Upload to page** or **Download**, and *only*
+after the per-host consent modal is confirmed. The 12 MB cap in
+`runFormFill` prevents accidental large-payload transfers.
+
+**Invariant 14 — Place-mode hosts must be the active top frame.**
+`dropmode.js` runs in the top frame only and cross-checks `location.hostname`
+against the user-consented host before synthesizing any drop event. A frame
+whose host doesn't match aborts with `host_not_consented`.
+
+**Invariant 15 — Backend S3 access is IAM-scoped per user, not just
+code-scoped.** Every lambda that touches user PII on S3 holds **no direct
+S3 grant** on the assets bucket. At the start of each request, the lambda
+calls `sts:AssumeRole` on a dedicated scoped role with a session policy
+narrowing S3 ops to `users/{userId}/*`. Resulting temporary credentials
+(15-minute lifetime, cached per warm container) are used for all S3 ops
+in that request. Even a full RCE on the lambda runtime cannot read or
+write another user's prefix — the AWS API itself rejects cross-user
+access. The code-layer prefix check is retained as belt-and-suspenders.
+
+Lambdas with this protection:
+
+| Lambda | Surface | Mode |
+|---|---|---|
+| `applicationsAPI` | `/extension/profile` photo presign, `/extension/attachments` list+presign | read |
+| `utablyAPI_v2` | All `/userfiles/*` CRUD (presign, list, download, save, delete) — main web app file API | read+write |
+| `imageUpload` | Profile picture upload + delete | read+write |
+| `dataGovernanceAPI` | GDPR export bundle creation, job tracking | read+write |
+| `dataDeletionWorker` | Right-to-erasure batch deletes | list+delete |
+| `pdfExport` (Puppeteer) | CV PDF generation (read templates, write user exports) | read+write |
+| `profileImport` | CV ingestion → S3 `personal-data/cv/` | read+write |
+| `postSignupTriggerStripeID` | Post-signup picture seeding | write |
+
+CDK helper: `addUserScopedS3Role(name, bucket, [bucketActions], [objectActions])`
+in `infra/lib/core/lambda-constructs.ts`. Layer module:
+`lambdas/lambdaLayer/utably-utils-session-cors-js/nodejs/userScopedS3.js`
+(loaded at runtime from `/opt/nodejs/userScopedS3`). Credentials are
+cached per `(region, roleArn, bucket, userId, actions, prefixes)` until
+60s before expiry; opportunistic eviction keeps the in-process Map bounded.
+
+Reports that defeat any invariant (e.g., a code path that lists
+applications without a user click, a way to surface the list in a content
+script, an attachment upload that bypasses the consent modal) are high
+severity.
