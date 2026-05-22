@@ -41,6 +41,9 @@
               <li data-i18n="privacy.bullet.noCreds">No credential capture: extension does not read your passwords.</li>
               <li data-i18n="privacy.bullet.linkedin">LinkedIn mode: manual description entry by design.</li>
               <li data-i18n="privacy.bullet.tokens">Authentication uses short-lived extension tokens and revocable sessions.</li>
+              <li data-i18n="privacy.bullet.profileFill" data-i18n-html="true">Profile autofill: when you press <strong>Fill this page</strong>, the extension fetches your Utably profile, shows you exactly which fields will be filled on which website, and only places data into the form after you confirm. The target website receives the data only if you submit the form.</li>
+              <li data-i18n="privacy.bullet.profileCache">Profile cache: profile fields are cached in your browser's local storage for up to 5 minutes to power previews. Clear it any time under Settings → Autofill privacy.</li>
+              <li data-i18n="privacy.bullet.profileConsent">Per-site consent: you can revoke the "don't ask again" consent for any site under Settings → Autofill privacy. Consents auto-expire after 30 days.</li>
             </ul>
             <p class="modal-footnote" data-i18n="privacy.legalIntro">
               Operated by Utably Limited (UK). For full legal terms and your data rights see:
@@ -51,6 +54,48 @@
               <li><a class="legal-link" data-legal-path="/Cookie-Policy" data-i18n="privacy.link.cookie" href="https://app.utably.com/Cookie-Policy" target="_blank" rel="noopener noreferrer">Cookie Policy</a></li>
               <li><a class="legal-link" data-legal-path="/imprint" data-i18n="privacy.link.imprint" href="https://app.utably.com/imprint" target="_blank" rel="noopener noreferrer">Imprint / Legal Notice</a></li>
             </ul>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="fillConfirmModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fillConfirmTitle"
+      >
+        <div class="modal-card fill-confirm-card">
+          <div class="modal-header">
+            <div id="fillConfirmTitle" class="modal-title" data-i18n="fillConfirm.title">Confirm autofill</div>
+            <button id="closeFillConfirmBtn" class="link" data-i18n="fillConfirm.cancel">Cancel</button>
+          </div>
+          <div class="modal-body">
+            <p class="fill-confirm-intro" data-i18n="fillConfirm.intro">
+              You are about to send fields from your Utably profile to a third-party website.
+            </p>
+            <div id="fillConfirmChangedNotice" class="notice notice-error fill-confirm-changed hidden" data-i18n="fillConfirm.changedNotice">
+              The page changed since you last reviewed it. Please review the updated list below.
+            </div>
+            <div class="fill-confirm-hosts-label" data-i18n="fillConfirm.hostsLabel">
+              Sites that will receive data
+            </div>
+            <ul id="fillConfirmHosts" class="fill-confirm-hosts"></ul>
+            <p id="fillConfirmEmpty" class="fill-confirm-empty hidden" data-i18n="fillConfirm.empty">
+              No matching fields detected on this page.
+            </p>
+            <label class="fill-confirm-remember">
+              <input id="fillConfirmRemember" type="checkbox" />
+              <span data-i18n="fillConfirm.remember">Don't ask again on this site</span>
+            </label>
+            <p class="fill-confirm-rights" data-i18n="fillConfirm.rights" data-i18n-html="true">
+              You can withdraw consent any time in <strong>Settings → Autofill privacy</strong>.
+              Data leaves your browser only when you confirm and is placed directly into the page form by you.
+            </p>
+            <div class="confirm-actions">
+              <button id="fillConfirmCancel" class="secondary" data-i18n="fillConfirm.cancel">Cancel</button>
+              <button id="fillConfirmApply" class="primary" data-i18n="fillConfirm.apply">Fill this page</button>
+            </div>
           </div>
         </div>
       </div>
@@ -212,6 +257,23 @@
           <input id="localPort" type="number" min="1" max="65535" step="1" placeholder="5173" />
         </div>
         <button id="saveSettings" class="secondary" data-i18n="settings.save">Save settings</button>
+
+        <div class="settings-privacy">
+          <label class="label" data-i18n="settings.privacy.title">Autofill privacy</label>
+          <div class="privacy-row">
+            <span class="privacy-meta">
+              <span data-i18n="settings.privacy.consents">Sites you've allowed autofill on</span>:
+              <strong id="consentCount">0</strong>
+            </span>
+            <button id="clearConsentsBtn" class="link" type="button" data-i18n="settings.privacy.clearConsents">Clear consents</button>
+          </div>
+          <div class="privacy-row">
+            <span class="privacy-meta" data-i18n="settings.privacy.cacheMeta">
+              Profile data is cached locally for 5 minutes for autofill previews.
+            </span>
+            <button id="clearProfileCacheBtn" class="link" type="button" data-i18n="settings.privacy.clearCache">Clear cache</button>
+          </div>
+        </div>
       </div>
 
       <section id="authGate" class="panel auth-gate">
@@ -236,6 +298,44 @@
 
       <div id="appContent" class="hidden">
         <div class="trust-pill trust-pill-inline" data-i18n="trust.pill">Your data stays local until you Save or run FitCheck.</div>
+
+        <div id="viewTabs" class="view-tabs" role="tablist">
+          <button
+            type="button"
+            id="viewTabImport"
+            class="view-tab is-active"
+            role="tab"
+            aria-selected="true"
+            data-view="import"
+            data-i18n="tabs.import"
+          >
+            Import job
+          </button>
+          <button
+            type="button"
+            id="viewTabProfile"
+            class="view-tab"
+            role="tab"
+            aria-selected="false"
+            data-view="profile"
+            data-i18n="tabs.profile"
+          >
+            My profile
+          </button>
+          <button
+            type="button"
+            id="viewTabSaved"
+            class="view-tab"
+            role="tab"
+            aria-selected="false"
+            data-view="saved"
+            data-i18n="tabs.saved"
+          >
+            Saved
+          </button>
+        </div>
+
+        <section id="importView" class="view view-import">
 
         <section class="hero">
           <div class="hero-text">
@@ -330,6 +430,9 @@
           <label class="label" data-i18n="preview.jobUrl">Source URL</label>
           <input id="jobUrl" type="text" data-i18n-placeholder="preview.jobUrl.placeholder" placeholder="https://jobs.utably.com/roles/..." />
 
+          <label class="label" data-i18n="preview.notes">Further notes</label>
+          <textarea id="notes" rows="4" data-i18n-placeholder="preview.notes.placeholder" placeholder="Anything worth remembering — referrer name, salary expectations, follow-up dates…"></textarea>
+
           <div id="duplicateNotice" class="notice notice-error hidden">
             <span id="duplicateNoticeText" data-i18n="duplicate.alreadyAdded">Already added.</span>
             <button id="openDuplicateBtn" class="link" type="button" data-i18n="duplicate.openExisting">Open existing</button>
@@ -342,6 +445,68 @@
           <button id="reset" class="secondary" data-i18n="actions.reset">Reset</button>
           <button id="send" class="primary" data-i18n="actions.send">Save to Utably</button>
         </div>
+        </section>
+
+        <section id="profileView" class="view view-profile hidden">
+          <div class="mascot-hero">
+            <img src="assets/bot_small_heart.webp" alt="" />
+            <div class="mascot-hero-text">
+              <div class="mascot-hero-title" data-i18n="profile.heroTitle">Your profile, on tap.</div>
+              <div class="mascot-hero-sub" data-i18n="profile.heroSub">Click any field to copy it. Nothing leaves your browser.</div>
+            </div>
+          </div>
+
+          <div id="profileLoading" class="profile-loading hidden" data-i18n="profile.loading">Loading profile…</div>
+          <div id="profileError" class="notice notice-error hidden"></div>
+
+          <div id="profileCard" class="profile-card hidden">
+            <div class="identity">
+              <div class="identity-avatar" id="identityAvatar"></div>
+              <div class="identity-body">
+                <div id="identityName" class="identity-name"></div>
+                <div id="identityMeta" class="identity-meta"></div>
+              </div>
+            </div>
+
+            <div id="profileSections" class="sections"></div>
+          </div>
+
+          <div class="row profile-actions">
+            <button id="fillPageBtn" class="primary" data-i18n="profile.fillPage">Fill this page</button>
+            <button id="openProfileAppBtn" class="secondary" data-i18n="profile.openInApp">Edit in Utably</button>
+            <button id="refreshProfileBtn" class="link" type="button" data-i18n="profile.refresh">Refresh</button>
+          </div>
+
+          <div id="fillReport" class="notice fill-report hidden" role="status"></div>
+          <div id="copyToast" class="copy-toast" role="status" aria-live="polite"></div>
+        </section>
+
+        <section id="savedView" class="view view-saved hidden">
+          <div class="saved-search-wrap">
+            <input
+              id="savedSearch"
+              class="saved-search-input"
+              type="search"
+              autocomplete="off"
+              data-i18n-placeholder="saved.searchPlaceholder"
+              placeholder="Search title, company, location…"
+              aria-label="Search saved applications"
+            />
+            <button id="savedSearchClear" class="saved-search-clear hidden" type="button" aria-label="Clear search">×</button>
+          </div>
+          <div id="savedFilters" class="jobs-filter" role="tablist"></div>
+          <div id="savedLoading" class="profile-loading hidden" data-i18n="saved.loading">Loading saved jobs…</div>
+          <div id="savedError" class="notice notice-error hidden"></div>
+          <div id="savedEmpty" class="no-results hidden">
+            <img class="no-results-bot" src="assets/bot_small_heart.webp" alt="" />
+            <div class="no-results-title" data-i18n="saved.emptyTitle">Nothing here yet</div>
+            <div data-i18n="saved.emptySub">Save a job from a posting page using the Import tab.</div>
+          </div>
+          <div id="savedList" class="jobs-list"></div>
+          <div class="row saved-actions">
+            <button id="refreshSavedBtn" class="link" type="button" data-i18n="saved.refresh">Refresh</button>
+          </div>
+        </section>
       </div>
 
       <div id="status" class="status hidden" aria-live="polite" role="status"></div>
