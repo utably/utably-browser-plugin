@@ -201,6 +201,9 @@ async function exchangeCode(apiBase, code) {
   const json = await res.json().catch(() => ({}));
   const auth = parseTokenResponse(json);
   await saveAuth(auth);
+  // A fresh connect can be a different account (or a different stage) than
+  // whatever the cache was fetched with — never serve the old profile.
+  await removeProfileCache();
 }
 
 async function startConnectSession(options = {}) {
@@ -261,6 +264,7 @@ async function pollConnectSession(sessionId) {
   if (status === "connected") {
     const auth = parseTokenResponse(json);
     await saveAuth(auth);
+    await removeProfileCache();
     return { status: "connected" };
   }
 
@@ -508,18 +512,19 @@ async function clearProfileCache() {
 
 async function fetchProfile({ forceRefresh = false } = {}) {
   const locale = await getPluginLocale().catch(() => "");
+  const settings = await getSettings();
   if (!forceRefresh) {
     const cached = await readProfileCache();
     if (
       cached?.profile &&
       cached?.locale === locale &&
+      cached?.apiBase === settings.apiBase &&
       Number(cached.fetchedAt) > Date.now() - PROFILE_CACHE_TTL_MS
     ) {
       return { profile: cached.profile, cached: true };
     }
   }
 
-  const settings = await getSettings();
   const token = await ensureAccessToken(settings);
   if (!token) {
     throw new Error("Not connected. Please connect to Utably first.");
@@ -543,7 +548,7 @@ async function fetchProfile({ forceRefresh = false } = {}) {
   if (!profile || typeof profile !== "object") {
     throw new Error("Invalid profile response.");
   }
-  await writeProfileCache({ profile, fetchedAt: Date.now(), locale });
+  await writeProfileCache({ profile, fetchedAt: Date.now(), locale, apiBase: settings.apiBase });
   return { profile, cached: false };
 }
 
