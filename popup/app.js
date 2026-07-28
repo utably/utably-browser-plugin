@@ -1132,7 +1132,14 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   els.saveSettings.addEventListener("click", () => {
-    withBusyButton(els.saveSettings, "Saving...", () => saveSettings(els, setStatusText)).catch((error) => {
+    withBusyButton(els.saveSettings, "Saving...", async () => {
+      const result = await saveSettings(els, setStatusText);
+      if (result?.stageChanged) {
+        // Stage switch revoked the old stage's tokens and cache — reflect
+        // the disconnected state immediately.
+        await auth.refreshAuthState().catch(() => false);
+      }
+    }).catch((error) => {
       setStatusText(error?.message || "Failed to save settings.", "error");
     });
   });
