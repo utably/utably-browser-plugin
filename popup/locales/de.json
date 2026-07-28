@@ -34,6 +34,7 @@
   "settings.language.en": "English",
   "settings.language.de": "Deutsch",
   "settings.saved": "Einstellungen gespeichert.",
+  "settings.savedStageChanged": "Einstellungen gespeichert. Stage gewechselt — du wurdest getrennt, bitte verbinde dich neu.",
 
   "auth.title": "Hallo vom Utably-Bot",
   "auth.copy": "Verbinde dein Konto, um Stellenanzeigen sicher zu importieren.",

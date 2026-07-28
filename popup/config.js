@@ -10,6 +10,14 @@ export const STAGE_APP_URL = {
   test: "https://app.test.utably.com",
 };
 
+// Mirrors STAGE_API_BASE in background.js — "local" talks to the dev API.
+export const STAGE_API_BASE = {
+  prod: "https://api.utably.com",
+  dev: "https://api.dev.utably.com",
+  test: "https://api.test.utably.com",
+  local: "https://api.dev.utably.com",
+};
+
 export const DEFAULT_LOCAL_PORT = "5173";
 
 export const EXTRACTION_SCRIPT_FILES = [

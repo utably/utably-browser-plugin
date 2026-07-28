@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] — 2026-07-28
+
+### Fixed
+- **Stage switches now disconnect cleanly.** Changing the target stage (or
+  toggling Debug mode) revokes the previous stage's tokens against the API
+  that issued them and clears all cached data. Previously the extension kept
+  the old stage's tokens and reused them against the newly selected API.
+- **Profile cache is scoped to the connected API.** The 5-minute autofill
+  profile cache now records which API it was fetched from and is rejected on
+  mismatch, and it is wiped on every new connect — so reconnecting on a
+  different stage or as a different account can no longer show the previous
+  profile.
+
 ## [0.16.0] — 2026-05-16
 
 ### Added
@@ -230,6 +243,7 @@ log.
 
 ---
 
-[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/v0.16.1...HEAD
+[0.16.1]: https://github.com/utably/utably-browser-plugin/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/utably/utably-browser-plugin/compare/v0.1.5...v0.16.0
 [0.1.5]: https://github.com/utably/utably-browser-plugin/releases/tag/v0.1.5
