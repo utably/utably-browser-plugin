@@ -1,4 +1,4 @@
-import { DEFAULT_LOCAL_PORT, STAGE_APP_URL, STAGE_CONNECT_URL } from "./config.js";
+import { DEFAULT_LOCAL_PORT, STAGE_API_BASE, STAGE_APP_URL, STAGE_CONNECT_URL } from "./config.js";
 import {
   applyTranslations,
   getLocalePreference,
@@ -48,9 +48,36 @@ export async function loadSettings(els) {
   updateStageSettingsUi(els);
 }
 
+// Tokens are minted per API stage — a token issued by one stage's API must
+// never be sent to another stage's API, and a cached profile from one stage
+// must never be shown while connected to another.
+function effectiveApiBase({ debugMode, stage }) {
+  const mapped = STAGE_API_BASE[stage || "prod"] || STAGE_API_BASE.prod;
+  return debugMode ? mapped : STAGE_API_BASE.prod;
+}
+
 export async function saveSettings(els, setStatus) {
   const localPort = normalizeLocalPort(els.localPort.value);
   els.localPort.value = localPort;
+
+  const stored = await chrome.storage.local.get(["debugMode", "stage"]);
+  const previousApiBase = effectiveApiBase({
+    debugMode: Boolean(stored.debugMode),
+    stage: stored.stage,
+  });
+  const nextApiBase = effectiveApiBase({
+    debugMode: els.debugMode.checked,
+    stage: els.stage.value || "prod",
+  });
+  const stageChanged = previousApiBase !== nextApiBase;
+
+  // Revoke BEFORE writing the new settings so the background revokes the
+  // token against the API that issued it. This also wipes the cached
+  // profile, so nothing from the old stage lingers.
+  if (stageChanged) {
+    await chrome.runtime.sendMessage({ type: "UTABLY_REVOKE" }).catch(() => {});
+  }
+
   await chrome.storage.local.set({
     debugMode: els.debugMode.checked,
     stage: els.stage.value || "prod",
@@ -60,7 +87,8 @@ export async function saveSettings(els, setStatus) {
     await setLocalePreference(els.languageSelect.value);
     applyTranslations(document);
   }
-  setStatus(t("settings.saved"));
+  setStatus(stageChanged ? t("settings.savedStageChanged") : t("settings.saved"));
+  return { stageChanged };
 }
 
 export function getConnectUrl(els) {
