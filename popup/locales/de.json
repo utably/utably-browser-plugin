@@ -1,5 +1,5 @@
 {
-  "header.title": "Utably Import",
+  "header.title": "Utably Job Importer",
   "header.subtitle": "Stellenanzeige zur Bewerbung in einem Klick.",
   "header.privacy": "Datenschutz",
   "header.settings": "Einstellungen",
@@ -7,7 +7,7 @@
 
   "privacy.title": "Datenschutz und Datenverwendung",
   "privacy.close": "Schließen",
-  "privacy.intro": "Utably Import ist für nutzergesteuerte Imports konzipiert. Wir erfassen und senden Daten nur, wenn Sie ausdrücklich auf <strong>In Utably speichern</strong> oder <strong>FitCheck</strong> klicken.",
+  "privacy.intro": "Utably Job Importer ist für nutzergesteuerte Imports konzipiert. Wir erfassen und senden Daten nur, wenn Sie ausdrücklich auf <strong>In Utably speichern</strong> oder <strong>FitCheck</strong> klicken.",
   "privacy.bullet.userInitiated": "Nur durch Sie ausgelöst: kein Hintergrund-Crawling über Websites.",
   "privacy.bullet.reviewFirst": "Überprüfung zuerst: extrahierte Felder werden zur Bearbeitung angezeigt, bevor sie gesendet werden.",
   "privacy.bullet.minimalPerms": "Minimale Berechtigungen: Host-Zugriff wird pro Seite nur bei Auto-Ausfüllen angefordert.",

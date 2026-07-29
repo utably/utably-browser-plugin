@@ -1,5 +1,5 @@
 {
-  "header.title": "Utably Import",
+  "header.title": "Utably Job Importer",
   "header.subtitle": "Job posting to application in one click.",
   "header.privacy": "Privacy",
   "header.settings": "Settings",
@@ -7,7 +7,7 @@
 
   "privacy.title": "Privacy and Data Use",
   "privacy.close": "Close",
-  "privacy.intro": "Utably Import is designed for user-controlled imports. We only collect and send data when you explicitly click <strong>Save to Utably</strong> or <strong>FitCheck</strong>.",
+  "privacy.intro": "Utably Job Importer is designed for user-controlled imports. We only collect and send data when you explicitly click <strong>Save to Utably</strong> or <strong>FitCheck</strong>.",
   "privacy.bullet.userInitiated": "User-initiated only: no background crawling across websites.",
   "privacy.bullet.reviewFirst": "Review-first flow: extracted fields are shown for editing before submit.",
   "privacy.bullet.minimalPerms": "Minimal permissions: host access is requested per site only when Auto-fill is used.",
