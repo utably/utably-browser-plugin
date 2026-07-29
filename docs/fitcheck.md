@@ -5,8 +5,8 @@ FitCheck is an LLM-powered feature that analyzes how well a job posting matches 
 ## How It Works
 
 1. User clicks **FitCheck** button in the side panel after auto-filling a job posting
-2. Extension sends job description + user profile data to `POST /extension/llm` (mode: "fitcheck")
-3. Backend runs analysis via AWS Bedrock
+2. Extension sends the job details (title, company, location, description, source URL) to `POST /extension/llm` (mode: "fitcheck") — the user profile is never sent from the browser
+3. Backend joins the job details with the profile stored in the user's account and runs the analysis via AWS Bedrock (eu-north-1)
 4. Results are displayed in the side panel with visual indicators
 
 ## Response Structure

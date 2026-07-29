@@ -216,25 +216,12 @@ in that request. Even a full RCE on the lambda runtime cannot read or
 write another user's prefix — the AWS API itself rejects cross-user
 access. The code-layer prefix check is retained as belt-and-suspenders.
 
-Lambdas with this protection:
-
-| Lambda | Surface | Mode |
-|---|---|---|
-| `applicationsAPI` | `/extension/profile` photo presign, `/extension/attachments` list+presign | read |
-| `utablyAPI_v2` | All `/userfiles/*` CRUD (presign, list, download, save, delete) — main web app file API | read+write |
-| `imageUpload` | Profile picture upload + delete | read+write |
-| `dataGovernanceAPI` | GDPR export bundle creation, job tracking | read+write |
-| `dataDeletionWorker` | Right-to-erasure batch deletes | list+delete |
-| `pdfExport` (Puppeteer) | CV PDF generation (read templates, write user exports) | read+write |
-| `profileImport` | CV ingestion → S3 `personal-data/cv/` | read+write |
-| `postSignupTriggerStripeID` | Post-signup picture seeding | write |
-
-CDK helper: `addUserScopedS3Role(name, bucket, [bucketActions], [objectActions])`
-in `infra/lib/core/lambda-constructs.ts`. Layer module:
-`lambdas/lambdaLayer/utably-utils-session-cors-js/nodejs/userScopedS3.js`
-(loaded at runtime from `/opt/nodejs/userScopedS3`). Credentials are
-cached per `(region, roleArn, bucket, userId, actions, prefixes)` until
-60s before expiry; opportunistic eviction keeps the in-process Map bounded.
+This protection covers every backend service that touches user PII on S3 —
+including the endpoints the extension talks to (`/extension/profile`,
+`/extension/attachments`) as well as the web app's file, export, deletion,
+and import services. The backend itself is proprietary and not part of this
+repository (see `NOTICE`), so this invariant is stated here for transparency
+about how extension-visible data is protected server-side.
 
 Reports that defeat any invariant (e.g., a code path that lists
 applications without a user click, a way to surface the list in a content

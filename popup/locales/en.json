@@ -1,5 +1,5 @@
 {
-  "header.title": "Utably Import",
+  "header.title": "Utably Job Importer",
   "header.subtitle": "Job posting to application in one click.",
   "header.privacy": "Privacy",
   "header.settings": "Settings",
@@ -7,10 +7,10 @@
 
   "privacy.title": "Privacy and Data Use",
   "privacy.close": "Close",
-  "privacy.intro": "Utably Import is designed for user-controlled imports. We only collect and send data when you explicitly click <strong>Save to Utably</strong> or <strong>FitCheck</strong>.",
+  "privacy.intro": "Utably Job Importer is designed for user-controlled imports. We only collect and send data when you explicitly click <strong>Save to Utably</strong> or <strong>FitCheck</strong>.",
   "privacy.bullet.userInitiated": "User-initiated only: no background crawling across websites.",
   "privacy.bullet.reviewFirst": "Review-first flow: extracted fields are shown for editing before submit.",
-  "privacy.bullet.minimalPerms": "Minimal permissions: host access is requested per site only when Auto-fill is used.",
+  "privacy.bullet.minimalPerms": "Minimal permissions: website access is an optional browser permission requested on first use of Auto-fill or form filling; pages are read only when you trigger an action, and you can revoke the permission any time in your browser's extension settings.",
   "privacy.bullet.noCreds": "No credential capture: extension does not read your passwords.",
   "privacy.bullet.linkedin": "LinkedIn mode: manual description entry by design.",
   "privacy.bullet.tokens": "Authentication uses short-lived extension tokens and revocable sessions.",
@@ -278,8 +278,8 @@
   "fillField.currentTitle": "Current job title",
 
   "privacy.bullet.profileFill": "Profile autofill: when you press <strong>Fill this page</strong>, the extension fetches your Utably profile, shows you exactly which fields will be filled on which website, and only places data into the form after you confirm. The target website receives the data only if you submit the form.",
-  "privacy.bullet.profileCache": "Profile cache: profile fields are cached in your browser's local storage for up to 5 minutes to power previews. Clear it any time under Settings → Autofill privacy.",
-  "privacy.bullet.profileConsent": "Per-site consent: you can revoke the \"don't ask again\" consent for any site under Settings → Autofill privacy. Consents auto-expire after 30 days.",
+  "privacy.bullet.profileCache": "Profile cache: profile fields are cached in memory for up to 5 minutes to power previews and are wiped when your browser closes. Clear them any time under Settings → Autofill privacy.",
+  "privacy.bullet.profileConsent": "Site consents: every fill is approved per site. You can clear all stored consents under Settings → Autofill privacy; they also auto-expire after 30 days and are removed on logout.",
 
   "settings.privacy.title": "Autofill privacy",
   "settings.privacy.consents": "Sites you've allowed autofill on",
