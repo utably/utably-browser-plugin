@@ -1030,12 +1030,16 @@ function wireListeners(els, auth, sidePanel) {
 
   const isPrivacyOpen = () => !els.privacyModal.classList.contains("hidden");
 
+  // Legal pages live on the marketing site (no stages) — only the locale
+  // prefix and the section anchors vary per UI language.
   const refreshLegalLinkHrefs = () => {
-    const base = getAppUrl(els);
+    const isGerman = getLocale() === "de";
     const links = els.privacyModal.querySelectorAll("a.legal-link[data-legal-path]");
     links.forEach((link) => {
       const path = link.getAttribute("data-legal-path") || "";
-      link.setAttribute("href", `${base}${path}`);
+      const anchor = link.getAttribute(isGerman ? "data-anchor-de" : "data-anchor-en");
+      const href = `https://utably.com${isGerman ? "/de" : ""}${path}${anchor ? `#${anchor}` : ""}`;
+      link.setAttribute("href", href);
     });
   };
 
