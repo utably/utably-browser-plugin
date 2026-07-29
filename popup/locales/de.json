@@ -10,7 +10,7 @@
   "privacy.intro": "Utably Job Importer ist für nutzergesteuerte Imports konzipiert. Wir erfassen und senden Daten nur, wenn Sie ausdrücklich auf <strong>In Utably speichern</strong> oder <strong>FitCheck</strong> klicken.",
   "privacy.bullet.userInitiated": "Nur durch Sie ausgelöst: kein Hintergrund-Crawling über Websites.",
   "privacy.bullet.reviewFirst": "Überprüfung zuerst: extrahierte Felder werden zur Bearbeitung angezeigt, bevor sie gesendet werden.",
-  "privacy.bullet.minimalPerms": "Minimale Berechtigungen: Host-Zugriff wird pro Seite nur bei Auto-Ausfüllen angefordert.",
+  "privacy.bullet.minimalPerms": "Minimale Berechtigungen: Website-Zugriff ist eine optionale Browser-Berechtigung, die beim ersten Nutzen von Auto-Ausfüllen oder Formularbefüllung angefordert wird; Seiten werden nur gelesen, wenn du eine Aktion auslöst, und du kannst die Berechtigung jederzeit in den Erweiterungseinstellungen deines Browsers widerrufen.",
   "privacy.bullet.noCreds": "Keine Zugangsdaten-Erfassung: die Erweiterung liest keine Passwörter.",
   "privacy.bullet.linkedin": "LinkedIn-Modus: manuelle Beschreibungseingabe nach Design.",
   "privacy.bullet.tokens": "Authentifizierung erfolgt über kurzlebige Erweiterungstoken und widerrufbare Sitzungen.",
