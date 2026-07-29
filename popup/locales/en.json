@@ -14,7 +14,7 @@
   "privacy.bullet.noCreds": "No credential capture: extension does not read your passwords.",
   "privacy.bullet.linkedin": "LinkedIn mode: manual description entry by design.",
   "privacy.bullet.tokens": "Authentication uses short-lived extension tokens and revocable sessions.",
-  "privacy.legalIntro": "Operated by Utably Limited (UK). For full legal terms and your data rights see:",
+  "privacy.legalIntro": "For the operator's details, full legal terms, and your data rights see:",
   "privacy.link.privacy": "Privacy Policy (Browser Extension)",
   "privacy.link.terms": "Terms of Service (Browser Extension)",
   "privacy.link.cookie": "Cookie Policy",
