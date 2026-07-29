@@ -8,7 +8,6 @@ on:
       - utably-test
       - utably-staging
       - utably-prod
-      - OSS-Prep-Branch
 
 permissions:
   contents: read

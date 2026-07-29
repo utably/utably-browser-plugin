@@ -12,7 +12,8 @@ jobs:
         run: |
           base="${{ github.base_ref }}"
           head="${{ github.head_ref }}"
-          echo "PR: $head -> $base"
+          head_repo="${{ github.event.pull_request.head.repo.full_name }}"
+          echo "PR: $head_repo:$head -> $base"
 
           case "$base" in
             utably-test)    allowed="utably-dev" ;;
@@ -20,6 +21,11 @@ jobs:
             utably-prod)    allowed="utably-staging" ;;
             *)              exit 0 ;; # no restriction for other base branches
           esac
+
+          if [ "$head_repo" != "${{ github.repository }}" ]; then
+            echo "Promotion PRs into '$base' must come from this repository, not a fork (got '$head_repo')."
+            exit 1
+          fi
 
           if [ "$allowed" != "$head" ]; then
             echo "Only '$allowed' may open PRs into '$base' (got '$head')."
