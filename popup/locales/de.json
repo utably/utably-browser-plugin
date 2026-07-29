@@ -278,8 +278,8 @@
   "fillField.currentTitle": "Aktuelle Position",
 
   "privacy.bullet.profileFill": "Profil-Auto-Ausfüllen: Wenn du <strong>Diese Seite ausfüllen</strong> drückst, lädt die Erweiterung dein Utably-Profil, zeigt dir genau, welche Felder auf welcher Website ausgefüllt werden, und überträgt Daten erst nach deiner Bestätigung in das Formular. Die Zielseite erhält die Daten nur, wenn du das Formular absendest.",
-  "privacy.bullet.profileCache": "Profil-Cache: Profilfelder werden für bis zu 5 Minuten lokal in deinem Browser zwischengespeichert, um Vorschauen zu ermöglichen. Du kannst den Cache jederzeit unter Einstellungen → Datenschutz Auto-Ausfüllen löschen.",
-  "privacy.bullet.profileConsent": "Einwilligung pro Seite: Du kannst die „Nicht mehr fragen“-Einwilligung für jede Seite unter Einstellungen → Datenschutz Auto-Ausfüllen widerrufen. Einwilligungen laufen automatisch nach 30 Tagen ab.",
+  "privacy.bullet.profileCache": "Profil-Cache: Profilfelder werden für bis zu 5 Minuten im Arbeitsspeicher zwischengespeichert, um Vorschauen zu ermöglichen, und beim Schließen des Browsers gelöscht. Du kannst den Cache jederzeit unter Einstellungen → Datenschutz Auto-Ausfüllen löschen.",
+  "privacy.bullet.profileConsent": "Seiten-Einwilligungen: Jedes Ausfüllen wird pro Seite bestätigt. Du kannst alle gespeicherten Einwilligungen unter Einstellungen → Datenschutz Auto-Ausfüllen löschen; sie laufen zudem nach 30 Tagen automatisch ab und werden beim Abmelden entfernt.",
 
   "settings.privacy.title": "Datenschutz Auto-Ausfüllen",
   "settings.privacy.consents": "Seiten, auf denen du Auto-Ausfüllen erlaubt hast",

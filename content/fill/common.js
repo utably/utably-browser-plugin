@@ -34,7 +34,7 @@
     if (el.tagName !== "INPUT") return false;
     const blocked = new Set([
       "hidden", "file", "submit", "button", "reset", "image",
-      "checkbox", "radio", "color", "range",
+      "checkbox", "radio", "color", "range", "password",
     ]);
     return !blocked.has((el.type || "text").toLowerCase());
   }
