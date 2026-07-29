@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.2] — 2026-07-29
+
+### Security
+- **Password-typed fields are excluded from autofill.** `password` was
+  missing from the fillable-input blocklist, so a mislabeled
+  password-typed field could in principle have received profile data
+  during a fill. Autofill never reads field values; this closes the
+  write path too.
+
+### Changed
+- Product name unified to **"Utably Job Importer"** in the side-panel
+  header, HTML title, and privacy modal (was still "Utably Import" in
+  places).
+- Privacy-modal copy corrected to match the implementation: the profile
+  cache lives in in-memory session storage (not local storage), and
+  site consents are cleared in bulk / auto-expire after 30 days — the
+  copy previously described a per-site revoke that doesn't exist.
+- Public docs trimmed of internal backend details (`SECURITY.md`
+  Invariant 15, 0.16.0 changelog entry); the per-user IAM-scoping
+  guarantee remains documented.
+- `docs/adapters.md`: removed two stale adapter rows (SimplyHired,
+  RemoteOK) whose files don't exist.
+- CI: promotion-guard now rejects promotion PRs originating from forks;
+  removed a dead branch trigger from the test workflow.
+
 ## [0.16.1] — 2026-07-28
 
 ### Fixed
@@ -240,7 +265,8 @@ log.
 
 ---
 
-[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.1...HEAD
+[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.2...HEAD
+[0.16.2]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.1...version_0.16.2
 [0.16.1]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.0...version_0.16.1
 [0.16.0]: https://github.com/utably/utably-browser-plugin/releases/tag/version_0.16.0
 [0.1.5]: https://github.com/utably/utably-browser-plugin/commits/utably-prod

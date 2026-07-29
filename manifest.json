@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Utably Job Importer",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "description": "Import job postings into Utably with a user-reviewed preview.",
   "action": {
     "default_title": "Import job to Utably"
