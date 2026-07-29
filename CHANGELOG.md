@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.2] — 2026-07-29
+
+### Security
+- **Password-typed fields are excluded from autofill.** `password` was
+  missing from the fillable-input blocklist, so a mislabeled
+  password-typed field could in principle have received profile data
+  during a fill. Autofill never reads field values; this closes the
+  write path too.
+
+### Changed
+- Product name unified to **"Utably Job Importer"** in the side-panel
+  header, HTML title, and privacy modal (was still "Utably Import" in
+  places).
+- Privacy-modal copy corrected to match the implementation: the profile
+  cache lives in in-memory session storage (not local storage), and
+  site consents are cleared in bulk / auto-expire after 30 days — the
+  copy previously described a per-site revoke that doesn't exist.
+- Public docs trimmed of internal backend details (`SECURITY.md`
+  Invariant 15, 0.16.0 changelog entry); the per-user IAM-scoping
+  guarantee remains documented.
+- `docs/adapters.md`: removed two stale adapter rows (SimplyHired,
+  RemoteOK) whose files don't exist.
+- CI: promotion-guard now rejects promotion PRs originating from forks;
+  removed a dead branch trigger from the test workflow.
+
 ## [0.16.1] — 2026-07-28
 
 ### Fixed
@@ -220,17 +245,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hypothetical XSS via hostile hostnames.
 - Published security disclosure policy in `SECURITY.md` with
   `security@utably.com` as the contact mailbox.
-- **Backend S3 access is now IAM-scoped per user across all eight
-  user-PII lambdas**, not just the extension paths. Each request
-  assumes a dedicated role with a session policy narrowing S3 ops to
-  `users/{userId}/*`; resulting credentials live 15 minutes max and
-  are cached per warm container. Covers `applicationsAPI`,
-  `utablyAPI_v2`, `imageUpload`, `dataGovernanceAPI`,
-  `dataDeletionWorker`, `pdfExport` (Puppeteer), `profileImport`, and
-  `postSignupTriggerStripeID`. Even a full RCE on any of these
-  lambdas cannot read or write another user's prefix — rejection is
-  enforced by the AWS API itself, with the existing code-layer prefix
-  check kept as belt-and-suspenders. See `SECURITY.md` Invariant 15.
+- **Backend S3 access is now IAM-scoped per user** across every backend
+  service that touches user PII, not just the extension paths. Each
+  request assumes a dedicated role with a session policy narrowing S3
+  ops to the requesting user's own prefix; resulting credentials are
+  short-lived. Even a full compromise of a backend service cannot read
+  or write another user's data — rejection is enforced by the AWS API
+  itself, with the existing code-layer prefix check kept as
+  belt-and-suspenders. See `SECURITY.md` Invariant 15.
 
 ## [0.1.5] — Pre-open-source baseline
 
@@ -243,7 +265,8 @@ log.
 
 ---
 
-[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/v0.16.1...HEAD
-[0.16.1]: https://github.com/utably/utably-browser-plugin/compare/v0.16.0...v0.16.1
-[0.16.0]: https://github.com/utably/utably-browser-plugin/compare/v0.1.5...v0.16.0
-[0.1.5]: https://github.com/utably/utably-browser-plugin/releases/tag/v0.1.5
+[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.2...HEAD
+[0.16.2]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.1...version_0.16.2
+[0.16.1]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.0...version_0.16.1
+[0.16.0]: https://github.com/utably/utably-browser-plugin/releases/tag/version_0.16.0
+[0.1.5]: https://github.com/utably/utably-browser-plugin/commits/utably-prod

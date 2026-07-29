@@ -319,8 +319,6 @@ Every adapter must follow these rules or the PR will be rejected:
 | 90 | [`ukPortals.js`](../webpages/ukPortals.js) | UK job portals | UK-specific boards. |
 | 80 | [`atsHosted.js`](../webpages/atsHosted.js) | Greenhouse, Lever, Workday, etc. | Shared-host ATS adapter. |
 | 80 | [`builtin.js`](../webpages/builtin.js) | BuiltIn | Tech community. |
-| 70 | [`simplyhired.js`](../webpages/simplyhired.js) | SimplyHired | Aggregator. |
-| 70 | [`remoteok.js`](../webpages/remoteok.js) | RemoteOK | Remote-only. |
 | 10 | [`generic.js`](../webpages/generic.js) | Any page | Fallback using JSON-LD `JobPosting`, DOM scoring, and a mutation observer. |
 
 ---
