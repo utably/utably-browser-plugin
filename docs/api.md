@@ -87,6 +87,88 @@ Body: { title, company, url }
 ```
 Returns whether an application with matching title/company/URL already exists.
 
+## Share Endpoints
+
+### Park a posting to share with a friend
+```
+POST /extension/share-drafts
+Authorization: Bearer <accessToken>
+```
+
+Backs the popup's **Send to a friend** action, which passes a posting to a
+friend without saving it as an application first.
+
+The extension deliberately does **not** perform the share itself. Writing into
+another user's inbox is a cross-user capability, and the access token lives in
+browser storage; a stolen token must not gain reach beyond its own account. So
+this endpoint only parks the posting in the caller's own partition — the same
+trust level `/extension/import-job` already has — and the web app performs the
+actual share under the user's session, with the recipients picked there.
+
+The draft is not an application: it does not appear in the user's application
+list, does not count toward the application quota, and awards no XP. It carries
+a short TTL (15 minutes by default) so an abandoned draft disappears on its own,
+and it is deleted once it has been shared.
+
+**Payload** (posting fields only — anything else is dropped server side):
+```javascript
+{
+  jobTitle: "Job Title",        // required
+  companyName: "Company Name",  // required
+  jobUrl: "https://...",        // must be http(s)
+  location: "City, Country",
+  positionLevel: "Senior",      // optional; the extension does not send this
+  jobText: "Job description..."
+}
+```
+
+`positionLevel` exists so a parked posting can carry the same field set as a
+share made from an application in the web app. The extension has no
+seniority field, so it is `null` on anything the extension parks.
+
+**Success response (201):**
+```json
+{
+  "draftId": "uuid-v4",
+  "shareUrl": "https://app.utably.com/friends/share?draft=<draftId>",
+  "expiresIn": 900
+}
+```
+
+The extension builds the tab URL itself rather than using `shareUrl`, for the
+same reason it builds `applicationLink` itself: the backend does not know about
+a locally configured stage port.
+
+Rate limited per user per minute, on a separate counter from
+`/extension/import-job` so parking a draft never consumes the daily import
+allowance.
+
+### Read a parked posting
+```
+GET /extension/share-drafts/{id}
+Authorization: Bearer <accessToken>
+```
+
+Returns the parked posting so the web app can show what is about to be shared.
+Owner-scoped by key — a draft id on its own reaches nothing. Expired drafts
+return 404 even before the TTL sweep removes them.
+
+**Success response (200):**
+```javascript
+{
+  draft: {
+    draftId: "uuid-v4",
+    jobTitle: "Job Title",
+    companyName: "Company Name",
+    jobUrl: "https://..." ,
+    location: "City, Country",
+    positionLevel: null,
+    jobText: "Job description...",
+    createdAt: "2026-08-18T10:00:00.000Z"
+  }
+}
+```
+
 ## Profile Endpoints
 
 ### Get fillable profile

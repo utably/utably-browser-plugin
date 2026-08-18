@@ -44,6 +44,7 @@ export function getDom() {
     extract: document.getElementById("extract"),
     reset: document.getElementById("reset"),
     send: document.getElementById("send"),
+    shareFriend: document.getElementById("shareFriend"),
     status: document.getElementById("status"),
     // Save kind selector (Applied vs Saved)
     kindSelector: document.getElementById("kindSelector"),

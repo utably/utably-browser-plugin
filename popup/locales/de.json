@@ -93,6 +93,8 @@
   "actions.extract": "Auto-Ausfüllen",
   "actions.reset": "Zurücksetzen",
   "actions.send": "In Utably speichern",
+  "actions.shareFriend": "An Freund:in senden",
+  "actions.sharing": "Wird vorbereitet ...",
   "actions.extracting": "Extrahiere...",
   "actions.resetting": "Setze zurück...",
   "actions.saving": "Speichere...",
@@ -107,6 +109,7 @@
   "success.saveAnother": "Neue Bewerbung",
 
   "status.formReset": "Formular zurückgesetzt.",
+  "status.shareOpened": "Wähle im neuen Tab aus, wer diesen Tipp bekommt.",
   "status.connected": "Erweiterung verbunden.",
   "status.connecting": "Warte auf Verbindung...",
   "status.loggedOut": "Abgemeldet.",

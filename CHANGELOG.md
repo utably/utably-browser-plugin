@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-08-18
+
+### Added
+- **Send a job to a friend without saving it first.** A new *Send to a
+  friend* action next to *Save to Utably* passes the captured posting
+  straight to someone in your circle. It lands in the job-tip inbox they
+  already have, and it does **not** create an application in your own
+  list — it takes no application-quota slot, logs no application XP, and
+  runs no duplicate check. (Friendship points work as they do for any
+  shared tip: they follow the recipient marking that they applied.)
+- New endpoints `POST /extension/share-drafts` and
+  `GET /extension/share-drafts/{id}` — see [`docs/api.md`](docs/api.md).
+
+### Security
+- The extension parks the captured posting and hands off to the web app,
+  which performs the share under the user's own session with the
+  recipients picked there. The extension token deliberately gains **no**
+  ability to write into another user's inbox: a stolen token's reach
+  stays confined to its own account, as it is today. Only posting fields
+  travel (title, company, location, link, posting text) — never notes,
+  recruiter or FitCheck data.
+- Parked postings carry a short TTL (15 minutes) and are deleted once
+  shared.
+
 ## [0.16.2] — 2026-07-29
 
 ### Security
@@ -265,7 +289,8 @@ log.
 
 ---
 
-[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.2...HEAD
+[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/version_0.17.0...HEAD
+[0.17.0]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.2...version_0.17.0
 [0.16.2]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.1...version_0.16.2
 [0.16.1]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.0...version_0.16.1
 [0.16.0]: https://github.com/utably/utably-browser-plugin/releases/tag/version_0.16.0

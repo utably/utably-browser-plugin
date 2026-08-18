@@ -551,6 +551,38 @@ async function sendApplication(els, setStatusText) {
   };
 }
 
+/**
+ * Pass this posting to a friend without saving it as an application.
+ *
+ * Only the posting itself travels — no notes, recruiter or FitCheck, which is
+ * exactly what a job tip is allowed to carry. The plugin parks it and hands
+ * off to the web app; recipients are picked there, under the real session.
+ */
+async function shareToFriend(els, setStatusText) {
+  setStatusText(t("actions.sharing"), "info");
+  const posting = {
+    jobTitle: trimOrEmpty(els.jobTitle.value),
+    companyName: trimOrEmpty(els.companyName.value),
+    jobUrl: trimOrEmpty(els.jobUrl.value),
+    location: trimOrEmpty(els.location.value),
+    jobText: trimOrEmpty(els.jobText.value),
+  };
+  const response = await chrome.runtime.sendMessage({ type: "UTABLY_SHARE_DRAFT", posting });
+  if (!response?.ok) {
+    const err = new Error(response?.error || "Failed to prepare the share.");
+    err.code = response?.code || "";
+    err.details = response?.details || null;
+    throw err;
+  }
+  // Build the link plugin-side for the same reason the save path does: the
+  // lambda's APP_BASE_URL doesn't know about a locally configured stage port.
+  const base = getAppUrl(els).replace(/\/+$/u, "");
+  await chrome.tabs.create({
+    url: `${base}/friends/share?draft=${encodeURIComponent(response.draftId)}`,
+  });
+  setStatusText(t("status.shareOpened"), "info");
+}
+
 async function resetForm(els, setStatusText) {
   clearValidationErrors(els);
   setPreviewMeta(els, null);
@@ -1339,6 +1371,20 @@ function wireListeners(els, auth, sidePanel) {
       }).catch((error) => {
         setStatusText(error?.message || "Reset failed.", "error");
       });
+    });
+  });
+
+  els.shareFriend?.addEventListener("click", () => {
+    withBusyButton(els.shareFriend, t("actions.sharing"), async () => {
+      if (!validateRequiredFields(els)) {
+        setStatusText(t("errors.requiredFields"), "error");
+        return;
+      }
+      // No duplicate gate here: a tip is not an application, so it can't
+      // collide with one already in the user's list.
+      await shareToFriend(els, setStatusText);
+    }).catch((error) => {
+      setStatusText(error?.message || "Failed to prepare the share.", "error");
     });
   });
 

@@ -93,6 +93,8 @@
   "actions.extract": "Auto-fill",
   "actions.reset": "Reset",
   "actions.send": "Save to Utably",
+  "actions.shareFriend": "Send to a friend",
+  "actions.sharing": "Preparing...",
   "actions.extracting": "Extracting...",
   "actions.resetting": "Resetting...",
   "actions.saving": "Saving...",
@@ -107,6 +109,7 @@
   "success.saveAnother": "New application",
 
   "status.formReset": "Form reset.",
+  "status.shareOpened": "Pick who gets this tip in the tab that just opened.",
   "status.connected": "Extension connected.",
   "status.connecting": "Waiting for connection...",
   "status.loggedOut": "Logged out.",
