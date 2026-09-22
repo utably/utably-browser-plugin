@@ -1139,6 +1139,10 @@ export async function loadProfile(els, { forceRefresh = false } = {}) {
     }
     const profile = response.profile;
     renderProfileCard(els, profile);
+    // Let the shell know: the header avatar is drawn from the session
+    // profile cache, which is usually still empty when the popup first
+    // renders, so it needs a second chance once the profile arrives.
+    document.dispatchEvent(new CustomEvent("utably:profile-loaded", { detail: { profile } }));
     // Attachments load in parallel — failure here doesn't block the profile.
     loadAttachments(els).catch(() => {});
     return profile;

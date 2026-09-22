@@ -1,8 +1,8 @@
 {
   "name": "utably-job-importer-extension",
   "private": false,
-  "version": "0.17.0",
-  "description": "Utably Browser Plugin — one-click job capture and FitCheck analysis from any job board into your Utably tracker.",
+  "version": "0.18.0",
+  "description": "Utably Browser Plugin \u2014 one-click job capture and FitCheck analysis from any job board into your Utably tracker.",
   "license": "Apache-2.0",
   "author": "Utably",
   "homepage": "https://github.com/utably/utably-browser-plugin#readme",
@@ -33,7 +33,14 @@
     "build:chrome": "node scripts/build.mjs",
     "build:firefox": "npm run build:chrome && node scripts/firefox-build.mjs",
     "safari:convert": "npm run build:chrome && node scripts/safari-convert.mjs",
+    "lint:firefox": "npm run build:firefox && npx --yes web-ext lint --source-dir dist/utably-browser-plugin-firefox",
+    "sign:firefox": "npm run build:firefox && npx --yes web-ext sign --source-dir dist/utably-browser-plugin-firefox --artifacts-dir dist/signed --channel unlisted",
+    "sign:firefox:prod": "npm run build && npx --yes web-ext sign --source-dir dist/prod/utably-browser-plugin-firefox --artifacts-dir dist/signed --channel unlisted",
     "build:prod": "node scripts/build.mjs && node scripts/prod-build.mjs --optional",
     "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/red-hat-display": "^5.3.0",
+    "@fontsource/spectral": "^5.3.0"
   }
 }

@@ -8,6 +8,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-09-22
+
+### Added
+- **Brand fonts are now bundled.** `popup.css` had always named
+  `Red Hat Display` and `Spectral`, but neither was ever shipped — no
+  `@font-face`, no font files. Red Hat Display only rendered for people
+  who happened to have it installed locally; Spectral never rendered for
+  anyone. The latin `woff2` subsets now ship in `assets/fonts/`
+  (400/500/600/700/800 sans, 600 serif, ~104 KB total), taken from
+  `@fontsource` under the SIL OFL 1.1. Attributions in `NOTICE`.
+- **Account menu in the header.** An avatar opens a menu holding Settings
+  and Log out. The avatar draws from the profile — photo, else initials,
+  else a neutral glyph — and the profile is loaded when the extension is
+  opened while signed in, so it is correct without visiting the Profile
+  tab first. Reuses the 5-minute session cache, so repeated opens do not
+  re-fetch. Disclosed in the privacy modal.
+- **Overflow menu in the import action bar.** Capture, Go to Utably and
+  Reset moved behind a `⋯` button, leaving `Share | Save to Utably | ⋯`.
+  Full keyboard support: Escape, arrows, Home/End, outside-click.
+- **Firefox XPI is actually built.** `firefox-build.mjs` only ever copied
+  files and rewrote the manifest — the `.xpi` the docs told you to install
+  was never produced. Added a dependency-free ZIP writer
+  (`scripts/zip.mjs`, Node built-ins only) plus `lint:firefox`,
+  `sign:firefox` and `sign:firefox:prod` scripts, and
+  `data_collection_permissions` in the Gecko settings, which AMO now
+  requires for new submissions.
+
+### Changed
+- **Primary buttons use the brand mint.** Nine hardcoded
+  `#00545e !important` declarations and a gradient chain are gone,
+  replaced by `--utably-mint` on `--utably-ink` with a mint-deep keycap
+  edge. Contrast 8.64:1 → 12.28:1.
+- **Settings is a page, not an overlay.** It used to sit before
+  `authGate`/`appContent` in the DOM and merely un-hide, stacking on top
+  of everything. One `applyShell()` now owns which surface is on screen;
+  Settings replaces the gate or the tabbed content and has a Done button.
+  Logout moved into the account menu.
+- **Header fits at every width.** It wrapped at 380px because the 20px
+  title plus the action links exceeded the 348px content box. Now a single
+  non-wrapping row; the subtitle shows only where it fits (side panel and
+  workspace above 440px), and the wordmark steps down below 350px.
+- **Auto-fill moved into the Preview panel header**, where it acts on the
+  panel it fills, rather than into the overflow menu.
+- **Secondary buttons keep their mint wash**, with the border moved to a
+  new `--utably-mint-edge` token: 1.83:1 → 3.70:1, clearing WCAG 1.4.11.
+- **Touch targets.** View tabs 33 → 44px, Save-as radios 37 → 44px, text
+  inputs 39 → 44px, header links 17 → 32px. Checkboxes excluded, since
+  `min-height` would have inflated the settings toggle's hidden input.
+- **Hero removed** from the import view, reclaiming ~150px.
+- Labels are 12px sentence case instead of 11px uppercase letterspaced.
+- `fillConfirm.remember` relabelled. It read "Don't ask again on this
+  site" but the modal always appears by design — invariant #4 requires
+  every recipient origin be shown before every fill. The control records
+  consent; the copy now says so.
+
+### Fixed
+- **Firefox loaded nothing at all.** `chrome.runtime.onMessageExternal`
+  was called unguarded at the top level of `background.js`. Firefox has
+  never implemented `externally_connectable`, so that line threw as the
+  background script loaded and took the whole extension down. Now
+  optional-chained, and the dead manifest key is stripped from the
+  Firefox build.
+- **"Applied day" rendered unconditionally.** Nothing ever toggled it, so
+  users in *Saved* mode saw a date picker asking when they applied to a
+  job they had not applied to. Now tied to `setSelectedKind()`.
+- **The full-bleed tab bar left a 4px strip down each side** in popup
+  mode: `margin: 0 -12px` against `.app`'s `padding: 16px`. The negative
+  margin only matched in side-panel mode.
+- Header wordmark and subtitle were cut mid-word in side panels narrower
+  than ~400px.
+
+### Security
+- No new caches. The profile still lives only in `chrome.storage.session`
+  and is wiped when the browser closes; nothing was added to
+  `storage.local` (`docs/fill.md` invariant #8).
+
+### Documentation
+- Rewrote the Firefox section of `docs/development.md`: both install
+  routes, why `about:addons` reports an unsigned build as unverified, the
+  signing commands, and a warning that `npm test` runs `build.mjs`, which
+  begins with `rm -rf dist` and therefore deletes the `.xpi`.
+
 ## [0.17.0] — 2026-08-18
 
 ### Added

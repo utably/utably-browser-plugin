@@ -6,7 +6,6 @@ import {
   isWorkspaceMode,
   loadSettings,
   saveSettings,
-  toggleSettingsPanel,
   updateStageSettingsUi,
 } from "./settings.js";
 import { buildApplicationPayload } from "./payload.js";
@@ -93,6 +92,196 @@ function setSelectedKind(els, kind) {
     const isActive = btn.dataset.kind === next;
     btn.classList.toggle("is-active", isActive);
     btn.setAttribute("aria-checked", isActive ? "true" : "false");
+  });
+  // "Applied day" only makes sense once the user says they applied. The
+  // payload still sends a date either way (see buildPayload) — this only
+  // hides the input.
+  const showAppliedDay = next === "Applied";
+  els.applicationDateLabel?.classList.toggle("hidden", !showAppliedDay);
+  els.applicationDate?.classList.toggle("hidden", !showAppliedDay);
+}
+
+// Which of the three top-level surfaces is on screen. Settings is a page in
+// its own right, not an overlay: it replaces the connect gate or the tabbed
+// content instead of stacking above them. The header stays put so the
+// account menu and Privacy remain reachable from it.
+let authConnected = false;
+let settingsOpen = false;
+
+function applyShell(els) {
+  els.settings.classList.toggle("hidden", !settingsOpen);
+  els.authGate.classList.toggle("hidden", settingsOpen || authConnected);
+  els.appContent.classList.toggle("hidden", settingsOpen || !authConnected);
+  // The menu stays available when signed out: it is the only way into
+  // Settings, and the stage switcher is needed *before* connecting. Only
+  // Logout is gated on being connected.
+}
+
+function setSettingsOpen(els, open) {
+  settingsOpen = open;
+  applyShell(els);
+  if (open) els.settings.querySelector("h2, .settings-title")?.focus?.();
+}
+
+// The neutral avatar mark ships in popup.html. We keep a detached clone of
+// it so it can be restored later without an `innerHTML` assignment, which
+// AMO review flags (UNSAFE_VAR_ASSIGNMENT) even for static strings.
+let accountGlyphNode = null;
+
+// Draws the header avatar from the session profile cache. Deliberately a
+// peek, never a fetch: opening the popup on a job page must not pull
+// profile data as a side effect of rendering chrome. Cold cache (or signed
+// out) just shows the neutral glyph, and it fills in once the user visits
+// the Profile tab or runs a fill.
+async function renderAccountAvatar(els, knownProfile) {
+  const face = els.accountAvatar;
+  if (!face) return;
+
+  // The glyph ships in the markup, so the avatar is never an empty circle
+  // before this runs. Stash it on the first pass; showGlyph() only matters
+  // if an image is attempted later and fails.
+  if (!accountGlyphNode) {
+    const svg = face.querySelector("svg");
+    if (svg) accountGlyphNode = svg.cloneNode(true);
+  }
+  const showGlyph = () => {
+    if (accountGlyphNode) face.replaceChildren(accountGlyphNode.cloneNode(true));
+    else face.replaceChildren();
+    face.classList.add("is-glyph");
+  };
+
+  let profile = knownProfile || null;
+  if (!profile) {
+    try {
+      // Cheap path first: the session cache, no network.
+      const peek = await chrome.runtime.sendMessage({ type: "UTABLY_PEEK_PROFILE" });
+      profile = peek?.ok ? peek.profile : null;
+
+      // Cold cache (first popup of the browser session). Load the profile
+      // so the avatar is right straight away instead of only after a visit
+      // to the Profile tab. `forceRefresh: false` means this reuses the
+      // 5-minute cache, so it is at most one request per 5 minutes of use,
+      // and only ever while signed in. Disclosed in the privacy modal.
+      if (!profile) {
+        const res = await chrome.runtime.sendMessage({ type: "UTABLY_GET_PROFILE" });
+        profile = res?.ok ? res.profile : null;
+      }
+    } catch {
+      return; // service worker asleep, offline, or signed out — glyph stands.
+    }
+  }
+  if (!profile) return;
+
+  const c = profile.contact || {};
+  const fullName = [c.firstName, c.middleName, c.lastName].filter(Boolean).join(" ");
+  const initials = [c.firstName, c.lastName]
+    .filter(Boolean)
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  if (els.accountMenuName) {
+    els.accountMenuName.textContent = fullName || c.email || "";
+    els.accountMenuName.classList.toggle("hidden", !(fullName || c.email));
+  }
+  if (els.accountMenuBtn && fullName) {
+    els.accountMenuBtn.setAttribute("aria-label", `${t("header.account")} — ${fullName}`);
+  }
+
+  const showInitials = () => {
+    face.replaceChildren();
+    face.textContent = initials;
+    face.classList.remove("is-glyph");
+  };
+
+  if (c.photoUrl) {
+    const img = document.createElement("img");
+    img.alt = "";
+    // Presigned S3 URLs reject requests that carry a Referer, and they
+    // expire. Same handling as the profile card's avatar: attach now, swap
+    // back on error rather than waiting for a load that may never fire.
+    img.referrerPolicy = "no-referrer";
+    img.addEventListener("error", () => (initials ? showInitials() : showGlyph()), { once: true });
+    img.src = c.photoUrl;
+    face.replaceChildren(img);
+    face.classList.remove("is-glyph");
+  } else if (initials) {
+    showInitials();
+  }
+}
+
+// Shared popup-menu behaviour: the "⋯" overflow in the import action bar
+// and the account menu behind the header avatar. Menu items keep whatever
+// ids they had before they moved in here, so their own click listeners are
+// untouched — this only handles open/close and keyboard navigation.
+function wireMenu(trigger, panel) {
+  if (!trigger || !panel) return;
+
+  const items = () =>
+    Array.from(panel.querySelectorAll('[role="menuitem"]')).filter((el) => !el.disabled);
+
+  const isOpen = () => !panel.classList.contains("hidden");
+
+  function open(focusFirst) {
+    panel.classList.remove("hidden");
+    trigger.setAttribute("aria-expanded", "true");
+    if (focusFirst) items()[0]?.focus();
+  }
+
+  function close({ restoreFocus = false } = {}) {
+    if (!isOpen()) return;
+    panel.classList.add("hidden");
+    trigger.setAttribute("aria-expanded", "false");
+    if (restoreFocus) trigger.focus();
+  }
+
+  trigger.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (isOpen()) close();
+    else open(false);
+  });
+
+  trigger.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      open(true);
+    }
+  });
+
+  // Roving focus inside the menu.
+  panel.addEventListener("keydown", (event) => {
+    const list = items();
+    const index = list.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close({ restoreFocus: true });
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      list[(index + 1) % list.length]?.focus();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      list[(index - 1 + list.length) % list.length]?.focus();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      list[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      list[list.length - 1]?.focus();
+    } else if (event.key === "Tab") {
+      close();
+    }
+  });
+
+  // Picking an action dismisses the menu; the action's own listener runs.
+  panel.addEventListener("click", (event) => {
+    if (event.target.closest('[role="menuitem"]')) close();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!isOpen()) return;
+    if (panel.contains(event.target) || trigger.contains(event.target)) return;
+    close();
   });
 }
 
@@ -328,9 +517,10 @@ function createAuthController(els, setStatusText) {
     const connected = Boolean(response?.ok && response?.connected);
     if (!connected) setPreviewMeta(els, null);
 
-    els.authGate.classList.toggle("hidden", connected);
-    els.appContent.classList.toggle("hidden", !connected);
+    authConnected = connected;
+    applyShell(els);
     els.logoutBtn.classList.toggle("hidden", !connected);
+    if (connected) renderAccountAvatar(els);
 
     if (connected) {
       hideManualCodeFallback();
@@ -1158,7 +1348,8 @@ function wireListeners(els, auth, sidePanel) {
     await chrome.tabs.create({ url });
   });
 
-  els.toggleSettings.addEventListener("click", () => toggleSettingsPanel(els));
+  els.toggleSettings.addEventListener("click", () => setSettingsOpen(els, !settingsOpen));
+  els.closeSettingsBtn?.addEventListener("click", () => setSettingsOpen(els, false));
   els.openPrivacyBtn.addEventListener("click", openPrivacy);
   els.closePrivacyBtn.addEventListener("click", closePrivacy);
   els.privacyModal.addEventListener("click", (event) => {
@@ -1444,6 +1635,15 @@ function wireListeners(els, auth, sidePanel) {
       setSelectedKind(els, btn.dataset.kind);
       persistDraftSoon();
     });
+  });
+
+  wireMenu(els.moreMenuBtn, els.moreMenu);
+  wireMenu(els.accountMenuBtn, els.accountMenu);
+
+  // The header avatar is drawn once at startup from a cache that is usually
+  // cold. Redraw it whenever the profile actually arrives.
+  document.addEventListener("utably:profile-loaded", (event) => {
+    renderAccountAvatar(els, event.detail?.profile);
   });
 
   // Save success notice actions

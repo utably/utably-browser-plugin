@@ -1,9 +1,68 @@
+/* ===== Brand faces, bundled =====
+   These used to be named in the font stacks but never shipped, so Red Hat
+   Display only rendered for people who happened to have it installed and
+   Spectral never rendered at all — everyone else got Arial and Georgia.
+   Files are the latin woff2 subsets from @fontsource (SIL OFL 1.1; the
+   licences travel with them in assets/fonts/). Only the weights the UI
+   actually asks for are bundled: 400/500/600/700/800 sans, 600 serif.
+   `font-display: swap` so a cold profile paints text immediately. */
+@font-face {
+  font-family: "Red Hat Display";
+  src: url("assets/fonts/red-hat-display-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Red Hat Display";
+  src: url("assets/fonts/red-hat-display-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Red Hat Display";
+  src: url("assets/fonts/red-hat-display-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Red Hat Display";
+  src: url("assets/fonts/red-hat-display-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Red Hat Display";
+  src: url("assets/fonts/red-hat-display-800.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Spectral";
+  src: url("assets/fonts/spectral-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light dark;
   /* ===== Utably brand tokens (from claude.ai/design handoff) ===== */
   --utably-mint:        #87FFDE;
   --utably-mint-soft:   #B8FFEA;
   --utably-mint-deep:   #5EE4C1;
+  /* The darkest step of the mint family, for borders that have to clear
+     WCAG 1.4.11 (3:1). mint-deep is 1.57:1 on white and cannot. */
+  --utably-mint-edge:   #2B9485;
   --utably-ink:         #062C33;
   --utably-ink-80:      #234148;
   --utably-ink-60:      #4A646A;
@@ -40,10 +99,9 @@
   --error-fg: #9e2323;
   --input-bg: #ffffff;
   --button-bg: #ffffff;
-  --hero-bg-start: var(--utably-cream-soft);
-  --hero-bg-end: var(--utably-paper);
+  --secondary-bg: rgba(82, 223, 202, 0.16);
+  --secondary-bg-hover: rgba(82, 223, 202, 0.26);
   --panel-shadow: 0 8px 24px rgba(6, 44, 51, 0.10);
-  --hero-shadow: 0 12px 28px rgba(6, 44, 51, 0.14);
   --modal-overlay: rgba(6, 44, 51, 0.34);
   --notice-border: var(--utably-cream-deep);
   --trust-fg: #0b6f5b;
@@ -127,12 +185,11 @@ body.safari-mode button.primary:focus,
 body.safari-mode button.primary:active,
 body.safari-mode button.primary:focus-visible,
 body.safari-mode button.primary:focus-within {
-  background: #00545e !important;
-  background-color: #00545e !important;
-  color: #ffffff !important;
-  border-color: #00545e !important;
-  outline: none !important;
-  -webkit-text-fill-color: #ffffff !important;
+  background: var(--utably-mint) !important;
+  background-color: var(--utably-mint) !important;
+  color: var(--utably-ink) !important;
+  border-color: var(--utably-mint-deep) !important;
+  -webkit-text-fill-color: var(--utably-ink) !important;
 }
 
 body.sidepanel-mode {
@@ -162,23 +219,128 @@ body.sidepanel-mode .app {
   height: auto;
 }
 
+/* One row, always. At 380px the old 20px title plus the action links
+   overflowed the 348px content box, so `flex-wrap` dropped the links onto
+   a second, left-aligned line under the brand. */
 .header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+/* ---- Settings as a page ---- */
+.settings-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.settings-title {
+  margin: 0;
+  font-family: "Spectral", "Georgia", serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+/* Privacy stays a visible, first-class control rather than a menu item:
+   it is the route to the data-use disclosure, so it should not need a
+   menu to be opened first. */
+.header-privacy {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+/* ---- Header account avatar ---- */
+.header-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--utably-mint-edge);
+  border-radius: 50%;
+  /* Not raw `--utably-ink`: that token flips to a light text colour in dark
+     mode, so using it as a surface would invert to near-white on near-white.
+     The mint wash reads as brand in both themes. */
+  background: var(--secondary-bg);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.header-avatar:hover {
+  background: var(--secondary-bg-hover);
+}
+
+.header-avatar-face {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.header-avatar-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.header-avatar-face.is-glyph svg {
+  width: 19px;
+  height: 19px;
+}
+
+.account-menu {
+  position: relative;
+}
+
+/* The account menu hangs below its trigger; the action-bar overflow opens
+   upward because it sits at the bottom of the form. Compound selector on
+   purpose: `.more-menu-panel` sets `bottom`, and it is defined later in the
+   file, so a single class here would lose and the panel would stretch
+   between both anchors. */
+.more-menu-panel.more-menu-below {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+.more-menu-heading {
+  padding: 6px 12px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
 }
 
 .top-actions {
   display: flex;
-  gap: 6px;
+  gap: 2px;
   align-items: center;
-  padding-top: 2px;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  max-width: 100%;
+  white-space: nowrap;
 }
 
 .top-actions button.link {
@@ -189,9 +351,8 @@ body.sidepanel-mode .app {
 
 .brand {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding-top: 8px;
+  align-items: center;
+  gap: 9px;
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -213,19 +374,66 @@ body.sidepanel-mode .app {
   box-shadow: 0 0 0 3px rgba(82, 223, 202, 0.16);
 }
 
+/* The brand pairs a serif display face with the sans UI face. Removing the
+   hero took the only Spectral in the import flow with it and left the view
+   all-sans; the wordmark carries that voice now. */
 .title {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  line-height: 1.18;
+  /* The account menu replaced the text links, so the wordmark is no longer
+     competing with "Datenschutz"/"Einstellungen" — 152px of German label
+     became one 36px avatar. */
+  font-family: "Spectral", "Georgia", serif;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Still popup-hidden even after the account menu freed the header up:
+   the German string needs 237px against the 201px the brand column gets,
+   and English lands on exactly 201 — no slack. The side panel and
+   workspace are fluid, so it shows there. */
 .subtitle {
+  display: none;
   font-size: 12px;
   color: var(--text-muted);
-  line-height: 1.35;
-  margin: 0;
+  line-height: 1.3;
+  margin: 1px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.sidepanel-mode .subtitle,
+body.workspace-mode .subtitle {
+  display: block;
+}
+
+body.sidepanel-mode .title,
+body.workspace-mode .title {
+  font-size: 20px;
+}
+
+/* The side panel is user-resizable down to ~320px, so "fluid" here means
+   the brand column can get narrower than the popup's. Measured against the
+   header's fixed costs (32px logo + 83px for Privacy and the avatar): the
+   subtitle needs 201px and runs out of room first, then the wordmark. Both
+   were being cut mid-word. */
+@media (max-width: 440px) {
+  body.sidepanel-mode .subtitle,
+  body.workspace-mode .subtitle {
+    display: none;
+  }
+}
+
+@media (max-width: 350px) {
+  body.sidepanel-mode .title,
+  body.workspace-mode .title {
+    font-size: 14px;
+  }
 }
 
 .trust-pill {
@@ -243,46 +451,6 @@ body.sidepanel-mode .app {
 
 .trust-pill-inline {
   margin: 0 0 8px;
-}
-
-.hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  overflow: hidden;
-  margin-bottom: 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: 16px;
-  padding: 14px;
-  background: linear-gradient(150deg, var(--hero-bg-start) 0%, var(--hero-bg-end) 100%);
-  box-shadow: var(--hero-shadow);
-}
-
-.hero-title {
-  font-family: "Spectral", "Georgia", serif;
-  font-size: 19px;
-  font-weight: 600;
-}
-
-.hero-body {
-  margin-top: 5px;
-  max-width: 195px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text-muted);
-}
-
-.hero-actions {
-  margin-top: 10px;
-}
-
-.robot {
-  width: 100px;
-  height: auto;
-  transform-origin: 50% 100%;
-  animation: bot-float 3s ease-in-out infinite;
-  filter: drop-shadow(0 10px 18px rgba(0, 84, 94, 0.2));
 }
 
 .section-head {
@@ -312,11 +480,22 @@ body.sidepanel-mode .app {
 
 .label {
   display: block;
-  margin: 10px 0 6px;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
   color: var(--text-muted);
+}
+
+/* The first label in a panel sits flush against the panel padding. */
+.panel > .label:first-child {
+  margin-top: 0;
+}
+
+/* Keep an error message tight to the input it belongs to, so the gap
+   above the next label still reads as the group separator. */
+.field-error:not(.hidden) + .label {
+  margin-top: 10px;
 }
 
 input,
@@ -331,6 +510,15 @@ select {
   background: var(--input-bg);
   color: var(--text-strong);
   transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+/* Minimum touch target for the text fields. Checkboxes and radios are
+   excluded: the settings toggle hides its checkbox with `height: 0`, and
+   `min-height` would override that and inflate the control. */
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  min-height: 44px;
 }
 
 input:focus,
@@ -369,6 +557,91 @@ textarea {
   flex: 1 1 140px;
 }
 
+/* A later `.section-head` rule (written for the profile accordions) gives
+   every section head `padding: 11px 13px`. Inside the preview panel that
+   stacks on the panel's own padding and leaves a tall, empty row. */
+#previewPanel > .section-head {
+  padding: 0;
+  margin-bottom: 10px;
+}
+
+/* Auto-fill lives in the Preview header, not the overflow menu: it is the
+   first thing you reach for on a job page, and it acts on this panel. */
+.extract-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 0 14px;
+}
+
+/* ---- Import action bar: Share | Save | more ---- */
+.action-bar {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.action-bar > button {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.action-bar > button.primary {
+  flex-grow: 1.4;
+}
+
+.more-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.more-menu-btn {
+  min-width: 44px;
+  padding: 0 12px;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.more-menu-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  /* Opaque on purpose: `--surface-1` is translucent in dark mode and the
+     form underneath showed through the open menu. Paper rather than plain
+     white so the menu sits on the brand's warm ground. */
+  background: var(--utably-paper);
+  box-shadow: var(--panel-shadow);
+}
+
+.more-menu-panel.hidden {
+  display: none;
+}
+
+.more-menu-item {
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-strong);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.more-menu-item:hover:not([disabled]) {
+  background: var(--utably-paper-sunk);
+  transform: none;
+}
+
+.more-menu-item-danger {
+  color: var(--error-fg);
+}
+
 button {
   border: 1px solid var(--border-soft);
   border-radius: 999px;
@@ -384,39 +657,62 @@ button:hover {
   transform: translateY(-1px);
 }
 
+/* Minimum touch target. Scoped to the full-size action buttons — the
+   inline `.link` buttons and the chip/pill variants set their own size. */
+button.primary,
+button.secondary,
+.row > button {
+  min-height: 44px;
+}
+
 button.primary {
-  background: #00545e !important;
-  background-image: linear-gradient(120deg, #00545e 0%, #0d6f79 100%) !important;
-  color: #ffffff !important;
-  border-color: #00545e !important;
-  box-shadow: 0 12px 24px rgba(0, 84, 94, 0.3);
-  -webkit-appearance: none !important;
-  appearance: none !important;
+  background: var(--utably-mint);
+  color: var(--utably-ink);
+  border-color: var(--utably-mint-deep);
+  box-shadow: inset 0 -2px 0 var(--utably-mint-deep), 0 8px 18px rgba(6, 44, 51, 0.16);
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 button.primary:hover,
 button.primary:focus,
 button.primary:active,
 button.primary:focus-visible {
-  background: #00545e !important;
-  background-image: linear-gradient(120deg, #00545e 0%, #0d6f79 100%) !important;
-  color: #ffffff !important;
-  border-color: #00545e !important;
-  outline: none !important;
-  box-shadow: 0 12px 24px rgba(0, 84, 94, 0.3) !important;
+  background: var(--utably-mint-soft);
+  color: var(--utably-ink);
+  border-color: var(--utably-mint-deep);
 }
 
 button:focus,
 button:active,
 button:focus-visible {
-  outline: none !important;
+  outline: none;
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Keyboard focus ring for the action bar and its menu. The blanket
+   `outline: none` above predates this; restoring it everywhere would
+   restyle every chip and tab, so it stays scoped to what changed here. */
+button.primary:focus-visible,
+button.secondary:focus-visible,
+button.more-menu-btn:focus-visible,
+button.more-menu-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Mint wash, as it always was — the neutral white/grey treatment I had
+   here cooled the whole UI and read as generic SaaS. The only thing that
+   was actually wrong with the original was the border: #72CFC5 measured
+   1.83:1 on white, well under the 3:1 that WCAG 1.4.11 wants. */
 button.secondary {
-  background: rgba(82, 223, 202, 0.16);
-  border-color: rgba(114, 207, 197, 0.95);
-  color: #0d5f58;
+  background: var(--secondary-bg);
+  border-color: var(--utably-mint-edge);
+  color: var(--text-strong);
+}
+
+button.secondary:hover:not([disabled]) {
+  background: var(--secondary-bg-hover);
 }
 
 button.link {
@@ -615,11 +911,6 @@ body.sidepanel-mode .panel {
   backdrop-filter: none;
 }
 
-body.sidepanel-mode .hero {
-  border-radius: 14px;
-  box-shadow: 0 8px 22px rgba(0, 84, 94, 0.09);
-}
-
 body.sidepanel-mode .notice {
   border-radius: 10px;
 }
@@ -762,18 +1053,6 @@ body.sidepanel-mode .row {
   display: none;
 }
 
-@keyframes bot-float {
-  0% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
-  100% {
-    transform: translateY(0);
-  }
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -781,10 +1060,6 @@ body.sidepanel-mode .row {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .robot {
-    animation: none;
-  }
-
   button,
   input,
   textarea,
@@ -1215,11 +1490,6 @@ body.sidepanel-mode .row {
   box-shadow: 0 3px 8px rgba(255, 193, 7, 0.35);
 }
 
-.hero-actions {
-  display: flex;
-  gap: 8px;
-}
-
 @media (prefers-color-scheme: dark) {
   :root {
     --page-bg: #0f1618;
@@ -1241,10 +1511,10 @@ body.sidepanel-mode .row {
     --error-fg: #ffb4b4;
     --input-bg: rgba(14, 27, 31, 0.92);
     --button-bg: rgba(18, 35, 38, 0.9);
-    --hero-bg-start: rgba(23, 42, 46, 0.96);
-    --hero-bg-end: rgba(14, 30, 34, 0.96);
+    --secondary-bg: rgba(82, 223, 202, 0.12);
+    --secondary-bg-hover: rgba(82, 223, 202, 0.2);
+    --utably-mint-edge: #5EE4C1;
     --panel-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-    --hero-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
     --modal-overlay: rgba(3, 8, 10, 0.56);
     --trust-fg: #9ff2df;
     --trust-border: rgba(84, 170, 153, 0.84);
@@ -1420,6 +1690,7 @@ body.sidepanel-mode .row {
 
 .kind-selector .kind-option {
   display: inline-flex;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -1487,17 +1758,26 @@ body.sidepanel-mode .row {
   font-weight: 600;
 }
 
+/* Full-bleed: the negative margin has to match `.app`'s padding exactly or
+   the ink bar stops short. It was -12px against 16px of padding, leaving a
+   4px strip of page background down each side in popup mode. */
 .view-tabs {
   display: flex;
   gap: 4px;
   padding: 10px 12px 12px;
-  margin: 0 -12px 12px;
+  margin: 0 -16px 12px;
   background: var(--utably-ink);
   border-radius: 0;
 }
 
+body.sidepanel-mode .view-tabs {
+  margin-left: -12px;
+  margin-right: -12px;
+}
+
 .view-tab {
   flex: 1;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: rgba(255, 255, 255, 0.6);
@@ -2729,6 +3009,38 @@ body.sidepanel-mode .row {
   .saved-search-clear:hover {
     background: var(--utably-mint-deep);
     color: var(--page-bg);
+  }
+
+  /* The mint primary button keeps its bright brand fill in both modes;
+     its label is `--utably-ink`, which flips light here, so pin it to
+     the dark page color. Same reason as the pills above. */
+  button.primary,
+  button.primary:hover,
+  button.primary:focus,
+  button.primary:active,
+  button.primary:focus-visible {
+    color: var(--page-bg);
+  }
+
+  /* `--utably-mint-soft` is a translucent dark wash here, so the light-mode
+     hover fill would leave dark text on a dark button. Use the bright deep
+     mint instead — it is not redefined for dark. */
+  button.primary:hover,
+  button.primary:focus,
+  button.primary:active,
+  button.primary:focus-visible {
+    background: var(--utably-mint-deep);
+  }
+
+  /* The Safari rules above are `!important`, so this has to match. */
+  body.safari-mode button.primary,
+  body.safari-mode button.primary:hover,
+  body.safari-mode button.primary:focus,
+  body.safari-mode button.primary:active,
+  body.safari-mode button.primary:focus-visible,
+  body.safari-mode button.primary:focus-within {
+    color: var(--page-bg) !important;
+    -webkit-text-fill-color: var(--page-bg) !important;
   }
   .copy-pill:hover,
   .attachment-action:hover:not(:disabled) {

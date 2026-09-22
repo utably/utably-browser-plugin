@@ -4,7 +4,7 @@
   "header.privacy": "Privacy",
   "header.settings": "Settings",
   "header.logout": "Logout",
-
+  "header.account": "Account and settings",
   "privacy.title": "Privacy and Data Use",
   "privacy.close": "Close",
   "privacy.intro": "Utably Job Importer is designed for user-controlled imports. We only collect and send data when you explicitly click <strong>Save to Utably</strong> or <strong>FitCheck</strong>.",
@@ -19,37 +19,31 @@
   "privacy.link.terms": "Terms of Service (Browser Extension)",
   "privacy.link.cookie": "Cookie Policy",
   "privacy.link.imprint": "Imprint / Legal Notice",
-
   "reset.title": "Reset form?",
   "reset.body": "This clears all current fields in the preview form.",
   "reset.no": "No",
   "reset.yes": "Sure",
-
   "settings.debug": "Debug mode",
   "settings.stage": "Target stage",
   "settings.localPort": "Local app port",
   "settings.save": "Save settings",
+  "settings.title": "Settings",
+  "settings.done": "Done",
   "settings.language": "Language",
   "settings.language.auto": "Auto (browser)",
   "settings.language.en": "English",
   "settings.language.de": "Deutsch",
   "settings.saved": "Settings saved.",
   "settings.savedStageChanged": "Settings saved. Stage changed — you were disconnected, please connect again.",
-
   "auth.title": "Hello from Utably Bot",
   "auth.copy": "Connect your account to import job postings securely.",
   "auth.connect": "Connect with Utably",
   "auth.manualLabel": "One-time code",
   "auth.manualPlaceholder": "Paste one-time code here if automatic connect does not complete.",
   "auth.manualSubmit": "Connect code",
-
   "trust.pill": "Your data stays local until you Save or run FitCheck.",
-  "hero.title": "Hey there.",
-  "hero.body": "I can auto-fill this page. You stay in control before sending.",
-  "hero.goToApp": "Go to Utably",
-
+  "actions.goToApp": "Go to Utably",
   "linkedin.notice": "LinkedIn detected. Auto-import is disabled. Paste the job description manually.",
-
   "preview.title": "Preview",
   "preview.appliedDay": "Applied day",
   "preview.jobTitle": "Job title",
@@ -71,10 +65,8 @@
   "preview.kind.applied.hint": "I already applied",
   "preview.kind.saved": "Save",
   "preview.kind.saved.hint": "Want to apply later",
-
   "duplicate.alreadyAdded": "Already added.",
   "duplicate.openExisting": "Open existing",
-
   "fitcheck.indicator": "Analyzes the job details above against your profile",
   "fitcheck.btn": "FitCheck",
   "fitcheck.btnView": "View FitCheck",
@@ -87,12 +79,12 @@
   "fitcheck.upgradeTitle": "Unlock Full Insights",
   "fitcheck.upgradeCta": "Upgrade",
   "fitcheck.locked.text": "Upgrade to unlock",
-
   "actions.captureOff": "Capture: Off",
   "actions.captureOn": "Capture: On",
   "actions.extract": "Auto-fill",
   "actions.reset": "Reset",
   "actions.send": "Save to Utably",
+  "actions.more": "More actions",
   "actions.shareFriend": "Send to a friend",
   "actions.sharing": "Preparing...",
   "actions.extracting": "Extracting...",
@@ -102,12 +94,10 @@
   "actions.opening": "Opening...",
   "actions.connecting": "Connecting...",
   "actions.loggingOut": "Logging out...",
-
   "success.savedApplied": "Saved as Applied.",
   "success.savedSaved": "Saved for later.",
   "success.openApp": "Open application",
   "success.saveAnother": "New application",
-
   "status.formReset": "Form reset.",
   "status.shareOpened": "Pick who gets this tip in the tab that just opened.",
   "status.connected": "Extension connected.",
@@ -115,7 +105,6 @@
   "status.loggedOut": "Logged out.",
   "status.captureOn": "Capture mode enabled. Copy selected text on the page to categorize it.",
   "status.captureOff": "Capture mode disabled.",
-
   "errors.requiredFields": "Review required fields before saving.",
   "errors.duplicateWaiting": "Waiting for duplicate check result.",
   "errors.duplicateExists": "Application already exists. Open the existing entry.",
@@ -125,11 +114,9 @@
   "errors.jobTitleRequired": "Job title is required.",
   "errors.companyRequired": "Company is required.",
   "errors.fitcheckNoText": "Job description is required for FitCheck.",
-
   "tabs.import": "Import job",
   "tabs.profile": "My profile",
   "tabs.saved": "Saved",
-
   "saved.loading": "Loading saved jobs…",
   "saved.loadFailed": "Couldn't load saved jobs.",
   "saved.refresh": "Refresh",
@@ -171,7 +158,6 @@
   "saved.statusAria": "Change application status",
   "saved.statusUpdated": "Status updated",
   "saved.statusUpdateFailed": "Couldn't update status.",
-
   "profile.title": "Your profile",
   "profile.refresh": "Refresh",
   "profile.loading": "Loading profile…",
@@ -253,18 +239,16 @@
   "profile.current": "Present",
   "profile.pageChanged": "Page changed since preview. Please review again.",
   "profile.pageChangedAbort": "Page kept changing during review. Autofill cancelled for safety.",
-
   "fillConfirm.title": "Confirm autofill",
   "fillConfirm.intro": "You are about to send fields from your Utably profile to a third-party website. Every recipient origin is listed below.",
   "fillConfirm.hostsLabel": "Sites that will receive data",
   "fillConfirm.empty": "No matching fields detected on this page.",
   "fillConfirm.iframeTag": "iframe",
   "fillConfirm.changedNotice": "The page changed since you last reviewed it. Please review the updated list below.",
-  "fillConfirm.remember": "Don't ask again on this site",
+  "fillConfirm.remember": "Remember this consent (you'll still confirm each fill)",
   "fillConfirm.rights": "You can withdraw consent any time in <strong>Settings → Autofill privacy</strong>. Data leaves your browser only when you confirm and is placed directly into the page form by you.",
   "fillConfirm.cancel": "Cancel",
   "fillConfirm.apply": "Fill this page",
-
   "fillField.firstName": "First name",
   "fillField.lastName": "Last name",
   "fillField.fullName": "Full name",
@@ -279,11 +263,9 @@
   "fillField.website": "Website",
   "fillField.currentCompany": "Current company",
   "fillField.currentTitle": "Current job title",
-
   "privacy.bullet.profileFill": "Profile autofill: when you press <strong>Fill this page</strong>, the extension fetches your Utably profile, shows you exactly which fields will be filled on which website, and only places data into the form after you confirm. The target website receives the data only if you submit the form.",
-  "privacy.bullet.profileCache": "Profile cache: profile fields are cached in memory for up to 5 minutes to power previews and are wiped when your browser closes. Clear them any time under Settings → Autofill privacy.",
+  "privacy.bullet.profileCache": "Profile cache: while you are signed in, your profile is loaded when you open the extension — to show your name and photo — and when you press Fill this page. Fields are cached in memory for up to 5 minutes, so repeated opens do not re-fetch, and are wiped when your browser closes. Clear them any time under Settings → Autofill privacy.",
   "privacy.bullet.profileConsent": "Site consents: every fill is approved per site. You can clear all stored consents under Settings → Autofill privacy; they also auto-expire after 30 days and are removed on logout.",
-
   "settings.privacy.title": "Autofill privacy",
   "settings.privacy.consents": "Sites you've allowed autofill on",
   "settings.privacy.clearConsents": "Clear consents",

@@ -46,5 +46,26 @@ party forks.
 Third-party notices
 ================================================================================
 
-This project has no runtime dependencies. Build-time tooling uses Node.js
-built-ins only.
+This project has no runtime JavaScript dependencies. Build-time tooling uses
+Node.js built-ins only.
+
+Bundled fonts (assets/fonts/)
+-----------------------------
+
+Red Hat Display
+  Copyright 2024 The Red Hat Project Authors
+  https://github.com/RedHatOfficial/RedHatFont
+  Licensed under the SIL Open Font License, Version 1.1.
+  Full licence: assets/fonts/LICENSE-Red-Hat-Display.txt
+
+Spectral
+  Copyright 2017 The Spectral Project Authors
+  https://github.com/productiontype/Spectral
+  Licensed under the SIL Open Font License, Version 1.1.
+  Full licence: assets/fonts/LICENSE-Spectral.txt
+
+The woff2 latin subsets are taken from the @fontsource packages, which are
+devDependencies used at build time only; the font files themselves ship with
+the extension. The SIL OFL permits this bundling and redistribution. These
+are upstream open source typefaces, not Utably brand assets, and the brand
+asset restriction above does not apply to them.

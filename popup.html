@@ -17,9 +17,31 @@
           </div>
         </div>
         <div class="top-actions">
-          <button id="openPrivacyBtn" class="link" data-i18n="header.privacy">Privacy</button>
-          <button id="toggleSettings" class="link" data-i18n="header.settings">Settings</button>
-          <button id="logoutBtn" class="link hidden" data-i18n="header.logout">Logout</button>
+          <button id="openPrivacyBtn" class="link header-privacy" type="button" data-i18n="header.privacy">Privacy</button>
+          <div class="more-menu account-menu">
+            <button
+              id="accountMenuBtn"
+              class="header-avatar"
+              type="button"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-controls="accountMenu"
+              data-i18n-aria-label="header.account"
+              aria-label="Account and settings"
+            >
+              <span id="accountAvatar" class="header-avatar-face is-glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="8.5" r="3.5"></circle>
+                  <path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path>
+                </svg>
+              </span>
+            </button>
+            <div id="accountMenu" class="more-menu-panel more-menu-below hidden" role="menu" aria-labelledby="accountMenuBtn">
+              <div id="accountMenuName" class="more-menu-heading hidden"></div>
+              <button id="toggleSettings" class="more-menu-item" type="button" role="menuitem" data-i18n="header.settings">Settings</button>
+              <button id="logoutBtn" class="more-menu-item more-menu-item-danger hidden" type="button" role="menuitem" data-i18n="header.logout">Logout</button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -42,7 +64,7 @@
               <li data-i18n="privacy.bullet.linkedin">LinkedIn mode: manual description entry by design.</li>
               <li data-i18n="privacy.bullet.tokens">Authentication uses short-lived extension tokens and revocable sessions.</li>
               <li data-i18n="privacy.bullet.profileFill" data-i18n-html="true">Profile autofill: when you press <strong>Fill this page</strong>, the extension fetches your Utably profile, shows you exactly which fields will be filled on which website, and only places data into the form after you confirm. The target website receives the data only if you submit the form.</li>
-              <li data-i18n="privacy.bullet.profileCache">Profile cache: profile fields are cached in memory for up to 5 minutes to power previews and are wiped when your browser closes. Clear them any time under Settings → Autofill privacy.</li>
+              <li data-i18n="privacy.bullet.profileCache">Profile cache: while you are signed in, your profile is loaded when you open the extension — to show your name and photo — and when you press Fill this page. Fields are cached in memory for up to 5 minutes, so repeated opens do not re-fetch, and are wiped when your browser closes. Clear them any time under Settings → Autofill privacy.</li>
               <li data-i18n="privacy.bullet.profileConsent">Site consents: every fill is approved per site. You can clear all stored consents under Settings → Autofill privacy; they also auto-expire after 30 days and are removed on logout.</li>
             </ul>
             <p class="modal-footnote" data-i18n="privacy.legalIntro">
@@ -86,7 +108,7 @@
             </p>
             <label class="fill-confirm-remember">
               <input id="fillConfirmRemember" type="checkbox" />
-              <span data-i18n="fillConfirm.remember">Don't ask again on this site</span>
+              <span data-i18n="fillConfirm.remember">Remember this consent (you'll still confirm each fill)</span>
             </label>
             <p class="fill-confirm-rights" data-i18n="fillConfirm.rights" data-i18n-html="true">
               You can withdraw consent any time in <strong>Settings → Autofill privacy</strong>.
@@ -225,7 +247,12 @@
         </div>
       </div>
 
-      <div id="settings" class="panel hidden">
+      <div id="settings" class="panel settings-page hidden">
+        <div class="settings-page-head">
+          <h2 class="settings-title" data-i18n="settings.title">Settings</h2>
+          <button id="closeSettingsBtn" class="secondary" type="button" data-i18n="settings.done">Done</button>
+        </div>
+
         <div class="settings-row">
           <label class="label" data-i18n="settings.debug">Debug mode</label>
           <label class="switch">
@@ -274,6 +301,7 @@
             <button id="clearProfileCacheBtn" class="link" type="button" data-i18n="settings.privacy.clearCache">Clear cache</button>
           </div>
         </div>
+
       </div>
 
       <section id="authGate" class="panel auth-gate">
@@ -337,17 +365,6 @@
 
         <section id="importView" class="view view-import">
 
-        <section class="hero">
-          <div class="hero-text">
-            <div class="hero-title" data-i18n="hero.title">Hey there.</div>
-            <div class="hero-body" data-i18n="hero.body">I can auto-fill this page. You stay in control before sending.</div>
-            <div class="hero-actions">
-              <button id="goToAppBtn" class="secondary" data-i18n="hero.goToApp">Go to Utably</button>
-            </div>
-          </div>
-          <img src="assets/bot_small_heart.webp" alt="Utably robot" class="robot" />
-        </section>
-
         <div id="linkedinNotice" class="notice hidden" data-i18n="linkedin.notice">
           LinkedIn detected. Auto-import is disabled. Paste the job description manually.
         </div>
@@ -366,6 +383,7 @@
           <div class="section-head">
             <div class="section-title" data-i18n="preview.title">Preview</div>
             <div id="previewMeta" class="preview-meta hidden"></div>
+            <button id="extract" class="secondary extract-btn" type="button" data-i18n="actions.extract">Auto-fill</button>
           </div>
 
           <label class="label" data-i18n="preview.kind">Save as</label>
@@ -439,12 +457,26 @@
           </div>
         </section>
 
-        <div class="row">
-          <button id="captureMode" class="secondary" data-i18n="actions.captureOff">Capture: Off</button>
-          <button id="extract" class="secondary" data-i18n="actions.extract">Auto-fill</button>
-          <button id="reset" class="secondary" data-i18n="actions.reset">Reset</button>
+        <div class="row action-bar">
           <button id="shareFriend" class="secondary" data-i18n="actions.shareFriend">Send to a friend</button>
           <button id="send" class="primary" data-i18n="actions.send">Save to Utably</button>
+          <div class="more-menu">
+            <button
+              id="moreMenuBtn"
+              class="secondary more-menu-btn"
+              type="button"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-controls="moreMenu"
+              data-i18n-aria-label="actions.more"
+              aria-label="More actions"
+            >&#8943;</button>
+            <div id="moreMenu" class="more-menu-panel hidden" role="menu" aria-labelledby="moreMenuBtn">
+              <button id="captureMode" class="more-menu-item" type="button" role="menuitem" data-i18n="actions.captureOff">Capture: Off</button>
+              <button id="goToAppBtn" class="more-menu-item" type="button" role="menuitem" data-i18n="actions.goToApp">Go to Utably</button>
+              <button id="reset" class="more-menu-item more-menu-item-danger" type="button" role="menuitem" data-i18n="actions.reset">Reset</button>
+            </div>
+          </div>
         </div>
         </section>
 

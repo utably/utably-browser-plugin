@@ -1209,6 +1209,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  // Read-only peek at the session cache for the header avatar. Never calls
+  // the API: the popup opens on every job page, and the profile is meant to
+  // be fetched when the user asks for it (Profile tab, or a fill), not as a
+  // side effect of showing chrome. A cold cache just means no avatar yet.
+  if (message?.type === "UTABLY_PEEK_PROFILE") {
+    (async () => {
+      try {
+        const cached = await readProfileCache();
+        // No TTL check here on purpose. The 5-minute window exists so autofill
+        // never writes stale values into a form; the avatar is cosmetic, so a
+        // stale name and photo are fine and stop it flickering back to the
+        // generic glyph. Still session-only, so it clears when the browser does.
+        sendResponse({ ok: true, profile: cached?.profile || null });
+      } catch {
+        sendResponse({ ok: true, profile: null });
+      }
+    })();
+    return true;
+  }
+
   if (message?.type === "UTABLY_FILL_PREVIEW") {
     (async () => {
       try {
@@ -1644,7 +1664,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     .catch(() => {});
 });
 
-chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+// Optional-chained: Firefox does not implement `externally_connectable` and
+// therefore has no `onMessageExternal`. Without the guard this throws at the
+// top level of the background script and takes the whole extension down.
+chrome.runtime.onMessageExternal?.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "UTABLY_EXTERNAL_CONNECT") return;
   (async () => {
     try {
