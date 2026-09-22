@@ -26,10 +26,6 @@ export function isWorkspaceMode() {
   return new URLSearchParams(location.search).get("mode") === "workspace";
 }
 
-export function toggleSettingsPanel(els) {
-  els.settings.classList.toggle("hidden");
-}
-
 export function updateStageSettingsUi(els) {
   const debugEnabled = els.debugMode.checked;
   els.stageRow.classList.toggle("hidden", !debugEnabled);

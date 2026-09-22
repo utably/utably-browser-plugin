@@ -434,6 +434,50 @@ async function findDuplicateImport(candidate) {
   };
 }
 
+/**
+ * Park a captured posting so it can be passed to a friend from the web app.
+ *
+ * The plugin deliberately does NOT perform the share itself: writing into
+ * another user's inbox is a cross-user capability, and this token lives in
+ * browser storage. Parking a draft writes only into the user's own account —
+ * the same trust level the plugin already has — and the web app does the
+ * actual sharing under the real session, with the user picking recipients.
+ */
+async function createShareDraft(posting) {
+  const settings = await getSettings();
+  const token = await ensureAccessToken(settings);
+  if (!token) {
+    throw new Error("Not connected. Please connect to Utably first.");
+  }
+
+  const res = await fetch(`${settings.apiBase}/extension/share-drafts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(posting || {}),
+  });
+
+  if (!res.ok) {
+    const json = await res.json().catch(() => null);
+    const message = trim(json?.message || json?.error || "") || `HTTP ${res.status}`;
+    const err = new Error(message);
+    err.code = trim(json?.error || "");
+    err.details = json?.details || null;
+    throw err;
+  }
+
+  const json = await res.json().catch(() => ({}));
+  const draftId = trim(json?.draftId);
+  // Without an id there is nothing to hand off — fail here rather than
+  // opening the web app on an empty draft.
+  if (!draftId) {
+    throw new Error("Could not prepare the share. Please try again.");
+  }
+  return { draftId };
+}
+
 async function sendFitCheck(jobPosting) {
   const settings = await getSettings();
 
@@ -1025,6 +1069,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "UTABLY_SHARE_DRAFT") {
+    (async () => {
+      try {
+        const result = await createShareDraft(message.posting || {});
+        sendResponse({ ok: true, ...result });
+      } catch (err) {
+        sendResponse({
+          ok: false,
+          error: err?.message || "Failed to prepare the share.",
+          code: err?.code || "",
+          details: err?.details || null,
+        });
+      }
+    })();
+    return true;
+  }
+
   if (message?.type === "UTABLY_FIND_DUPLICATE") {
     (async () => {
       try {
@@ -1143,6 +1204,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, ...result });
       } catch (err) {
         sendResponse({ ok: false, error: err?.message || "Failed to load profile." });
+      }
+    })();
+    return true;
+  }
+
+  // Read-only peek at the session cache for the header avatar. Never calls
+  // the API: the popup opens on every job page, and the profile is meant to
+  // be fetched when the user asks for it (Profile tab, or a fill), not as a
+  // side effect of showing chrome. A cold cache just means no avatar yet.
+  if (message?.type === "UTABLY_PEEK_PROFILE") {
+    (async () => {
+      try {
+        const cached = await readProfileCache();
+        // No TTL check here on purpose. The 5-minute window exists so autofill
+        // never writes stale values into a form; the avatar is cosmetic, so a
+        // stale name and photo are fine and stop it flickering back to the
+        // generic glyph. Still session-only, so it clears when the browser does.
+        sendResponse({ ok: true, profile: cached?.profile || null });
+      } catch {
+        sendResponse({ ok: true, profile: null });
       }
     })();
     return true;
@@ -1583,7 +1664,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     .catch(() => {});
 });
 
-chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+// Optional-chained: Firefox does not implement `externally_connectable` and
+// therefore has no `onMessageExternal`. Without the guard this throws at the
+// top level of the background script and takes the whole extension down.
+chrome.runtime.onMessageExternal?.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "UTABLY_EXTERNAL_CONNECT") return;
   (async () => {
     try {
