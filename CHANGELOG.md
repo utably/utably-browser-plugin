@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.1] — 2026-10-14
+
 ### Added
 - **Company typeahead on the capture form.** Typing two or more characters
   in Company suggests matching companies (name + domain) from
@@ -388,7 +390,9 @@ log.
 
 ---
 
-[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/version_0.17.0...HEAD
+[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/version_0.18.1...HEAD
+[0.18.1]: https://github.com/utably/utably-browser-plugin/compare/version_0.18.0...version_0.18.1
+[0.18.0]: https://github.com/utably/utably-browser-plugin/compare/version_0.17.0...version_0.18.0
 [0.17.0]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.2...version_0.17.0
 [0.16.2]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.1...version_0.16.2
 [0.16.1]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.0...version_0.16.1
