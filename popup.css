@@ -3338,19 +3338,20 @@ body.sidepanel-mode .view-tabs {
    digits, not the light-mode fill with dark digits (hard to read). */
 :root[data-theme="dark"] .fit-badge.fit-perfect {
   background: rgba(135, 255, 222, 0.20);
-  color: var(--utably-mint);
+  color: #87ffde;
   border-color: rgba(135, 255, 222, 0.55);
 }
-:root[data-theme="dark"] .fit-badge.fit-perfect .fit-dot { background: var(--utably-mint); }
+:root[data-theme="dark"] .fit-badge.fit-perfect .fit-dot { background: #87ffde; }
 :root[data-theme="dark"] .fit-badge.fit-good {
   background: rgba(94, 228, 193, 0.14);
-  color: var(--utably-mint-soft);
+  /* Literal: in dark mode the mint-soft token is itself a dark tint. */
+  color: #b8ffea;
   border-color: rgba(94, 228, 193, 0.45);
 }
 :root[data-theme="dark"] .fit-badge.fit-good .fit-dot { background: var(--utably-mint-deep); }
 :root[data-theme="dark"] .fit-badge.fit-partial {
   background: rgba(239, 123, 69, 0.16);
-  color: var(--utably-cream);
+  color: #ffe0b5;
   border-color: rgba(245, 200, 140, 0.45);
 }
 :root[data-theme="dark"] .fit-badge.fit-review {

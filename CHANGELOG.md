@@ -45,7 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed.
 - **Dark mode: readable counts.** The count on the active (mint) filter pill
   was near-black on a dark wash; counts and section counts now read
-  clearly on dark surfaces.
+  clearly on dark surfaces. The fit score badges on Saved cards (e.g. 62) kept
+  their light-mode fill with dark digits; on dark they are now a tint of
+  the level's colour with bright digits.
 - **Saved empty state:** the bot image is gone, the state is styled
   (centred, muted), and the Archived filter has its own text.
 - **Theme setting: System (default), Light, Dark.** Applied before the
