@@ -1,4 +1,5 @@
-import { t } from "./i18n.js";
+import { getLocale, t } from "./i18n.js";
+import { documentLines, groupDocuments } from "./documents.js";
 import { trimOrEmpty } from "./dom.js";
 import { getActiveTab } from "./extraction.js";
 import { cleanCompanyDomain, normalizeCompanyName, takeNamesToResolve } from "./company.js";
@@ -621,6 +622,8 @@ const ATTACHMENT_KIND_META = {
   appendix:    { tone: "cream",  iconKey: "award" },
   document:    { tone: "cream",  iconKey: "award" },
   certificate: { tone: "cream",  iconKey: "award" },
+  testimonial: { tone: "cream",  iconKey: "award" },
+  reference:   { tone: "cream",  iconKey: "award" },
   image:       { tone: "mint",   iconKey: "user" },
   export:      { tone: "mint",   iconKey: "sparkle" },
 };
@@ -638,15 +641,19 @@ function buildAttachmentCard(els, attachment) {
 
   const body = document.createElement("div");
   body.className = "attachment-body";
+  const lines = documentLines(attachment, {
+    kindLabel: (kind) => t(`profile.attachment.kind.${kind}`),
+    formatDate: formatDocumentDate,
+  });
   const name = document.createElement("div");
   name.className = "attachment-name";
-  name.textContent = attachment.name;
+  name.textContent = lines.title;
+  name.title = attachment.name;
   body.appendChild(name);
 
   const metaLine = document.createElement("div");
   metaLine.className = "attachment-meta";
-  const kindLabel = t(`profile.attachment.kind.${attachment.kind}`) || attachment.kind;
-  metaLine.textContent = [kindLabel, formatBytes(attachment.size)].filter(Boolean).join(" · ");
+  metaLine.textContent = [lines.detail, formatBytes(attachment.size)].filter(Boolean).join(" · ");
   body.appendChild(metaLine);
   card.appendChild(body);
 
@@ -873,35 +880,73 @@ function confirmAttachmentUpload(els, { attachment, host, targets }) {
   }).then((res) => Boolean(res));
 }
 
-// Surface only the kinds that make sense for application autofill:
-// project exports (cv / coverletter / appendix) and certificate documents
-// the user curated under /user-data/profile → Documents. Profile pictures
-// and bulk exports are hidden — they don't drop into application forms.
-const ATTACHMENT_VISIBLE_KINDS = new Set(["cv", "coverletter", "appendix", "certificate"]);
+function formatDocumentDate(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(getLocale(), { day: "numeric", month: "short", year: "numeric" }).format(date);
+}
 
+function appendDocumentGroup(els, parent, label, items) {
+  const head = document.createElement("div");
+  head.className = "attachment-group-title";
+  head.textContent = label;
+  parent.appendChild(head);
+  const list = document.createElement("div");
+  list.className = "attachment-list";
+  for (const att of items) list.appendChild(buildAttachmentCard(els, att));
+  parent.appendChild(list);
+  return list;
+}
+
+// Job versions first (one per application), then masters, then uploads; the
+// versions of archived applications stay behind their own toggle, like the
+// app's library. Grouping rules: documents.js.
 function renderAttachmentsSection(els, attachments) {
   if (!els.profileSections) return;
   const existing = els.profileSections.querySelector('[data-section="attachments"]');
   if (existing) existing.remove();
-  const visible = (Array.isArray(attachments) ? attachments : [])
-    .filter((a) => ATTACHMENT_VISIBLE_KINDS.has(a.kind));
-  if (visible.length === 0) return;
+  const { groups, archived } = groupDocuments(attachments);
+  const total = groups.reduce((sum, g) => sum + g.items.length, 0);
+  if (total + archived.length === 0) return;
 
   const { section, body } = buildSection({
     id: "attachments",
     label: t("profile.attachments"),
     iconKey: "award",
     tone: "orange",
-    count: visible.length,
+    count: total,
     defaultOpen: false,
   });
 
-  const list = document.createElement("div");
-  list.className = "attachment-list";
-  for (const att of visible) {
-    list.appendChild(buildAttachmentCard(els, att));
+  for (const group of groups) {
+    appendDocumentGroup(els, body, t(`profile.attachment.group.${group.id}`), group.items);
   }
-  body.appendChild(list);
+
+  if (archived.length) {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "attachment-archived-toggle";
+    toggle.setAttribute("aria-expanded", "false");
+    let archivedList = null;
+    const label = () => {
+      toggle.textContent = archivedList
+        ? t("profile.attachment.archivedHide")
+        : t("profile.attachment.archivedShow", { count: archived.length });
+    };
+    toggle.addEventListener("click", () => {
+      if (archivedList) {
+        archivedList.previousElementSibling?.remove();
+        archivedList.remove();
+        archivedList = null;
+      } else {
+        archivedList = appendDocumentGroup(els, body, t("profile.attachment.group.archived"), archived);
+      }
+      toggle.setAttribute("aria-expanded", String(Boolean(archivedList)));
+      label();
+    });
+    label();
+    body.appendChild(toggle);
+  }
 
   // Always append last — Attachments is supporting context, not the headline.
   els.profileSections.appendChild(section);

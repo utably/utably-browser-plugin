@@ -2551,6 +2551,30 @@ body.sidepanel-mode .view-tabs {
   flex-direction: column;
   gap: 0;
 }
+.attachment-group-title {
+  padding: 10px 13px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.attachment-archived-toggle {
+  display: block;
+  margin: 6px 13px 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.attachment-archived-toggle:hover {
+  color: var(--text-strong);
+  text-decoration: underline;
+}
 .attachment-card {
   display: flex;
   align-items: center;

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Attachments grouped and named like the app's library.** Profile →
+  Attachments lists versions for applications ("Utably · Engineer", with the
+  master it came from), then masters (by name), then uploads; the versions
+  of archived applications sit behind "Show {count} archived". Each row
+  says what it is (CV, cover letter, appendix, certificate, job reference…)
+  and when it was made. Downloads and form uploads use the readable file
+  name. Needs the matching applicationsAPI deploy; an older server still
+  shows its list, without groups (`popup/documents.js`, with tests).
 - **Auto-fill finds the company's domain.** After Auto-fill writes a
   company name, the popup asks the server's logo cache for its domain
   (free) and, on a miss, runs one company search and takes the domain only
