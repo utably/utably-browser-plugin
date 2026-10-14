@@ -546,6 +546,103 @@ textarea {
   color: #a62929;
 }
 
+/* Company typeahead: suggestions drop under the field, styled like the
+   overflow menu (opaque paper, soft border, 44px rows). The picked company's
+   cached logo sits inside the field's leading edge. */
+.company-field {
+  position: relative;
+}
+
+.company-field.has-logo input {
+  padding-left: 42px;
+}
+
+.company-field-logo {
+  position: absolute;
+  top: 50%;
+  left: 11px;
+  width: 22px;
+  height: 22px;
+  transform: translateY(-50%);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--border-soft);
+  pointer-events: none;
+}
+
+.company-field-logo.hidden {
+  display: none;
+}
+
+.company-field-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.company-suggest {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: 264px;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--utably-paper);
+  box-shadow: var(--panel-shadow);
+}
+
+.company-suggest.hidden {
+  display: none;
+}
+
+.company-suggest-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--text-strong);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.company-suggest-option:hover,
+.company-suggest-option.is-active {
+  background: var(--utably-paper-sunk);
+}
+
+.company-suggest-option.is-active {
+  box-shadow: inset 0 0 0 1px var(--utably-mint-edge);
+}
+
+.company-suggest-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.company-suggest-domain {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;
@@ -2542,6 +2639,18 @@ body.sidepanel-mode .view-tabs {
   font-size: 13px;
   flex-shrink: 0;
   letter-spacing: -0.02em;
+}
+.job-logo.has-img {
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--border-soft);
+}
+.job-logo-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  object-fit: contain;
 }
 .job-text {
   flex: 1;

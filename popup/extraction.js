@@ -1,5 +1,6 @@
 import { EXTRACTION_SCRIPT_FILES } from "./config.js";
 import { trimOrEmpty } from "./dom.js";
+import { reconcileCompanyPick } from "./companyTypeahead.js";
 
 export async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -109,6 +110,7 @@ export async function extractIntoForm(els, setStatus) {
   els.applicationDate.value = trimOrEmpty(els.applicationDate.value) || new Date().toISOString().slice(0, 10);
   els.jobTitle.value = result.title || "";
   els.companyName.value = result.company || "";
+  reconcileCompanyPick(els);
   els.location.value = result.location || "";
   if (trimOrEmpty(result.recruiterName)) {
     els.recruiterName.value = result.recruiterName;

@@ -406,6 +406,61 @@ async function sendImport(payload) {
   };
 }
 
+// ---- Company typeahead + cache-only resolve ----
+//
+// Both endpoints are best-effort: no token, a network error or a non-2xx
+// answer all come back as an empty result. An empty suggestion list is the
+// normal "provider off / no match" case and is never shown as an error.
+
+let companySearchController = null;
+
+async function getCompanyAuth() {
+  const settings = await getSettings();
+  const token = await ensureAccessToken(settings);
+  return { settings, token };
+}
+
+async function searchCompanies(query, limit) {
+  const q = trim(query);
+  if (q.length < 2) return [];
+  const auth = await getCompanyAuth();
+  if (!auth.token) return [];
+
+  // Only the newest search matters; abort the one still in flight.
+  companySearchController?.abort();
+  const controller = new AbortController();
+  companySearchController = controller;
+  const cappedLimit = Math.min(Math.max(Number(limit) || 6, 1), 10);
+  try {
+    const res = await fetch(
+      `${auth.settings.apiBase}/extension/company/search?q=${encodeURIComponent(q)}&limit=${cappedLimit}`,
+      { headers: { Authorization: `Bearer ${auth.token}` }, signal: controller.signal }
+    );
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => null);
+    return Array.isArray(json?.data) ? json.data : [];
+  } finally {
+    if (companySearchController === controller) companySearchController = null;
+  }
+}
+
+async function resolveCompaniesCacheOnly(names) {
+  const clean = (Array.isArray(names) ? names : [])
+    .map((name) => trim(String(name ?? "")))
+    .filter((name) => name.length >= 2)
+    .slice(0, 20);
+  if (!clean.length) return {};
+  const auth = await getCompanyAuth();
+  if (!auth.token) return {};
+  const res = await fetch(
+    `${auth.settings.apiBase}/extension/company/resolve-batch?names=${encodeURIComponent(JSON.stringify(clean))}`,
+    { headers: { Authorization: `Bearer ${auth.token}` } }
+  );
+  if (!res.ok) return {};
+  const json = await res.json().catch(() => null);
+  return json?.data && typeof json.data === "object" ? json.data : {};
+}
+
 async function findDuplicateImport(candidate) {
   const settings = await getSettings();
   const token = await ensureAccessToken(settings);
@@ -929,6 +984,7 @@ function normalizeDraft(rawValue) {
       recruiterName: "",
       jobText: "",
       jobUrl: "",
+      companyDomain: "",
       updatedAt: 0,
     };
   }
@@ -940,6 +996,7 @@ function normalizeDraft(rawValue) {
     recruiterName: trim(rawValue.recruiterName),
     jobText: trim(rawValue.jobText),
     jobUrl: trim(rawValue.jobUrl),
+    companyDomain: trim(rawValue.companyDomain),
     updatedAt: Number(rawValue.updatedAt || 0),
   };
 }
@@ -974,6 +1031,11 @@ async function applyCaptureToDraft(payload) {
     draft.jobText = `${current}${text}`.trim();
   } else {
     draft[field] = text;
+  }
+  // A captured company name is free text: the domain picked for the old
+  // name no longer belongs to it.
+  if (field === "companyName") {
+    draft.companyDomain = "";
   }
   if (!draft.jobUrl && pageUrl) {
     draft.jobUrl = pageUrl;
@@ -1083,6 +1145,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
       }
     })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_COMPANY_SEARCH") {
+    searchCompanies(message.query, message.limit)
+      .then((suggestions) => sendResponse({ ok: true, suggestions }))
+      .catch((err) => sendResponse({ ok: false, aborted: err?.name === "AbortError", suggestions: [] }));
+    return true;
+  }
+
+  if (message?.type === "UTABLY_COMPANY_RESOLVE_BATCH") {
+    resolveCompaniesCacheOnly(message.names)
+      .then((resolved) => sendResponse({ ok: true, resolved }))
+      .catch(() => sendResponse({ ok: false, resolved: {} }));
+    return true;
+  }
+
+  // The popup builds cache-only logo URLs itself and needs the same API
+  // base the background resolved from the stored stage settings.
+  if (message?.type === "UTABLY_GET_API_BASE") {
+    getSettings()
+      .then((settings) => sendResponse({ ok: true, apiBase: settings.apiBase }))
+      .catch(() => sendResponse({ ok: false, apiBase: "" }));
     return true;
   }
 

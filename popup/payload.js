@@ -1,5 +1,6 @@
 import { trimOrEmpty } from "./dom.js";
 import { getLocale } from "./i18n.js";
+import { currentCompanyDomain } from "./companyTypeahead.js";
 
 const FITCHECK_CACHE_KEY = "utablyFitCheckCache";
 
@@ -121,9 +122,13 @@ export async function buildApplicationPayload(els) {
 
   const fitAnalysis = mapFitCheckToFitAnalysis(fitCheckResult);
 
+  // Only a picked suggestion carries a domain; free text sends none.
+  const companyDomain = currentCompanyDomain(els);
+
   return {
     id: crypto.randomUUID(),
     companyName,
+    companyDomain: companyDomain || undefined,
     jobTitle,
     applicationDate: appliedDay,
     applicationMethod: "",

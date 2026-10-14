@@ -1,6 +1,8 @@
 import { t } from "./i18n.js";
 import { trimOrEmpty } from "./dom.js";
 import { setActiveView } from "./profile.js";
+import { cleanCompanyDomain, normalizeCompanyName, takeNamesToResolve } from "./company.js";
+import { loadCachedCompanyLogo } from "./companyLogo.js";
 
 // ---- Status meta (matches design tone palette) ----
 const STATUS_META = {
@@ -24,6 +26,50 @@ const LOGO_PALETTE = [
   { bg: "#87FFDE", fg: "#062C33" },
   { bg: "#D9652F", fg: "#ffffff" },
 ];
+
+// ---- Cached company logos ----
+// Rows saved before domains were stored have no companyDomain; those names
+// go through the server's cache-only batch resolve, each name at most once
+// per popup session. Logo images themselves are cache-only too.
+const resolvedCompanyDomains = new Map(); // companyName -> domain ("" = none)
+const askedCompanyNames = new Set();
+
+function companyDomainFor(app) {
+  return cleanCompanyDomain(app?.companyDomain)
+    || resolvedCompanyDomains.get(normalizeCompanyName(app?.companyName))
+    || "";
+}
+
+function decorateLogo(logoEl, app) {
+  const domain = companyDomainFor(app);
+  if (!domain) return;
+  loadCachedCompanyLogo(domain, { className: "job-logo-img" }).then((img) => {
+    if (!img || !logoEl.isConnected) return;
+    logoEl.replaceChildren(img);
+    logoEl.style.background = "";
+    logoEl.classList.add("has-img");
+  });
+}
+
+async function resolveMissingCompanyDomains(els) {
+  const names = cachedApplications
+    .filter((app) => !cleanCompanyDomain(app.companyDomain))
+    .map((app) => app.companyName);
+  const batches = takeNamesToResolve(names, askedCompanyNames);
+  let found = false;
+  for (const batch of batches) {
+    const response = await chrome.runtime
+      .sendMessage({ type: "UTABLY_COMPANY_RESOLVE_BATCH", names: batch })
+      .catch(() => null);
+    const resolved = response?.resolved || {};
+    for (const name of batch) {
+      const domain = cleanCompanyDomain(resolved[name]?.domain);
+      resolvedCompanyDomains.set(name, domain);
+      if (domain) found = true;
+    }
+  }
+  if (found) renderList(els);
+}
 
 function hashString(str) {
   let h = 0;
@@ -387,6 +433,7 @@ function buildCard(els, app, openInUtably) {
   logo.style.background = tone.bg;
   logo.style.color = tone.fg;
   logo.textContent = initials(app.companyName);
+  decorateLogo(logo, app);
   row.appendChild(logo);
 
   const text = document.createElement("div");
@@ -662,6 +709,7 @@ export async function loadSavedApplications(els) {
     const counts = computeCounts();
     renderFilters(els, counts);
     renderList(els);
+    resolveMissingCompanyDomains(els).catch(() => {});
   } catch (err) {
     if (els.savedError) {
       els.savedError.textContent = err?.message || t("saved.loadFailed");

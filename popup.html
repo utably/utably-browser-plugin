@@ -421,8 +421,28 @@
           <input id="jobTitle" type="text" data-i18n-placeholder="preview.jobTitle.placeholder" placeholder="e.g., Growth Analyst at Utably" />
           <div id="jobTitleError" class="field-error hidden" role="alert"></div>
 
-          <label class="label" data-i18n="preview.company">Company</label>
-          <input id="companyName" type="text" data-i18n-placeholder="preview.company.placeholder" placeholder="e.g., Utably Ltd" />
+          <label class="label" for="companyName" data-i18n="preview.company">Company</label>
+          <div id="companyField" class="company-field">
+            <span id="companyLogo" class="company-field-logo hidden" aria-hidden="true"></span>
+            <input
+              id="companyName"
+              type="text"
+              role="combobox"
+              autocomplete="off"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="companySuggestions"
+              data-i18n-placeholder="preview.company.placeholder"
+              placeholder="e.g., Utably Ltd"
+            />
+            <ul
+              id="companySuggestions"
+              class="company-suggest hidden"
+              role="listbox"
+              data-i18n-aria-label="preview.company.suggestions"
+              aria-label="Matching companies"
+            ></ul>
+          </div>
           <div id="companyNameError" class="field-error hidden" role="alert"></div>
 
           <label class="label" data-i18n="preview.location">Location</label>

@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Company typeahead on the capture form.** Typing two or more characters
+  in Company suggests matching companies (name + domain) from
+  `/extension/company/search`, debounced 300 ms, stale answers dropped.
+  Arrow keys, Enter, Escape and mouse all work; the field is an ARIA
+  combobox. Picking one remembers its domain and sends it as
+  `companyDomain` with the import; editing the text away from the picked
+  name turns it back into free text with no domain. The domain survives
+  drafts, and is cleared on reset, save and logout. No empty-result or
+  error state — no suggestions simply means no list.
+- **Cached company logos.** The picked company shows its logo inside the
+  field, and Saved cards show one in place of the letter badge — only
+  from the server's logo cache (`favicon?src=cache`); a miss keeps the
+  badge, so the plugin never triggers a new logo fetch. Saved rows without
+  a stored `companyDomain` are resolved cache-only via
+  `/extension/company/resolve-batch`, each name at most once per session.
+
 ## [0.18.0] — 2026-09-22
 
 ### Added

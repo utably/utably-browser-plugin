@@ -19,6 +19,13 @@ import {
 import { applyTranslations, getLocale, loadLocale, setLocalePreference, t } from "./i18n.js";
 import { wireProfileTab, setActiveView, wirePrivacySettings } from "./profile.js";
 import { wireSavedTab } from "./saved.js";
+import {
+  clearCompanyPick,
+  currentCompanyDomain,
+  reconcileCompanyPick,
+  restoreCompanyPick,
+  wireCompanyTypeahead,
+} from "./companyTypeahead.js";
 
 const DRAFT_STORAGE_KEY = "utablyDraft";
 const CONNECT_PENDING_KEY = "utablyConnectPending";
@@ -58,6 +65,7 @@ function normalizeDraft(rawValue) {
       applicationDate: "",
       jobTitle: "",
       companyName: "",
+      companyDomain: "",
       location: "",
       recruiterName: "",
       jobText: "",
@@ -71,6 +79,7 @@ function normalizeDraft(rawValue) {
     applicationDate: trimOrEmpty(rawValue.applicationDate),
     jobTitle: trimOrEmpty(rawValue.jobTitle),
     companyName: trimOrEmpty(rawValue.companyName),
+    companyDomain: trimOrEmpty(rawValue.companyDomain),
     location: trimOrEmpty(rawValue.location),
     recruiterName: trimOrEmpty(rawValue.recruiterName),
     jobText: trimOrEmpty(rawValue.jobText),
@@ -322,6 +331,7 @@ function buildDraftFromForm(els) {
     applicationDate: trimOrEmpty(els.applicationDate.value),
     jobTitle: trimOrEmpty(els.jobTitle.value),
     companyName: trimOrEmpty(els.companyName.value),
+    companyDomain: currentCompanyDomain(els),
     location: trimOrEmpty(els.location.value),
     recruiterName: trimOrEmpty(els.recruiterName.value),
     jobText: trimOrEmpty(els.jobText.value),
@@ -337,6 +347,11 @@ function applyDraftToForm(els, rawDraft) {
   els.applicationDate.value = draft.applicationDate || els.applicationDate.value || new Date().toISOString().slice(0, 10);
   els.jobTitle.value = draft.jobTitle || els.jobTitle.value;
   els.companyName.value = draft.companyName || els.companyName.value;
+  if (draft.companyName) {
+    restoreCompanyPick(els, draft.companyName, draft.companyDomain);
+  } else {
+    reconcileCompanyPick(els);
+  }
   els.location.value = draft.location || els.location.value;
   els.recruiterName.value = draft.recruiterName || els.recruiterName.value;
   els.jobText.value = draft.jobText || els.jobText.value;
@@ -674,6 +689,7 @@ function createAuthController(els, setStatusText) {
     els.applicationDate.value = new Date().toISOString().slice(0, 10);
     els.jobTitle.value = "";
     els.companyName.value = "";
+    clearCompanyPick(els);
     els.location.value = "";
     els.recruiterName.value = "";
     els.jobText.value = "";
@@ -782,6 +798,7 @@ async function resetForm(els, setStatusText) {
   els.applicationDate.value = new Date().toISOString().slice(0, 10);
   els.jobTitle.value = "";
   els.companyName.value = "";
+  clearCompanyPick(els);
   els.location.value = "";
   els.recruiterName.value = "";
   els.jobText.value = "";
@@ -800,6 +817,7 @@ async function clearFormAfterSave(els) {
   els.applicationDate.value = new Date().toISOString().slice(0, 10);
   els.jobTitle.value = "";
   els.companyName.value = "";
+  clearCompanyPick(els);
   els.location.value = "";
   els.recruiterName.value = "";
   els.jobText.value = "";
@@ -1812,6 +1830,8 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   wirePrivacySettings(els, { setStatusText });
+
+  wireCompanyTypeahead(els);
 
   wireSavedTab(els, {
     openInUtably: async (path) => {
