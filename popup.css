@@ -55,7 +55,7 @@
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   /* ===== Utably brand tokens (from claude.ai/design handoff) ===== */
   --utably-mint:        #87FFDE;
   --utably-mint-soft:   #B8FFEA;
@@ -551,6 +551,69 @@ textarea {
    cached logo sits inside the field's leading edge. */
 .company-field {
   position: relative;
+}
+
+/* Job location: flag country picker beside the city field (the city's
+   suggestion list reuses the company list styles). */
+.location-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.location-row + .location-row {
+  margin-top: 8px;
+}
+
+.location-country {
+  flex: 0 0 42%;
+  min-width: 0;
+}
+
+.location-city,
+.location-street {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.location-zip {
+  flex: 0 0 32%;
+  min-width: 0;
+}
+
+/* The country field is narrow; its list may run under the city field. */
+.location-country .company-suggest {
+  right: auto;
+  width: max(100%, 260px);
+}
+
+/* Name on top, the other language's name below it, both readable. */
+.location-country .company-suggest-option {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.location-country .company-suggest-name,
+.location-country .company-suggest-domain {
+  max-width: 100%;
+}
+
+.location-country-flag {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  font-size: 16px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.location-country-flag.hidden {
+  display: none;
 }
 
 .company-field.has-logo input {
@@ -1515,12 +1578,28 @@ body.sidepanel-mode .row {
   transform: scale(0.98);
 }
 
-.locked-icon {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 4px;
-  display: block;
-  /* The branded SVG carries its own colors + drop shadow — no opacity dim. */
+/* The app's plan mark: lock + plan name, solid ink for Boost. */
+.plan-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--utably-ink);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+.plan-mark-icon {
+  width: 11px;
+  height: 11px;
+}
+:root[data-theme="dark"] .plan-mark {
+  background: var(--text-strong);
+  color: var(--page-bg);
 }
 
 .locked-text {
@@ -1587,111 +1666,113 @@ body.sidepanel-mode .row {
   box-shadow: 0 3px 8px rgba(255, 193, 7, 0.35);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --page-bg: #0f1618;
-    --surface-1: rgba(21, 35, 39, 0.96);
-    --surface-2: rgba(20, 33, 37, 0.9);
-    --text-strong: #e6f6f4;
-    --text-muted: #9cc6c2;
-    --action: #2dc0b4;
-    --action-hover: #48d8c9;
-    --action-contrast: #062126;
-    --border-soft: rgba(76, 132, 125, 0.68);
-    --border-strong: rgba(102, 172, 163, 0.88);
-    --ring: rgba(80, 216, 200, 0.32);
-    --notice: rgba(22, 55, 56, 0.8);
-    --notice-border: rgba(72, 135, 129, 0.9);
-    --ok-bg: rgba(25, 73, 62, 0.9);
-    --ok-fg: #9bf7db;
-    --error-bg: rgba(88, 36, 36, 0.9);
-    --error-fg: #ffb4b4;
-    --input-bg: rgba(14, 27, 31, 0.92);
-    --button-bg: rgba(18, 35, 38, 0.9);
-    --secondary-bg: rgba(82, 223, 202, 0.12);
-    --secondary-bg-hover: rgba(82, 223, 202, 0.2);
-    --utably-mint-edge: #5EE4C1;
-    --panel-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-    --modal-overlay: rgba(3, 8, 10, 0.56);
-    --trust-fg: #9ff2df;
-    --trust-border: rgba(84, 170, 153, 0.84);
-    --trust-bg: rgba(28, 63, 61, 0.78);
-    --preview-meta-fg: #9bf7db;
-    --preview-meta-border: rgba(87, 165, 154, 0.88);
-    --preview-meta-bg: rgba(28, 66, 65, 0.82);
-    --slider-bg: #355d60;
-    --slider-knob: #eaf5f3;
+/* Dark theme: data-theme="dark" on <html>, set by popup/theme-boot.js
+   from the Theme setting (System follows the OS). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page-bg: #0f1618;
+  --surface-1: rgba(21, 35, 39, 0.96);
+  --surface-2: rgba(20, 33, 37, 0.9);
+  --text-strong: #e6f6f4;
+  --text-muted: #9cc6c2;
+  --action: #2dc0b4;
+  --action-hover: #48d8c9;
+  --action-contrast: #062126;
+  --border-soft: rgba(76, 132, 125, 0.68);
+  --border-strong: rgba(102, 172, 163, 0.88);
+  --ring: rgba(80, 216, 200, 0.32);
+  --notice: rgba(22, 55, 56, 0.8);
+  --notice-border: rgba(72, 135, 129, 0.9);
+  --ok-bg: rgba(25, 73, 62, 0.9);
+  --ok-fg: #9bf7db;
+  --error-bg: rgba(88, 36, 36, 0.9);
+  --error-fg: #ffb4b4;
+  --input-bg: rgba(14, 27, 31, 0.92);
+  --button-bg: rgba(18, 35, 38, 0.9);
+  --secondary-bg: rgba(82, 223, 202, 0.12);
+  --secondary-bg-hover: rgba(82, 223, 202, 0.2);
+  --utably-mint-edge: #5EE4C1;
+  --panel-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  --modal-overlay: rgba(3, 8, 10, 0.56);
+  --trust-fg: #9ff2df;
+  --trust-border: rgba(84, 170, 153, 0.84);
+  --trust-bg: rgba(28, 63, 61, 0.78);
+  --preview-meta-fg: #9bf7db;
+  --preview-meta-border: rgba(87, 165, 154, 0.88);
+  --preview-meta-bg: rgba(28, 66, 65, 0.82);
+  --slider-bg: #355d60;
+  --slider-knob: #eaf5f3;
 
-    /* Profile + Saved redesign brand tokens (dark) */
-    --utably-ink: #e6f6f4;
-    --utably-ink-80: #cfe7e3;
-    --utably-ink-60: #9cc6c2;
-    --utably-ink-40: #7aa7a3;
-    --utably-ink-20: rgba(120, 168, 162, 0.42);
-    --utably-ink-10: rgba(120, 168, 162, 0.22);
-    --utably-cream: #6b4a1f;
-    --utably-cream-soft: rgba(73, 58, 25, 0.55);
-    --utably-cream-deep: rgba(245, 200, 140, 0.42);
-    --utably-orange: #f59963;
-    --utably-orange-deep: #ffbc8a;
-    --utably-paper: #152327;
-    --utably-paper-sunk: #0f1c1f;
-    --utably-mint-soft: rgba(46, 192, 180, 0.18);
-  }
-
-  .fitcheck-traffic-light.good {
-    background: rgba(73, 58, 25, 0.9);
-    color: #ffd97a;
-  }
-
-  .fitcheck-traffic-light.partial {
-    background: rgba(73, 45, 20, 0.9);
-    color: #ffb87a;
-  }
-
-  .fitcheck-qualification-badge.overqualified {
-    background: rgba(73, 58, 25, 0.9);
-    color: #ffd97a;
-  }
-
-  .skills-bonus .skill-tag {
-    background: rgba(37, 99, 235, 0.2);
-    border-color: rgba(96, 165, 250, 0.5);
-    color: #93c5fd;
-  }
-
-  .fitcheck-locked::before {
-    background: linear-gradient(
-      135deg,
-      rgba(60, 60, 60, 0.15) 0%,
-      rgba(80, 80, 80, 0.2) 100%
-    );
-  }
-
-  .fitcheck-upgrade-banner {
-    background: linear-gradient(
-      135deg,
-      rgba(255, 193, 7, 0.15) 0%,
-      rgba(255, 152, 0, 0.1) 100%
-    );
-    border-color: rgba(255, 193, 7, 0.4);
-  }
-
-  .upgrade-btn {
-    color: #0f1618;
-  }
-
-  .fitcheck-inline {
-    background: rgba(40, 50, 55, 0.6);
-    border-color: rgba(100, 120, 130, 0.4);
-  }
-
-  .fitcheck-ai-disclaimer {
-    background: rgba(40, 50, 55, 0.5);
-    border-color: rgba(100, 120, 130, 0.3);
-    color: rgba(255, 255, 255, 0.6);
-  }
+  /* Profile + Saved redesign brand tokens (dark) */
+  --utably-ink: #e6f6f4;
+  --utably-ink-80: #cfe7e3;
+  --utably-ink-60: #9cc6c2;
+  --utably-ink-40: #7aa7a3;
+  --utably-ink-20: rgba(120, 168, 162, 0.42);
+  --utably-ink-10: rgba(120, 168, 162, 0.22);
+  --utably-cream: #6b4a1f;
+  --utably-cream-soft: rgba(73, 58, 25, 0.55);
+  --utably-cream-deep: rgba(245, 200, 140, 0.42);
+  --utably-orange: #f59963;
+  --utably-orange-deep: #ffbc8a;
+  --utably-paper: #152327;
+  --utably-paper-sunk: #0f1c1f;
+  --utably-mint-soft: rgba(46, 192, 180, 0.18);
 }
+
+:root[data-theme="dark"] .fitcheck-traffic-light.good {
+  background: rgba(73, 58, 25, 0.9);
+  color: #ffd97a;
+}
+
+:root[data-theme="dark"] .fitcheck-traffic-light.partial {
+  background: rgba(73, 45, 20, 0.9);
+  color: #ffb87a;
+}
+
+:root[data-theme="dark"] .fitcheck-qualification-badge.overqualified {
+  background: rgba(73, 58, 25, 0.9);
+  color: #ffd97a;
+}
+
+:root[data-theme="dark"] .skills-bonus .skill-tag {
+  background: rgba(37, 99, 235, 0.2);
+  border-color: rgba(96, 165, 250, 0.5);
+  color: #93c5fd;
+}
+
+:root[data-theme="dark"] .fitcheck-locked::before {
+  background: linear-gradient(
+    135deg,
+    rgba(60, 60, 60, 0.15) 0%,
+    rgba(80, 80, 80, 0.2) 100%
+  );
+}
+
+:root[data-theme="dark"] .fitcheck-upgrade-banner {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 193, 7, 0.15) 0%,
+    rgba(255, 152, 0, 0.1) 100%
+  );
+  border-color: rgba(255, 193, 7, 0.4);
+}
+
+:root[data-theme="dark"] .upgrade-btn {
+  color: #0f1618;
+}
+
+:root[data-theme="dark"] .fitcheck-inline {
+  background: rgba(40, 50, 55, 0.6);
+  border-color: rgba(100, 120, 130, 0.4);
+}
+
+:root[data-theme="dark"] .fitcheck-ai-disclaimer {
+  background: rgba(40, 50, 55, 0.5);
+  border-color: rgba(100, 120, 130, 0.3);
+  color: rgba(255, 255, 255, 0.6);
+}
+
 
 /* FitCheck Inline Placement (near job description) */
 .fitcheck-inline {
@@ -2159,6 +2240,26 @@ body.sidepanel-mode .view-tabs {
   gap: 8px;
   margin-bottom: 0;
 }
+/* Cached employer / school logo; absent when the cache has none. */
+.role-logo {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--border-soft);
+}
+.role-logo.hidden {
+  display: none;
+}
+.role-logo-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .role-title-wrap {
   flex: 1;
   min-width: 0;
@@ -2604,6 +2705,24 @@ body.sidepanel-mode .view-tabs {
   color: #ffffff;
 }
 
+/* Empty Saved list (or an empty filter). */
+.no-results {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.no-results.hidden {
+  display: none;
+}
+.no-results-title {
+  margin-bottom: 4px;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .jobs-list {
   display: flex;
   flex-direction: column;
@@ -2782,6 +2901,10 @@ body.sidepanel-mode .view-tabs {
 }
 
 .job-status-select {
+  /* A pill, not a form field: undo the full-width, 44px field defaults. */
+  width: auto;
+  min-height: 0;
+  line-height: 1.6;
   font-family: inherit;
   appearance: none;
   -webkit-appearance: none;
@@ -2810,8 +2933,8 @@ body.sidepanel-mode .view-tabs {
   animation: card-flash 700ms ease;
 }
 @keyframes card-flash {
-  0%   { background: var(--success-soft); }
-  100% { background: #ffffff; }
+  0%   { background: var(--ok-bg); }
+  100% { background: var(--surface-1); }
 }
 
 /* Saved tab search bar */
@@ -3090,124 +3213,149 @@ body.sidepanel-mode .view-tabs {
    those rules would otherwise win in dark mode. Keeping these
    overrides last ensures they apply.
    ============================================================ */
-@media (prefers-color-scheme: dark) {
-  /* Hardcoded white surfaces flip to the dark surface token. */
-  .section,
-  .mini-btn,
-  .filter-chip,
-  .job-card,
-  .fit-badge.fit-empty {
-    background: var(--surface-1);
-  }
-  .saved-search-input {
-    background: var(--input-bg);
-  }
-
-  /* Header logo tile was translucent white. */
-  .logo {
-    background: rgba(230, 246, 244, 0.08);
-  }
-
-  /* `--utably-ink` doubles as a dark contrast surface in light mode
-     (buttons, active chips, toasts). In dark mode the token flips to
-     a light text color, so we swap these to a brand-mint accent so
-     they stay readable. */
-  .copy-pill,
-  .attachment-action,
-  .filter-chip.is-active,
-  .saved-search-clear:hover {
-    background: var(--utably-mint-deep);
-    color: var(--page-bg);
-  }
-
-  /* The mint primary button keeps its bright brand fill in both modes;
-     its label is `--utably-ink`, which flips light here, so pin it to
-     the dark page color. Same reason as the pills above. */
-  button.primary,
-  button.primary:hover,
-  button.primary:focus,
-  button.primary:active,
-  button.primary:focus-visible {
-    color: var(--page-bg);
-  }
-
-  /* `--utably-mint-soft` is a translucent dark wash here, so the light-mode
-     hover fill would leave dark text on a dark button. Use the bright deep
-     mint instead — it is not redefined for dark. */
-  button.primary:hover,
-  button.primary:focus,
-  button.primary:active,
-  button.primary:focus-visible {
-    background: var(--utably-mint-deep);
-  }
-
-  /* The Safari rules above are `!important`, so this has to match. */
-  body.safari-mode button.primary,
-  body.safari-mode button.primary:hover,
-  body.safari-mode button.primary:focus,
-  body.safari-mode button.primary:active,
-  body.safari-mode button.primary:focus-visible,
-  body.safari-mode button.primary:focus-within {
-    color: var(--page-bg) !important;
-    -webkit-text-fill-color: var(--page-bg) !important;
-  }
-  .copy-pill:hover,
-  .attachment-action:hover:not(:disabled) {
-    background: var(--utably-mint);
-  }
-  .filter-chip.is-active {
-    border-color: var(--utably-mint-deep);
-  }
-  .section-icon.tone-ink,
-  .chip.tone-ink,
-  .attachment-icon.tone-ink,
-  .job-status.tone-interview {
-    background: var(--utably-mint-deep);
-    color: var(--page-bg);
-  }
-  .view-tabs {
-    background: rgba(8, 20, 22, 0.72);
-  }
-  .view-tab.is-active {
-    background: var(--utably-mint-deep);
-    color: var(--page-bg);
-  }
-  .view-tab {
-    color: rgba(230, 246, 244, 0.6);
-  }
-  .view-tab:hover {
-    color: rgba(230, 246, 244, 0.9);
-  }
-  .copy-toast {
-    background: rgba(8, 20, 22, 0.96);
-    border: 1px solid var(--border-soft);
-  }
-
-  /* Translucent-white count pill on the active filter chip. */
-  .filter-chip.is-active .filter-chip-count {
-    background: rgba(8, 20, 22, 0.32);
-    color: var(--page-bg);
-  }
-
-  /* Locked overlay hover used a translucent white wash. */
-  .locked-overlay:hover {
-    background: rgba(8, 20, 22, 0.4);
-  }
-
-  /* Mint/cream badges keep their bright brand background; their text was
-     `var(--utably-ink)` which is now light, so lock it back to the dark
-     page color so the label stays readable. */
-  .fit-badge.fit-perfect,
-  .fit-badge.fit-good,
-  .job-status.tone-applied {
-    color: var(--page-bg);
-  }
-
-  /* Card-flash keyframe transitions to #ffffff in light mode. The later
-     `@keyframes card-flash` at the source's saved section would override
-     a dark version placed earlier, so redefine it here. */
-  @keyframes card-flash {
-    0%   { background: var(--ok-bg); }
-    100% { background: var(--surface-1); }
-  }
+/* Dark theme: data-theme="dark" on <html>, set by popup/theme-boot.js
+   from the Theme setting (System follows the OS). */
+/* Hardcoded white surfaces flip to the dark surface token. */
+:root[data-theme="dark"] .section,
+:root[data-theme="dark"] .mini-btn,
+:root[data-theme="dark"] .filter-chip,
+:root[data-theme="dark"] .job-card,
+:root[data-theme="dark"] .fit-badge.fit-empty {
+  background: var(--surface-1);
 }
+:root[data-theme="dark"] .saved-search-input {
+  background: var(--input-bg);
+}
+
+/* Header logo tile was translucent white. */
+:root[data-theme="dark"] .logo {
+  background: rgba(230, 246, 244, 0.08);
+}
+
+/* `--utably-ink` doubles as a dark contrast surface in light mode
+   (buttons, active chips, toasts). In dark mode the token flips to
+   a light text color, so we swap these to a brand-mint accent so
+   they stay readable. */
+:root[data-theme="dark"] .copy-pill,
+:root[data-theme="dark"] .attachment-action,
+:root[data-theme="dark"] .filter-chip.is-active,
+:root[data-theme="dark"] .saved-search-clear:hover {
+  background: var(--utably-mint-deep);
+  color: var(--page-bg);
+}
+
+/* The mint primary button keeps its bright brand fill in both modes;
+   its label is `--utably-ink`, which flips light here, so pin it to
+   the dark page color. Same reason as the pills above. */
+:root[data-theme="dark"] button.primary,
+:root[data-theme="dark"] button.primary:hover,
+:root[data-theme="dark"] button.primary:focus,
+:root[data-theme="dark"] button.primary:active,
+:root[data-theme="dark"] button.primary:focus-visible {
+  color: var(--page-bg);
+}
+
+/* `--utably-mint-soft` is a translucent dark wash here, so the light-mode
+   hover fill would leave dark text on a dark button. Use the bright deep
+   mint instead — it is not redefined for dark. */
+:root[data-theme="dark"] button.primary:hover,
+:root[data-theme="dark"] button.primary:focus,
+:root[data-theme="dark"] button.primary:active,
+:root[data-theme="dark"] button.primary:focus-visible {
+  background: var(--utably-mint-deep);
+}
+
+/* The Safari rules above are `!important`, so this has to match. */
+:root[data-theme="dark"] body.safari-mode button.primary,
+:root[data-theme="dark"] body.safari-mode button.primary:hover,
+:root[data-theme="dark"] body.safari-mode button.primary:focus,
+:root[data-theme="dark"] body.safari-mode button.primary:active,
+:root[data-theme="dark"] body.safari-mode button.primary:focus-visible,
+:root[data-theme="dark"] body.safari-mode button.primary:focus-within {
+  color: var(--page-bg) !important;
+  -webkit-text-fill-color: var(--page-bg) !important;
+}
+:root[data-theme="dark"] .copy-pill:hover,
+:root[data-theme="dark"] .attachment-action:hover:not(:disabled) {
+  background: var(--utably-mint);
+}
+:root[data-theme="dark"] .filter-chip.is-active {
+  border-color: var(--utably-mint-deep);
+}
+:root[data-theme="dark"] .section-icon.tone-ink,
+:root[data-theme="dark"] .chip.tone-ink,
+:root[data-theme="dark"] .attachment-icon.tone-ink,
+:root[data-theme="dark"] .job-status.tone-interview {
+  background: var(--utably-mint-deep);
+  color: var(--page-bg);
+}
+:root[data-theme="dark"] .view-tabs {
+  background: rgba(8, 20, 22, 0.72);
+}
+:root[data-theme="dark"] .view-tab.is-active {
+  background: var(--utably-mint-deep);
+  color: var(--page-bg);
+}
+:root[data-theme="dark"] .view-tab {
+  color: rgba(230, 246, 244, 0.6);
+}
+:root[data-theme="dark"] .view-tab:hover {
+  color: rgba(230, 246, 244, 0.9);
+}
+:root[data-theme="dark"] .copy-toast {
+  background: rgba(8, 20, 22, 0.96);
+  border: 1px solid var(--border-soft);
+}
+
+/* Translucent-white count pill on the active filter chip. */
+:root[data-theme="dark"] .filter-chip.is-active .filter-chip-count {
+  /* Mint on the near-black page colour: the count stays readable on the
+     mint chip (dark-on-dark-wash was nearly invisible). */
+  background: var(--page-bg);
+  color: var(--utably-mint);
+}
+/* Count bubbles on dark surfaces: a soft light wash, not the light-mode
+   paper fill. */
+:root[data-theme="dark"] .filter-chip-count,
+:root[data-theme="dark"] .section-count {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text-strong);
+}
+
+/* Locked overlay hover used a translucent white wash. */
+:root[data-theme="dark"] .locked-overlay:hover {
+  background: rgba(8, 20, 22, 0.4);
+}
+
+/* The applied status pill keeps its bright mint fill; its text was
+   `var(--utably-ink)` which is now light, so lock it back to the dark
+   page color so the label stays readable. */
+:root[data-theme="dark"] .job-status.tone-applied {
+  color: var(--page-bg);
+}
+
+/* Fit score badges on dark cards: a tint of the level's colour with bright
+   digits, not the light-mode fill with dark digits (hard to read). */
+:root[data-theme="dark"] .fit-badge.fit-perfect {
+  background: rgba(135, 255, 222, 0.20);
+  color: var(--utably-mint);
+  border-color: rgba(135, 255, 222, 0.55);
+}
+:root[data-theme="dark"] .fit-badge.fit-perfect .fit-dot { background: var(--utably-mint); }
+:root[data-theme="dark"] .fit-badge.fit-good {
+  background: rgba(94, 228, 193, 0.14);
+  color: var(--utably-mint-soft);
+  border-color: rgba(94, 228, 193, 0.45);
+}
+:root[data-theme="dark"] .fit-badge.fit-good .fit-dot { background: var(--utably-mint-deep); }
+:root[data-theme="dark"] .fit-badge.fit-partial {
+  background: rgba(239, 123, 69, 0.16);
+  color: var(--utably-cream);
+  border-color: rgba(245, 200, 140, 0.45);
+}
+:root[data-theme="dark"] .fit-badge.fit-review {
+  background: rgba(192, 57, 43, 0.22);
+  color: #ffb8b0;
+  border-color: rgba(240, 179, 173, 0.45);
+}
+

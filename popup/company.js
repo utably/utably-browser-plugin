@@ -95,3 +95,39 @@ export function takeNamesToResolve(names, asked, batchSize = COMPANY_RESOLVE_BAT
   }
   return batches;
 }
+
+// Legal forms and filler words that do not tell two companies apart.
+const LEGAL_FORM_WORDS = new Set([
+  "gmbh", "mbh", "ag", "se", "kg", "kgaa", "co", "ohg", "ug", "haftungsbeschrankt", "ev",
+  "inc", "incorporated", "corp", "corporation", "llc", "ltd", "limited", "plc", "lp", "llp",
+  "sa", "sas", "sarl", "srl", "spa", "bv", "nv", "ab", "as", "asa", "aps", "oy", "oyj",
+  "group", "gruppe", "holding", "the",
+]);
+
+/** "Peri-Werk A. Schwörer GmbH & Co. KG" → "peri werk a schworer". */
+export function companyMatchKey(name) {
+  return normalizeCompanyName(name)
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[®™©]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((word) => word && !LEGAL_FORM_WORDS.has(word))
+    .join(" ");
+}
+
+/**
+ * The suggestion that is clearly the company a job page named, or null.
+ * Auto-fill only takes a domain when the names match once legal forms are
+ * ignored ("Utably GmbH" ↔ "Utably"); anything looser stays free text, and
+ * the user can still pick from the list by typing.
+ */
+export function matchingCompanySuggestion(name, rows) {
+  const key = companyMatchKey(name);
+  if (!key) return null;
+  for (const row of normalizeCompanySuggestions(rows)) {
+    if (row.domain && companyMatchKey(row.name) === key) return row;
+  }
+  return null;
+}

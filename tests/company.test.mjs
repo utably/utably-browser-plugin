@@ -11,6 +11,8 @@ import {
   normalizeCompanyQuery,
   normalizeCompanySuggestions,
   takeNamesToResolve,
+  companyMatchKey,
+  matchingCompanySuggestion,
 } from "../popup/company.js";
 
 test("normalizeCompanyQuery needs at least two characters after trimming", () => {
@@ -72,4 +74,24 @@ test("takeNamesToResolve asks each name once, in batches of at most 20", () => {
   assert.deepEqual(batches.map((b) => b.length), [20, 20, 5]);
   assert.equal(asked.size, 45);
   assert.deepEqual(takeNamesToResolve(names, asked), []);
+});
+
+test("companyMatchKey ignores legal forms, case, accents and punctuation", () => {
+  assert.equal(companyMatchKey("Utably GmbH"), "utably");
+  assert.equal(companyMatchKey("UTABLY UG (haftungsbeschränkt)"), "utably");
+  assert.equal(companyMatchKey("Peri-Werk A. Schwörer GmbH & Co. KG"), "peri werk a schworer");
+  assert.equal(companyMatchKey("Carglass® GmbH"), "carglass");
+  assert.equal(companyMatchKey("GmbH"), "");
+});
+
+test("matchingCompanySuggestion takes only a clear name match with a domain", () => {
+  const rows = [
+    { name: "Utably Labs", domain: "utablylabs.com" },
+    { name: "Utably", domain: "utably.com" },
+  ];
+  assert.deepEqual(matchingCompanySuggestion("Utably GmbH", rows), { name: "Utably", domain: "utably.com" });
+  assert.equal(matchingCompanySuggestion("Utably Consulting", rows), null);
+  assert.equal(matchingCompanySuggestion("Utably", [{ name: "Utably", domain: "" }]), null);
+  assert.equal(matchingCompanySuggestion("", rows), null);
+  assert.equal(matchingCompanySuggestion("Utably", null), null);
 });

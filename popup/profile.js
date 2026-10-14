@@ -1,12 +1,56 @@
 import { t } from "./i18n.js";
 import { trimOrEmpty } from "./dom.js";
 import { getActiveTab } from "./extraction.js";
+import { cleanCompanyDomain, normalizeCompanyName, takeNamesToResolve } from "./company.js";
+import { loadCachedCompanyLogo } from "./companyLogo.js";
 
 const MAX_EXPERIENCES = 5;
 const MAX_EDUCATION = 4;
 const MAX_SKILLS = 18;
 const MAX_LANGUAGES = 12;
 const MAX_CERTS = 20;
+
+// ---- Cached employer / school logos on the experience and education cards ----
+// Only from the server's logo cache, like the Saved list: an entry with a
+// stored domain loads its logo directly; an entry without one asks the
+// cache-only name lookup once per popup session. A miss shows nothing.
+const askedLogoNames = new Set();
+const resolvedLogoDomains = new Map(); // name -> domain ("" = none)
+
+function showLogo(slot, domain) {
+  loadCachedCompanyLogo(domain, { className: "role-logo-img" }).then((img) => {
+    if (!img || !slot.isConnected) return;
+    slot.replaceChildren(img);
+    slot.classList.remove("hidden");
+  });
+}
+
+function entryLogoSlot(domain, name) {
+  const slot = document.createElement("span");
+  slot.className = "role-logo hidden";
+  slot.setAttribute("aria-hidden", "true");
+  const host = cleanCompanyDomain(domain) || resolvedLogoDomains.get(normalizeCompanyName(name)) || "";
+  if (host) showLogo(slot, host);
+  else if (normalizeCompanyName(name)) slot.dataset.logoName = normalizeCompanyName(name);
+  return slot;
+}
+
+async function fillMissingEntryLogos(root) {
+  const slots = [...root.querySelectorAll(".role-logo[data-logo-name]")];
+  const batches = takeNamesToResolve(slots.map((slot) => slot.dataset.logoName), askedLogoNames);
+  for (const batch of batches) {
+    const response = await chrome.runtime
+      .sendMessage({ type: "UTABLY_COMPANY_RESOLVE_BATCH", names: batch })
+      .catch(() => null);
+    for (const name of batch) {
+      resolvedLogoDomains.set(name, cleanCompanyDomain(response?.resolved?.[name]?.domain));
+    }
+  }
+  for (const slot of slots) {
+    const domain = resolvedLogoDomains.get(slot.dataset.logoName);
+    if (domain) showLogo(slot, domain);
+  }
+}
 
 function escapeHtml(value) {
   const div = document.createElement("div");
@@ -247,6 +291,7 @@ function buildRoleCard(els, role) {
   title.className = "role-title";
   const titleText = role.title || role.position || "";
   title.textContent = titleText;
+  head.appendChild(entryLogoSlot(role.companyDomain, role.company));
   if (role.company) {
     const sub = document.createElement("span");
     sub.className = "role-sub";
@@ -437,6 +482,7 @@ function buildEducationCard(els, edu) {
   title.className = "role-title";
   const titleText = [edu.degree, edu.field].filter(Boolean).join(", ") || edu.course || edu.institution || "";
   title.textContent = titleText;
+  head.appendChild(entryLogoSlot(edu.institutionDomain, edu.institution));
   if (edu.degree && edu.institution) {
     const sub = document.createElement("span");
     sub.className = "role-sub";
@@ -985,6 +1031,7 @@ function renderProfileCard(els, profile) {
     for (const edu of education) body.appendChild(buildEducationCard(els, edu));
     sectionsRoot.appendChild(section);
   }
+  fillMissingEntryLogos(sectionsRoot).catch(() => {});
 
   // ---- Skills section (grouped) ----
   const hardSkills = (profile?.skills?.hard || []).slice(0, MAX_SKILLS);

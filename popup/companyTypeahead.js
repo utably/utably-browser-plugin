@@ -1,6 +1,8 @@
 import {
   cleanCompanyDomain,
   domainForCompanyValue,
+  matchingCompanySuggestion,
+  normalizeCompanyName,
   normalizeCompanyQuery,
   normalizeCompanySuggestions,
 } from "./company.js";
@@ -89,6 +91,36 @@ export function reconcileCompanyPick(els) {
   if (pick && !domainForCompanyValue(els.companyName?.value, pick)) {
     setPick(els, null);
   }
+}
+
+/**
+ * After Auto-fill wrote a company name, find its domain so the field shows
+ * the logo and the job is saved with it — what picking from the list does.
+ * The free cache lookup goes first; only a miss costs one search, and its
+ * result is used only when the names clearly match. The extracted text
+ * stays as it is; a later edit drops the domain as usual.
+ */
+let autoResolveSeq = 0;
+export async function autoResolveCompany(els) {
+  const name = normalizeCompanyName(els.companyName?.value);
+  const seq = ++autoResolveSeq;
+  if (name.length < 2 || domainForCompanyValue(els.companyName?.value, pick)) return;
+  const stillCurrent = () => seq === autoResolveSeq && normalizeCompanyName(els.companyName?.value) === name;
+
+  const cached = await chrome.runtime
+    .sendMessage({ type: "UTABLY_COMPANY_RESOLVE_BATCH", names: [name] })
+    .catch(() => null);
+  if (!stillCurrent()) return;
+  let domain = cleanCompanyDomain(cached?.resolved?.[name]?.domain);
+
+  if (!domain) {
+    const found = await chrome.runtime
+      .sendMessage({ type: "UTABLY_COMPANY_SEARCH", query: name, limit: SUGGESTION_LIMIT })
+      .catch(() => null);
+    if (!stillCurrent()) return;
+    domain = matchingCompanySuggestion(name, found?.suggestions)?.domain || "";
+  }
+  if (domain) setPick(els, { name: els.companyName.value, domain });
 }
 
 function isOpen(els) {

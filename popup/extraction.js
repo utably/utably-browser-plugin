@@ -1,6 +1,8 @@
 import { EXTRACTION_SCRIPT_FILES } from "./config.js";
 import { trimOrEmpty } from "./dom.js";
 import { reconcileCompanyPick } from "./companyTypeahead.js";
+import { writeJobLocation, writeJobLocationParts } from "./placesTypeahead.js";
+import { addressToJobLocation } from "./location.js";
 
 export async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -111,7 +113,11 @@ export async function extractIntoForm(els, setStatus) {
   els.jobTitle.value = result.title || "";
   els.companyName.value = result.company || "";
   reconcileCompanyPick(els);
-  els.location.value = result.location || "";
+  // Structured address from the page (JSON-LD) when there is one; the
+  // free text otherwise, split the same way.
+  const address = addressToJobLocation(result.address);
+  if (address) writeJobLocationParts(els, address);
+  else writeJobLocation(els, result.location || "");
   if (trimOrEmpty(result.recruiterName)) {
     els.recruiterName.value = result.recruiterName;
   }

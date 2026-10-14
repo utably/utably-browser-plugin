@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Utably Job Importer</title>
     <link rel="stylesheet" href="popup.css" />
+    <script src="popup/theme-boot.js"></script>
   </head>
   <body>
     <div class="app">
@@ -262,6 +263,15 @@
         </div>
 
         <div class="field">
+          <label class="label" for="themeSelect" data-i18n="settings.theme">Theme</label>
+          <select id="themeSelect">
+            <option value="system" data-i18n="settings.theme.system">System</option>
+            <option value="light" data-i18n="settings.theme.light">Light</option>
+            <option value="dark" data-i18n="settings.theme.dark">Dark</option>
+          </select>
+        </div>
+
+        <div class="field">
           <label class="label" for="languageSelect" data-i18n="settings.language">Language</label>
           <select id="languageSelect">
             <option value="auto" data-i18n="settings.language.auto">Auto (browser)</option>
@@ -418,7 +428,16 @@
           <input id="applicationDate" type="date" />
 
           <label class="label" data-i18n="preview.jobTitle">Job title</label>
-          <input id="jobTitle" type="text" data-i18n-placeholder="preview.jobTitle.placeholder" placeholder="e.g., Growth Analyst at Utably" />
+          <div class="company-field">
+            <input id="jobTitle" type="text" data-i18n-placeholder="preview.jobTitle.placeholder" placeholder="e.g., Growth Analyst at Utably" />
+            <ul
+              id="jobTitleSuggestions"
+              class="company-suggest hidden"
+              role="listbox"
+              data-i18n-aria-label="preview.jobTitle.suggestions"
+              aria-label="Matching job titles"
+            ></ul>
+          </div>
           <div id="jobTitleError" class="field-error hidden" role="alert"></div>
 
           <label class="label" for="companyName" data-i18n="preview.company">Company</label>
@@ -445,8 +464,72 @@
           </div>
           <div id="companyNameError" class="field-error hidden" role="alert"></div>
 
-          <label class="label" data-i18n="preview.location">Location</label>
-          <input id="location" type="text" data-i18n-placeholder="preview.location.placeholder" placeholder="e.g., Berlin, Germany" />
+          <label class="label" for="location" data-i18n="preview.location">Location</label>
+          <div class="location-row">
+            <div id="locationCountryField" class="company-field location-country">
+              <span id="locationCountryFlag" class="location-country-flag hidden" aria-hidden="true"></span>
+              <input
+                id="locationCountry"
+                type="text"
+                data-i18n-placeholder="preview.country.placeholder"
+                placeholder="Country"
+                data-i18n-aria-label="preview.country"
+                aria-label="Country"
+              />
+              <ul
+                id="locationCountrySuggestions"
+                class="company-suggest hidden"
+                role="listbox"
+                data-i18n-aria-label="preview.country.suggestions"
+                aria-label="Matching countries"
+              ></ul>
+            </div>
+            <div class="company-field location-city">
+              <input
+                id="location"
+                type="text"
+                data-i18n-placeholder="preview.location.placeholder"
+                placeholder="City, e.g. Berlin"
+              />
+              <ul
+                id="locationSuggestions"
+                class="company-suggest hidden"
+                role="listbox"
+                data-i18n-aria-label="preview.location.suggestions"
+                aria-label="Matching places"
+              ></ul>
+            </div>
+          </div>
+          <div class="location-row">
+            <div class="company-field location-street">
+              <input
+                id="locationStreet"
+                type="text"
+                data-i18n-placeholder="preview.street.placeholder"
+                placeholder="Street and number"
+                data-i18n-aria-label="preview.street"
+                aria-label="Street"
+              />
+              <ul
+                id="locationStreetSuggestions"
+                class="company-suggest hidden"
+                role="listbox"
+                data-i18n-aria-label="preview.street.suggestions"
+                aria-label="Matching addresses"
+              ></ul>
+            </div>
+            <input
+              id="locationZip"
+              class="location-zip"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              data-i18n-placeholder="preview.zip.placeholder"
+              placeholder="Postal code"
+              data-i18n-aria-label="preview.zip"
+              aria-label="Postal code"
+            />
+          </div>
 
           <label class="label" data-i18n="preview.recruiter">Recruiter name</label>
           <input id="recruiterName" type="text" data-i18n-placeholder="preview.recruiter.placeholder" placeholder="e.g., Alex Rivera (Utably)" />
@@ -551,9 +634,8 @@
           <div id="savedLoading" class="profile-loading hidden" data-i18n="saved.loading">Loading saved jobs…</div>
           <div id="savedError" class="notice notice-error hidden"></div>
           <div id="savedEmpty" class="no-results hidden">
-            <img class="no-results-bot" src="assets/bot_small_heart.webp" alt="" />
-            <div class="no-results-title" data-i18n="saved.emptyTitle">Nothing here yet</div>
-            <div data-i18n="saved.emptySub">Save a job from a posting page using the Import tab.</div>
+            <div id="savedEmptyTitle" class="no-results-title" data-i18n="saved.emptyTitle">Nothing here yet</div>
+            <div id="savedEmptySub" data-i18n="saved.emptySub">Save a job from a posting page using the Import tab.</div>
           </div>
           <div id="savedList" class="jobs-list"></div>
           <div class="row saved-actions">

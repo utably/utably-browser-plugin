@@ -8,6 +8,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Auto-fill finds the company's domain.** After Auto-fill writes a
+  company name, the popup asks the server's logo cache for its domain
+  (free) and, on a miss, runs one company search and takes the domain only
+  when the names match once legal forms are ignored ("Utably GmbH" ↔
+  "Utably"). The field then shows the logo and the job is saved with the
+  domain, as if the company had been picked from the list.
+- **Location: country, city, street, postal code.** The same four fields as
+  the app's job form. Country is a searchable field in English and German
+  ("german" or "deutsch" → Deutschland, with the flag). City and street
+  suggest from `/extension/places/suggest` (Amazon Location, inside the
+  picked country); picking a street (`/extension/places/place`) also fills
+  postal code, city and country. The job is sent with `locationCountry`,
+  `locationCity`, `locationZip`, `locationStreet` plus the readable line
+  "City, Country" in `location`.
+- **Auto-fill fills the location fields.** A page's structured address
+  (JSON-LD PostalAddress) fills all four fields directly; free text is
+  split into street, postal code, city and country ("Hauptstraße 1, 10115
+  Berlin, Deutschland"; "New York, NY 10001, USA"). Two-letter endings in
+  free text ("San Diego, CA") are not read as countries; regions are
+  dropped from the city.
+- **Job title suggestions** from our occupation list
+  (`/extension/list/occupations`), ranked like the app's title fields.
+- **Logos on Profile experience and education.** Employer and school logos
+  from the server's logo cache only — stored domains first, otherwise one
+  cache-only name lookup per session; a miss shows nothing.
+- **Profile documents without setup.** The Attachments list now shows all
+  of your uploads and your latest exports (server change); before, only
+  documents pinned in the app appeared, so it was usually empty.
+- **Saved: the status pill is a pill again.** It inherited the form fields'
+  full width and 44 px height and filled half the card.
+- **Locked FitCheck sections show the app's plan mark** (lock + "Boost")
+  instead of the old padlock artwork with "Basic" baked in; the fallback
+  upgrade copy no longer names Basic or Premium. `assets/lock-basic.svg`
+  removed.
+- **Dark mode: readable counts.** The count on the active (mint) filter pill
+  was near-black on a dark wash; counts and section counts now read
+  clearly on dark surfaces.
+- **Saved empty state:** the bot image is gone, the state is styled
+  (centred, muted), and the Archived filter has its own text.
+- **Theme setting: System (default), Light, Dark.** Applied before the
+  popup paints, so there is no flash; System keeps following the OS while
+  the popup is open. The dark styles moved from `prefers-color-scheme` to
+  `:root[data-theme="dark"]`.
+- **Archived jobs in Saved.** Jobs archived in the app (closed job search)
+  no longer appear under All or the status filters, and are not counted
+  there. An Archived pill (always shown, with its count) lists them.
+
 ## [0.18.1] — 2026-10-14
 
 ### Added

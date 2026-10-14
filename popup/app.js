@@ -17,10 +17,13 @@ import {
   refreshActiveTabContext,
 } from "./extraction.js";
 import { applyTranslations, getLocale, loadLocale, setLocalePreference, t } from "./i18n.js";
+import { readJobLocation, readJobLocationFields, refreshCountryLabel, wireLocationFields, writeJobLocation } from "./placesTypeahead.js";
+import { wireTitleTypeahead } from "./titleTypeahead.js";
 import { wireProfileTab, setActiveView, wirePrivacySettings } from "./profile.js";
 import { wireSavedTab } from "./saved.js";
 import {
   clearCompanyPick,
+  autoResolveCompany,
   currentCompanyDomain,
   reconcileCompanyPick,
   restoreCompanyPick,
@@ -67,6 +70,8 @@ function normalizeDraft(rawValue) {
       companyName: "",
       companyDomain: "",
       location: "",
+      locationStreet: "",
+      locationZip: "",
       recruiterName: "",
       jobText: "",
       jobUrl: "",
@@ -81,6 +86,8 @@ function normalizeDraft(rawValue) {
     companyName: trimOrEmpty(rawValue.companyName),
     companyDomain: trimOrEmpty(rawValue.companyDomain),
     location: trimOrEmpty(rawValue.location),
+    locationStreet: trimOrEmpty(rawValue.locationStreet),
+    locationZip: trimOrEmpty(rawValue.locationZip),
     recruiterName: trimOrEmpty(rawValue.recruiterName),
     jobText: trimOrEmpty(rawValue.jobText),
     jobUrl: trimOrEmpty(rawValue.jobUrl),
@@ -332,7 +339,9 @@ function buildDraftFromForm(els) {
     jobTitle: trimOrEmpty(els.jobTitle.value),
     companyName: trimOrEmpty(els.companyName.value),
     companyDomain: currentCompanyDomain(els),
-    location: trimOrEmpty(els.location.value),
+    location: readJobLocation(els),
+    locationStreet: readJobLocationFields(els).locationStreet,
+    locationZip: readJobLocationFields(els).locationZip,
     recruiterName: trimOrEmpty(els.recruiterName.value),
     jobText: trimOrEmpty(els.jobText.value),
     jobUrl: trimOrEmpty(els.jobUrl.value),
@@ -352,7 +361,9 @@ function applyDraftToForm(els, rawDraft) {
   } else {
     reconcileCompanyPick(els);
   }
-  els.location.value = draft.location || els.location.value;
+  if (draft.location || draft.locationStreet || draft.locationZip) {
+    writeJobLocation(els, draft.location, { street: draft.locationStreet, zip: draft.locationZip });
+  }
   els.recruiterName.value = draft.recruiterName || els.recruiterName.value;
   els.jobText.value = draft.jobText || els.jobText.value;
   els.jobUrl.value = draft.jobUrl || els.jobUrl.value;
@@ -690,7 +701,7 @@ function createAuthController(els, setStatusText) {
     els.jobTitle.value = "";
     els.companyName.value = "";
     clearCompanyPick(els);
-    els.location.value = "";
+    writeJobLocation(els, "");
     els.recruiterName.value = "";
     els.jobText.value = "";
     els.jobUrl.value = "";
@@ -770,7 +781,7 @@ async function shareToFriend(els, setStatusText) {
     jobTitle: trimOrEmpty(els.jobTitle.value),
     companyName: trimOrEmpty(els.companyName.value),
     jobUrl: trimOrEmpty(els.jobUrl.value),
-    location: trimOrEmpty(els.location.value),
+    location: readJobLocation(els),
     jobText: trimOrEmpty(els.jobText.value),
   };
   const response = await chrome.runtime.sendMessage({ type: "UTABLY_SHARE_DRAFT", posting });
@@ -799,7 +810,7 @@ async function resetForm(els, setStatusText) {
   els.jobTitle.value = "";
   els.companyName.value = "";
   clearCompanyPick(els);
-  els.location.value = "";
+  writeJobLocation(els, "");
   els.recruiterName.value = "";
   els.jobText.value = "";
   if (els.notes) els.notes.value = "";
@@ -818,7 +829,7 @@ async function clearFormAfterSave(els) {
   els.jobTitle.value = "";
   els.companyName.value = "";
   clearCompanyPick(els);
-  els.location.value = "";
+  writeJobLocation(els, "");
   els.recruiterName.value = "";
   els.jobText.value = "";
   els.jobUrl.value = "";
@@ -969,7 +980,7 @@ function createFitCheckController(els, setStatusText) {
       jobTitle: trimOrEmpty(els.jobTitle.value),
       companyName: trimOrEmpty(els.companyName.value),
       jobText: trimOrEmpty(els.jobText.value),
-      location: trimOrEmpty(els.location.value),
+      location: readJobLocation(els),
       jobUrl: trimOrEmpty(els.jobUrl.value),
     };
 
@@ -1006,10 +1017,14 @@ function createFitCheckController(els, setStatusText) {
   return { isFitCheckOpen, openFitCheck, closeFitCheck, runFitCheck, getCachedResult, clearCachedResult, checkHasCached };
 }
 
+// Lucide "lock" — the same glyph as the app's PlanMark.
+const PLAN_LOCK_SVG =
+  '<svg class="plan-mark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+
 function renderFitCheckResult(els, result) {
   const fitcheck = result?.insight || result || {};
   const insightsLocked = result?.insightsLocked === true;
-  const upgradeMessage = result?.upgradeMessage || "Upgrade to unlock detailed insights.";
+  const upgradeMessage = result?.upgradeMessage || t("fitcheck.upgradeMessage");
 
   // Traffic Light (always shown)
   const trafficLight = fitcheck.trafficLight || "good";
@@ -1029,15 +1044,13 @@ function renderFitCheckResult(els, result) {
     scoreValue.textContent = Math.round(score);
   }
 
-  // Helper to render locked section using the branded Utably lock SVG.
+  // Locked sections carry the app's plan mark: one lock and the name of the
+  // plan that opens them (Boost — the plan actually sold), never the old
+  // padlock artwork with "Basic" baked into it.
   // The whole overlay is itself a button — clicking anywhere on a locked
   // section sends the user to the plans page on whichever stage the plugin
   // is talking to. No content underneath is selectable (see popup.css for
   // the pointer-events / user-select rules on .fitcheck-locked).
-  const lockIconUrl = (() => {
-    try { return chrome.runtime.getURL("assets/lock-basic.svg"); }
-    catch { return "assets/lock-basic.svg"; }
-  })();
   const goToUpgrade = async () => {
     const base = getAppUrl(els).replace(/\/+$/u, "");
     await chrome.tabs.create({ url: `${base}/subscription/plans` });
@@ -1052,7 +1065,7 @@ function renderFitCheckResult(els, result) {
       overlay.className = "locked-overlay";
       overlay.setAttribute("aria-label", t("fitcheck.locked.text"));
       overlay.innerHTML = `
-        <img class="locked-icon" src="${lockIconUrl}" alt="" aria-hidden="true" />
+        <span class="plan-mark">${PLAN_LOCK_SVG}${escapeHtml(t("plan.boost"))}</span>
         <div class="locked-text">${escapeHtml(t("fitcheck.locked.text"))}</div>
       `;
       overlay.addEventListener("click", (e) => {
@@ -1356,7 +1369,7 @@ function wireListeners(els, auth, sidePanel) {
     setSendAvailability(els, duplicateGate);
     scheduleDuplicateCheck();
   });
-  for (const field of [els.applicationDate, els.location, els.recruiterName, els.jobText, els.notes]) {
+  for (const field of [els.applicationDate, els.location, els.locationCountry, els.locationStreet, els.locationZip, els.recruiterName, els.jobText, els.notes]) {
     field?.addEventListener("input", persistDraftSoon);
   }
   els.openDuplicateBtn.addEventListener("click", async () => {
@@ -1519,11 +1532,17 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   // Apply translations immediately when the user changes the language.
+  // The theme applies (and is kept) as soon as it is picked, like the language.
+  els.themeSelect?.addEventListener("change", () => {
+    globalThis.__utablyApplyTheme?.(els.themeSelect.value);
+  });
+
   els.languageSelect?.addEventListener("change", async () => {
     await setLocalePreference(els.languageSelect.value);
     applyTranslations(document);
     // Refresh dynamic strings.
     renderCaptureButton();
+    refreshCountryLabel(els);
     // FitCheck output is locale-bound. Drop the in-memory result so the next
     // click re-runs (or hits the new locale's storage cache).
     fitCheckController.clearCachedResult();
@@ -1543,6 +1562,8 @@ function wireListeners(els, auth, sidePanel) {
         const result = await extractIntoForm(els, setStatusText);
         setPreviewMeta(els, result);
         persistDraftSoon();
+        // The page only gave a name; find its domain (logo) like a pick would.
+        autoResolveCompany(els).then(persistDraftSoon, () => {});
         currentDuplicateMatch = null;
         duplicateGate.status = "unknown";
         duplicateGate.allowSend = false;
@@ -1832,6 +1853,8 @@ function wireListeners(els, auth, sidePanel) {
   wirePrivacySettings(els, { setStatusText });
 
   wireCompanyTypeahead(els);
+  wireLocationFields(els);
+  wireTitleTypeahead(els);
 
   wireSavedTab(els, {
     openInUtably: async (path) => {

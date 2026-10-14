@@ -1,6 +1,11 @@
 import { trimOrEmpty } from "./dom.js";
 import { getLocale } from "./i18n.js";
 import { currentCompanyDomain } from "./companyTypeahead.js";
+import { readJobLocation, readJobLocationFields } from "./placesTypeahead.js";
+
+function withoutEmpty(fields) {
+  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value));
+}
 
 const FITCHECK_CACHE_KEY = "utablyFitCheckCache";
 
@@ -135,7 +140,8 @@ export async function buildApplicationPayload(els) {
     status,
     jobUrl,
     jobText: trimOrEmpty(els.jobText.value),
-    location: trimOrEmpty(els.location.value) || undefined,
+    location: readJobLocation(els) || undefined,
+    ...withoutEmpty(readJobLocationFields(els)),
     recruiter: recruiterName ? { name: recruiterName } : undefined,
     fitAnalysis,
     interviewDates: [],

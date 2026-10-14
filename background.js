@@ -461,6 +461,83 @@ async function resolveCompaniesCacheOnly(names) {
   return json?.data && typeof json.data === "object" ? json.data : {};
 }
 
+// City suggestions for the location field (Amazon Location via our API).
+// Best-effort like the company search: any failure is an empty list.
+let placesSuggestController = null;
+
+async function suggestPlaces({ query, country, lang, limit, kind }) {
+  const q = trim(query);
+  if (q.length < 2) return [];
+  const auth = await getCompanyAuth();
+  if (!auth.token) return [];
+
+  placesSuggestController?.abort();
+  const controller = new AbortController();
+  placesSuggestController = controller;
+  const params = new URLSearchParams({
+    q,
+    limit: String(Math.min(Math.max(Number(limit) || 6, 1), 8)),
+    kind: kind === "address" ? "address" : "city",
+  });
+  const iso = trim(country).toUpperCase();
+  if (/^[A-Z]{2}$/.test(iso)) params.set("country", iso);
+  const language = trim(lang).toLowerCase();
+  if (/^[a-z]{2}$/.test(language)) params.set("lang", language);
+  try {
+    const res = await fetch(`${auth.settings.apiBase}/extension/places/suggest?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+      signal: controller.signal,
+    });
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => null);
+    return Array.isArray(json?.data) ? json.data : [];
+  } finally {
+    if (placesSuggestController === controller) placesSuggestController = null;
+  }
+}
+
+// A picked street → postal code, city, country (one lookup per pick).
+async function getPlaceDetails({ placeId, lang }) {
+  const id = trim(placeId);
+  if (!id || id.length > 2048) return null;
+  const auth = await getCompanyAuth();
+  if (!auth.token) return null;
+  const params = new URLSearchParams({ id });
+  const language = trim(lang).toLowerCase();
+  if (/^[a-z]{2}$/.test(language)) params.set("lang", language);
+  const res = await fetch(`${auth.settings.apiBase}/extension/places/place?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${auth.token}` },
+  });
+  if (!res.ok) return null;
+  const json = await res.json().catch(() => null);
+  return json?.data && typeof json.data === "object" ? json.data : null;
+}
+
+// Job title suggestions from our occupation list. The popup re-ranks them.
+let titleSuggestController = null;
+
+async function suggestJobTitles(query) {
+  const q = trim(query);
+  if (q.length < 2) return [];
+  const auth = await getCompanyAuth();
+  if (!auth.token) return [];
+  titleSuggestController?.abort();
+  const controller = new AbortController();
+  titleSuggestController = controller;
+  try {
+    const params = new URLSearchParams({ search: q, limit: "30" });
+    const res = await fetch(`${auth.settings.apiBase}/extension/list/occupations?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+      signal: controller.signal,
+    });
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => null);
+    return Array.isArray(json?.data) ? json.data.map((row) => ({ title: row?.title, altLabels: row?.altLabels })) : [];
+  } finally {
+    if (titleSuggestController === controller) titleSuggestController = null;
+  }
+}
+
 async function findDuplicateImport(candidate) {
   const settings = await getSettings();
   const token = await ensureAccessToken(settings);
@@ -981,6 +1058,8 @@ function normalizeDraft(rawValue) {
       jobTitle: "",
       companyName: "",
       location: "",
+      locationStreet: "",
+      locationZip: "",
       recruiterName: "",
       jobText: "",
       jobUrl: "",
@@ -993,6 +1072,8 @@ function normalizeDraft(rawValue) {
     jobTitle: trim(rawValue.jobTitle),
     companyName: trim(rawValue.companyName),
     location: trim(rawValue.location),
+    locationStreet: trim(rawValue.locationStreet),
+    locationZip: trim(rawValue.locationZip),
     recruiterName: trim(rawValue.recruiterName),
     jobText: trim(rawValue.jobText),
     jobUrl: trim(rawValue.jobUrl),
@@ -1152,6 +1233,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     searchCompanies(message.query, message.limit)
       .then((suggestions) => sendResponse({ ok: true, suggestions }))
       .catch((err) => sendResponse({ ok: false, aborted: err?.name === "AbortError", suggestions: [] }));
+    return true;
+  }
+
+  if (message?.type === "UTABLY_PLACES_SUGGEST") {
+    suggestPlaces(message)
+      .then((suggestions) => sendResponse({ ok: true, suggestions }))
+      .catch(() => sendResponse({ ok: false, suggestions: [] }));
+    return true;
+  }
+
+  if (message?.type === "UTABLY_PLACES_PLACE") {
+    getPlaceDetails(message)
+      .then((place) => sendResponse({ ok: Boolean(place), place }))
+      .catch(() => sendResponse({ ok: false, place: null }));
+    return true;
+  }
+
+  if (message?.type === "UTABLY_TITLE_SUGGEST") {
+    suggestJobTitles(message.query)
+      .then((titles) => sendResponse({ ok: true, titles }))
+      .catch(() => sendResponse({ ok: false, titles: [] }));
     return true;
   }
 

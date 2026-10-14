@@ -41,6 +41,9 @@ export async function loadSettings(els) {
   if (els.languageSelect) {
     els.languageSelect.value = await getLocalePreference();
   }
+  if (els.themeSelect) {
+    els.themeSelect.value = globalThis.__utablyThemePreference?.() || "system";
+  }
   updateStageSettingsUi(els);
 }
 
@@ -83,6 +86,7 @@ export async function saveSettings(els, setStatus) {
     await setLocalePreference(els.languageSelect.value);
     applyTranslations(document);
   }
+  if (els.themeSelect) globalThis.__utablyApplyTheme?.(els.themeSelect.value);
   setStatus(stageChanged ? t("settings.savedStageChanged") : t("settings.saved"));
   return { stageChanged };
 }

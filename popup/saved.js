@@ -13,7 +13,14 @@ const STATUS_META = {
   rejected:  { key: "rejected",  toneClass: "tone-saved" },
 };
 
-const FILTERS = ["all", "saved", "applied", "interview"];
+const FILTERS = ["all", "saved", "applied", "interview", "archived"];
+const EMPTY_COUNTS = { all: 0, saved: 0, applied: 0, interview: 0, archived: 0 };
+
+// Part of a closed job search (archived in the app). Archived jobs are out
+// of every other filter and count; only the Archived pill lists them.
+function isArchived(app) {
+  return app?.archived === true;
+}
 
 // ---- Deterministic logo tone — same company always renders the same color ----
 const LOGO_PALETTE = [
@@ -230,7 +237,7 @@ function normalizeStoredFitAnalysis(stored) {
     },
     insightsLocked,
     upgradeMessage: stored.upgradeMessage
-      || "Upgrade to Basic or Premium to unlock detailed insights on why this job fits you.",
+      || t("fitcheck.upgradeMessage"),
   };
 }
 
@@ -656,7 +663,12 @@ function buildCard(els, app, openInUtably) {
 function filteredApplications() {
   const q = currentQuery.trim().toLowerCase();
   return cachedApplications.filter((app) => {
-    if (currentFilter !== "all" && statusKey(app.status) !== currentFilter) return false;
+    if (currentFilter === "archived") {
+      if (!isArchived(app)) return false;
+    } else {
+      if (isArchived(app)) return false;
+      if (currentFilter !== "all" && statusKey(app.status) !== currentFilter) return false;
+    }
     if (q) {
       const haystack = [
         app.jobTitle,
@@ -672,8 +684,13 @@ function filteredApplications() {
 }
 
 function computeCounts() {
-  const counts = { all: cachedApplications.length, saved: 0, applied: 0, interview: 0 };
+  const counts = { ...EMPTY_COUNTS };
   for (const app of cachedApplications) {
+    if (isArchived(app)) {
+      counts.archived += 1;
+      continue;
+    }
+    counts.all += 1;
     const k = statusKey(app.status);
     if (counts[k] != null) counts[k] += 1;
   }
@@ -687,6 +704,11 @@ function renderList(els) {
   const visible = filteredApplications();
   els.savedList.replaceChildren();
   if (visible.length === 0) {
+    const archive = currentFilter === "archived";
+    const title = document.getElementById("savedEmptyTitle");
+    const sub = document.getElementById("savedEmptySub");
+    if (title) title.textContent = t(archive ? "saved.archivedEmptyTitle" : "saved.emptyTitle");
+    if (sub) sub.textContent = t(archive ? "saved.archivedEmptySub" : "saved.emptySub");
     els.savedEmpty?.classList.remove("hidden");
     return;
   }
@@ -716,7 +738,7 @@ export async function loadSavedApplications(els) {
       els.savedError.classList.remove("hidden");
     }
     cachedApplications = [];
-    renderFilters(els, { all: 0, saved: 0, applied: 0, interview: 0 });
+    renderFilters(els, EMPTY_COUNTS);
     renderList(els);
   } finally {
     els.savedLoading?.classList.add("hidden");
