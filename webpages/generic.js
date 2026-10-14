@@ -99,14 +99,20 @@
       document.title ||
       "";
 
-    const location =
-      flattenJobLocation(jobPosting?.jobLocation, normalize) ||
-      queryFirstText([
-        "[data-testid*='location']",
-        "[class*='location']",
-        "[data-test*='location']",
-        "li[class*='location']",
-      ]);
+    // The page's own location text when the structured data names no town
+    // (often just `addressCountry: "DE"`); the popup fills the gaps of the
+    // structured address from it.
+    const structuredLocation = flattenJobLocation(jobPosting?.jobLocation, normalize);
+    const hasTown = Boolean(structuredJobAddress(jobPosting?.jobLocation, normalize)?.addressLocality);
+    const pageLocation = hasTown
+      ? ""
+      : queryFirstText([
+          "[data-testid*='location']",
+          "[class*='location']",
+          "[data-test*='location']",
+          "li[class*='location']",
+        ]);
+    const location = (pageLocation && pageLocation.length <= 120 ? pageLocation : "") || structuredLocation;
 
     const recruiterName = queryFirstText([
       "[data-testid*='recruiter']",

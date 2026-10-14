@@ -32,7 +32,7 @@ test("country names, flags and codes from names", () => {
 test("parseJobLocation splits off a trailing country and keeps the rest", () => {
   assert.deepEqual(parseJobLocation("Berlin, Germany"), { city: "Berlin", country: "DE" });
   assert.deepEqual(parseJobLocation("Munich, Bavaria, Deutschland"), { city: "Munich", country: "DE" });
-  assert.deepEqual(parseJobLocation("Remote"), { city: "Remote", country: "" });
+  assert.deepEqual(parseJobLocation("Remote"), { city: "", country: "" });
   assert.deepEqual(parseJobLocation("Austin, TX"), { city: "Austin", country: "" });
   assert.deepEqual(parseJobLocation("Germany"), { city: "", country: "DE" });
   assert.deepEqual(parseJobLocation(""), { city: "", country: "" });
@@ -115,7 +115,7 @@ test("parseLocationText splits what job pages write into the four fields", () =>
     ["Hauptstraße 1, 10115 Berlin, Deutschland", { street: "Hauptstraße 1", zip: "10115", city: "Berlin", country: "DE" }],
     ["10115 Berlin", { street: "", zip: "10115", city: "Berlin", country: "" }],
     ["Berlin, Germany (Hybrid)", { street: "", zip: "", city: "Berlin", country: "DE" }],
-    ["Remote - Germany", { street: "", zip: "", city: "Remote", country: "DE" }],
+    ["Remote - Germany", { street: "", zip: "", city: "", country: "DE" }],
     ["New York, NY 10001, USA", { street: "", zip: "10001", city: "New York", country: "US" }],
     ["10 Downing Street, London SW1A 2AA, United Kingdom", { street: "10 Downing Street", zip: "SW1A 2AA", city: "London", country: "GB" }],
     ["San Diego, CA", { street: "", zip: "", city: "San Diego", country: "" }],
@@ -135,4 +135,51 @@ test("addressToJobLocation reads a schema.org PostalAddress", () => {
   assert.equal(addressToJobLocation({ addressCountry: "Germany" }).country, "DE");
   assert.equal(addressToJobLocation({}), null);
   assert.equal(addressToJobLocation(null), null);
+});
+
+test("a country is never the city: work modes dropped, country found in any position", () => {
+  const cases = {
+    "Germany · Remote": { city: "", country: "DE" },
+    "Deutschland, Hybrid": { city: "", country: "DE" },
+    "Remote, Germany": { city: "", country: "DE" },
+    "Bundesweit, Deutschland": { city: "", country: "DE" },
+    "Germany, Berlin": { city: "Berlin", country: "DE" },
+    "Deutschland / Berlin": { city: "Berlin", country: "DE" },
+    "Germany Remote": { city: "", country: "DE" },
+    "Hybrid Berlin": { city: "Berlin", country: "" },
+    "Turkey": { city: "", country: "TR" },
+    "Czech Republic": { city: "", country: "CZ" },
+    "USA - Remote": { city: "", country: "US" },
+    "Remote": { city: "", country: "" },
+  };
+  for (const [text, want] of Object.entries(cases)) {
+    const { city, country } = parseLocationText(text);
+    assert.deepEqual({ city, country }, want, text);
+  }
+});
+
+test("structured data with the country in addressLocality", () => {
+  assert.deepEqual(addressToJobLocation({ addressLocality: "Deutschland", addressCountry: "DE" }), {
+    street: "", zip: "", city: "", country: "DE",
+  });
+  assert.equal(addressToJobLocation({ addressLocality: "Germany" }).country, "DE");
+});
+
+test("a structured address with only a country takes the city from the page text", async () => {
+  const { mergeJobLocation } = await import("../popup/location.js");
+  assert.deepEqual(mergeJobLocation({ street: "", zip: "", city: "", country: "DE" }, "Berlin"), {
+    street: "", zip: "", city: "Berlin", country: "DE",
+  });
+  assert.deepEqual(mergeJobLocation(null, "10115 Berlin, Deutschland"), {
+    street: "", zip: "10115", city: "Berlin", country: "DE",
+  });
+  assert.equal(mergeJobLocation({ city: "München", country: "DE" }, "Berlin").city, "München");
+});
+
+test("a picked street suggestion's label fills street, postal code, town and country", async () => {
+  const { streetSuggestionParts } = await import("../popup/location.js");
+  assert.deepEqual(streetSuggestionParts("Landsberger Straße, 10249 Berlin, Deutschland"), {
+    street: "Landsberger Straße", zip: "10249", city: "Berlin", country: "DE",
+  });
+  assert.equal(streetSuggestionParts("Landsberger Allee 10, 10249 Berlin, Deutschland").street, "Landsberger Allee 10");
 });

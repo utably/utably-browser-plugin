@@ -24,6 +24,12 @@ const COUNTRY_ALIASES = {
   usa: "US", "u.s.": "US", "u.s.a.": "US", "united states of america": "US",
   uk: "GB", "u.k.": "GB", england: "GB", scotland: "GB", wales: "GB",
   uae: "AE", holland: "NL", "the netherlands": "NL",
+  "federal republic of germany": "DE", "bundesrepublik deutschland": "DE", brd: "DE",
+  "czech republic": "CZ", "tschechische republik": "CZ",
+  turkey: "TR", türkiye: "TR", turkiye: "TR",
+  korea: "KR", "south korea": "KR", "republic of korea": "KR", südkorea: "KR",
+  russia: "RU", "russian federation": "RU",
+  "great britain": "GB", großbritannien: "GB", grossbritannien: "GB",
 };
 
 const displayNamesCache = new Map();
@@ -88,7 +94,25 @@ const ZIP_FIRST = /^(\d{4,6}|[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2})\s+(.+)$/i; // "1
 const ZIP_LAST = /^(.+?)\s+(\d{5}(?:-\d{4})?|[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2})$/i; // "Austin 78701", "London SW1A 2AA"
 const STATE_CODE = /^[A-Z]{2,3}$/; // "NY 10001": the state, not the city
 const HOUSE_NUMBER = /(^\d+[a-z]?\s+\S)|(\S\s+\d+[a-z]?(?:[-/]\d+[a-z]?)?$)/i; // "10 Downing St", "Hauptstraße 1a"
-const PART_SEPARATORS = /\s*[,;|·]\s*|\s+[-–]\s+/;
+const PART_SEPARATORS = /\s*[,;|·/]\s*|\s+[-–]\s+/;
+// How or where-ish the job is worked, not a place: dropped from the text.
+const WORK_MODE_WORDS = [
+  "fully remote", "full remote", "100% remote", "remote first", "remote", "hybrid", "on-site", "onsite", "on site",
+  "home office", "homeoffice", "mobile arbeit", "mobiles arbeiten", "vor ort", "teilweise remote",
+  "bundesweit", "deutschlandweit", "nationwide", "worldwide", "weltweit", "anywhere",
+  "multiple locations", "mehrere standorte", "verschiedene standorte", "eu", "europe", "europa", "emea", "dach",
+];
+const WORK_MODES = WORK_MODE_WORDS.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+const WORK_MODE_PART = new RegExp(`^(?:${WORK_MODES})$`, "i");
+const WORK_MODE_EDGE = new RegExp(`^(?:${WORK_MODES})\\s+|\\s+(?:${WORK_MODES})$`, "i");
+
+/** "Germany Remote" → "Germany"; "Remote" → "". */
+function withoutWorkMode(part) {
+  let text = part.trim();
+  if (WORK_MODE_PART.test(text)) return "";
+  for (let i = 0; i < 2; i += 1) text = text.replace(WORK_MODE_EDGE, "").trim();
+  return WORK_MODE_PART.test(text) ? "" : text;
+}
 
 /**
  * A location as a job page writes it → { street, zip, city, country }.
@@ -103,17 +127,19 @@ export function parseLocationText(text, { allowCodes = false } = {}) {
   const empty = { street: "", zip: "", city: "", country: "" };
   const clean = String(text ?? "").replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
   if (!clean) return empty;
-  const parts = clean.split(PART_SEPARATORS).map((p) => p.trim()).filter(Boolean);
   const out = { ...empty };
-
   const asCountry = (part) => (part.length === 2 && !allowCodes ? "" : countryCodeFromText(part));
-  if (parts.length) {
-    const code = asCountry(parts[parts.length - 1]);
-    if (code) {
-      out.country = code;
-      parts.pop();
-    }
-  }
+  // Work modes go; a part naming a country is the country wherever it sits
+  // ("Germany, Berlin"), and is never kept as the city.
+  // A two-letter code only counts at the end ("Berlin, BE, 10115, DE": BE
+  // is the state).
+  const raws = clean.split(PART_SEPARATORS).map(withoutWorkMode).filter(Boolean);
+  const parts = [];
+  raws.forEach((part, index) => {
+    const code = part.length > 2 || index === raws.length - 1 ? asCountry(part) : "";
+    if (!code) parts.push(part);
+    else if (!out.country || index === raws.length - 1) out.country = code;
+  });
   if (!parts.length) return out;
   if (parts.length === 1 && !out.country) {
     const only = parts[0].match(ZIP_FIRST);
@@ -166,7 +192,25 @@ export function addressToJobLocation(address) {
     city: text(address.addressLocality ?? address.city),
     country,
   };
+  // Pages often put the country in addressLocality ("Deutschland").
+  const cityAsCountry = countryCodeFromText(out.city);
+  if (cityAsCountry && out.city.length > 2) {
+    out.city = "";
+    if (!out.country) out.country = cityAsCountry;
+  }
   return out.street || out.zip || out.city || out.country ? out : null;
+}
+
+/**
+ * A page's structured address with the gaps filled from its location text:
+ * `{ country: "DE" }` + "Berlin" → Berlin, Germany. Either may be missing.
+ */
+export function mergeJobLocation(address, text) {
+  const parsed = parseLocationText(text);
+  const base = address || {};
+  const out = {};
+  for (const field of ["street", "zip", "city", "country"]) out[field] = base[field] || parsed[field] || "";
+  return out;
 }
 
 /** { city, country } → "Berlin, Germany" (country named in `locale`). */
@@ -187,7 +231,9 @@ export function normalizeCitySuggestions(rows, fallbackCountry = "", limit = 6) 
     if (!label) continue;
     const parsed = parseJobLocation(label);
     const country = parsed.country || normalizeCountryCode(fallbackCountry);
-    const city = (String(row?.title ?? "").split(",")[0].trim() || parsed.city).replace(/^\d{3,}\s+/, "");
+    const fromTitle = String(row?.title ?? "").split(",")[0].trim().replace(/^\d{3,}\s+/, "");
+    // A title that names the country ("Deutschland, Berlin") is not the town.
+    const city = (fromTitle && !countryCodeFromText(fromTitle) ? fromTitle : parsed.city).replace(/^\d{3,}\s+/, "");
     if (!city) continue;
     const key = `${city.toLowerCase()}|${country}`;
     if (seen.has(key)) continue;
@@ -280,6 +326,18 @@ export function placeToJobLocation(place) {
     city: String(place.city ?? "").trim(),
     country: normalizeCountryCode(place.country),
   };
+}
+
+/**
+ * A street suggestion's label → its parts: the first part is the street
+ * ("Landsberger Straße" or "Landsberger Allee 10"), the rest postal code,
+ * town and country.
+ */
+export function streetSuggestionParts(label) {
+  const text = String(label ?? "").replace(/\s+/g, " ").trim();
+  const [first = "", ...rest] = text.split(/\s*,\s*/);
+  const parsed = parseLocationText(rest.join(", "));
+  return { street: first, zip: parsed.zip, city: parsed.city, country: parsed.country };
 }
 
 /** Server address suggestions → [{ placeId, label }]. */

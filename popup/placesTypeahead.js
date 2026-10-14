@@ -10,6 +10,7 @@ import {
   parseLocationText,
   placeToJobLocation,
   searchCountries,
+  streetSuggestionParts,
 } from "./location.js";
 import { wireTypeahead } from "./typeahead.js";
 
@@ -153,12 +154,12 @@ export function wireLocationFields(els) {
     idPrefix: "streetSuggestion-",
     minChars: 3,
     lookup: async (query) => {
-      const near = String(els.location?.value ?? "").trim();
       const response = await chrome.runtime
         .sendMessage({
           type: "UTABLY_PLACES_SUGGEST",
           kind: "address",
-          query: near ? `${query}, ${near}` : query,
+          query,
+          near: String(els.location?.value ?? "").trim(),
           country: countryCode,
           lang: locale(),
           limit: SUGGESTION_LIMIT,
@@ -170,19 +171,22 @@ export function wireLocationFields(els) {
       }));
     },
     onChoose: async (row) => {
+      // The picked line shows at once ("Landsberger Straße, 10249 Berlin,
+      // Deutschland"); the address details then fill in what it lacks.
+      const fromLabel = streetSuggestionParts(row.label);
+      els.locationStreet.value = fromLabel.street;
       const response = await chrome.runtime
         .sendMessage({ type: "UTABLY_PLACES_PLACE", placeId: row.placeId, lang: locale() })
         .catch(() => null);
-      const picked = placeToJobLocation(response?.place);
-      if (!picked) {
-        // No details: keep the line the user saw.
-        els.locationStreet.value = row.label.split(",")[0].trim();
-      } else {
-        if (picked.street) els.locationStreet.value = picked.street;
-        if (picked.zip && els.locationZip) els.locationZip.value = picked.zip;
-        if (picked.city && els.location) els.location.value = picked.city;
-        if (picked.country) setCountry(els, picked.country);
-      }
+      const picked = placeToJobLocation(response?.place) || {};
+      const street = picked.street || fromLabel.street;
+      const zip = picked.zip || fromLabel.zip;
+      const city = picked.city || fromLabel.city;
+      const country = picked.country || fromLabel.country;
+      if (street) els.locationStreet.value = street;
+      if (zip && els.locationZip) els.locationZip.value = zip;
+      if (city && els.location) els.location.value = city;
+      if (country) setCountry(els, country);
       notifyChange(els.locationStreet);
     },
   });

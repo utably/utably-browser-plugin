@@ -465,7 +465,7 @@ async function resolveCompaniesCacheOnly(names) {
 // Best-effort like the company search: any failure is an empty list.
 let placesSuggestController = null;
 
-async function suggestPlaces({ query, country, lang, limit, kind }) {
+async function suggestPlaces({ query, country, lang, limit, kind, near }) {
   const q = trim(query);
   if (q.length < 2) return [];
   const auth = await getCompanyAuth();
@@ -483,6 +483,9 @@ async function suggestPlaces({ query, country, lang, limit, kind }) {
   if (/^[A-Z]{2}$/.test(iso)) params.set("country", iso);
   const language = trim(lang).toLowerCase();
   if (/^[a-z]{2}$/.test(language)) params.set("lang", language);
+  // Streets inside this town (the server narrows to the town's area).
+  const town = trim(near).slice(0, 120);
+  if (kind === "address" && town) params.set("near", town);
   try {
     const res = await fetch(`${auth.settings.apiBase}/extension/places/suggest?${params.toString()}`, {
       headers: { Authorization: `Bearer ${auth.token}` },

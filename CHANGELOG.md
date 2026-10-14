@@ -66,6 +66,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer appear under All or the status filters, and are not counted
   there. An Archived pill (always shown, with its count) lists them.
 
+### Fixed
+- **City field filled with the country.** Job pages write "Germany ·
+  Remote", "Deutschland, Hybrid", "Germany, Berlin" or put "Deutschland" in
+  the structured address's city; all of these ended up in the city field.
+  Work modes (remote, hybrid, home office, bundesweit…) are now dropped, a
+  country name counts wherever it stands (two-letter codes only at the
+  end), more country spellings are known (Turkey, Czech Republic, Korea…),
+  and a country name never becomes the city.
+- **"Berlin" came out as only "Germany".** Pages whose structured data
+  publishes just the country (`addressCountry: "DE"`) lost the town: the
+  popup used the structured address alone. It now fills whatever the
+  structured address leaves empty from the location text, and the generic
+  reader takes the page's visible location text when the structured data
+  names no town. City suggestions whose title starts with the country
+  ("Deutschland, Berlin") show the town.
+- **Street pick kept the typed text.** Picking "Landsberger Straße" left
+  "Landsberg" in the field whenever the address lookup gave no street name.
+  The picked line now fills street, postal code, city and country at once;
+  the address details only add what the line lacks.
+- **Streets in the picked city.** The city went into the search text
+  ("Landsberger, Berlin"), so streets *named* after Berlin came up. The city
+  is now sent separately (`near`) and the server searches only around it.
+
 ## [0.18.1] — 2026-10-14
 
 ### Added
