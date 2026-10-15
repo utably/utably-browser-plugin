@@ -6,7 +6,6 @@ import {
   isWorkspaceMode,
   loadSettings,
   saveSettings,
-  toggleSettingsPanel,
   updateStageSettingsUi,
 } from "./settings.js";
 import { buildApplicationPayload } from "./payload.js";
@@ -18,8 +17,18 @@ import {
   refreshActiveTabContext,
 } from "./extraction.js";
 import { applyTranslations, getLocale, loadLocale, setLocalePreference, t } from "./i18n.js";
+import { readJobLocation, readJobLocationFields, refreshCountryLabel, wireLocationFields, writeJobLocation } from "./placesTypeahead.js";
+import { wireTitleTypeahead } from "./titleTypeahead.js";
 import { wireProfileTab, setActiveView, wirePrivacySettings } from "./profile.js";
 import { wireSavedTab } from "./saved.js";
+import {
+  clearCompanyPick,
+  autoResolveCompany,
+  currentCompanyDomain,
+  reconcileCompanyPick,
+  restoreCompanyPick,
+  wireCompanyTypeahead,
+} from "./companyTypeahead.js";
 
 const DRAFT_STORAGE_KEY = "utablyDraft";
 const CONNECT_PENDING_KEY = "utablyConnectPending";
@@ -59,7 +68,10 @@ function normalizeDraft(rawValue) {
       applicationDate: "",
       jobTitle: "",
       companyName: "",
+      companyDomain: "",
       location: "",
+      locationStreet: "",
+      locationZip: "",
       recruiterName: "",
       jobText: "",
       jobUrl: "",
@@ -72,7 +84,10 @@ function normalizeDraft(rawValue) {
     applicationDate: trimOrEmpty(rawValue.applicationDate),
     jobTitle: trimOrEmpty(rawValue.jobTitle),
     companyName: trimOrEmpty(rawValue.companyName),
+    companyDomain: trimOrEmpty(rawValue.companyDomain),
     location: trimOrEmpty(rawValue.location),
+    locationStreet: trimOrEmpty(rawValue.locationStreet),
+    locationZip: trimOrEmpty(rawValue.locationZip),
     recruiterName: trimOrEmpty(rawValue.recruiterName),
     jobText: trimOrEmpty(rawValue.jobText),
     jobUrl: trimOrEmpty(rawValue.jobUrl),
@@ -93,6 +108,196 @@ function setSelectedKind(els, kind) {
     const isActive = btn.dataset.kind === next;
     btn.classList.toggle("is-active", isActive);
     btn.setAttribute("aria-checked", isActive ? "true" : "false");
+  });
+  // "Applied day" only makes sense once the user says they applied. The
+  // payload still sends a date either way (see buildPayload) — this only
+  // hides the input.
+  const showAppliedDay = next === "Applied";
+  els.applicationDateLabel?.classList.toggle("hidden", !showAppliedDay);
+  els.applicationDate?.classList.toggle("hidden", !showAppliedDay);
+}
+
+// Which of the three top-level surfaces is on screen. Settings is a page in
+// its own right, not an overlay: it replaces the connect gate or the tabbed
+// content instead of stacking above them. The header stays put so the
+// account menu and Privacy remain reachable from it.
+let authConnected = false;
+let settingsOpen = false;
+
+function applyShell(els) {
+  els.settings.classList.toggle("hidden", !settingsOpen);
+  els.authGate.classList.toggle("hidden", settingsOpen || authConnected);
+  els.appContent.classList.toggle("hidden", settingsOpen || !authConnected);
+  // The menu stays available when signed out: it is the only way into
+  // Settings, and the stage switcher is needed *before* connecting. Only
+  // Logout is gated on being connected.
+}
+
+function setSettingsOpen(els, open) {
+  settingsOpen = open;
+  applyShell(els);
+  if (open) els.settings.querySelector("h2, .settings-title")?.focus?.();
+}
+
+// The neutral avatar mark ships in popup.html. We keep a detached clone of
+// it so it can be restored later without an `innerHTML` assignment, which
+// AMO review flags (UNSAFE_VAR_ASSIGNMENT) even for static strings.
+let accountGlyphNode = null;
+
+// Draws the header avatar from the session profile cache. Deliberately a
+// peek, never a fetch: opening the popup on a job page must not pull
+// profile data as a side effect of rendering chrome. Cold cache (or signed
+// out) just shows the neutral glyph, and it fills in once the user visits
+// the Profile tab or runs a fill.
+async function renderAccountAvatar(els, knownProfile) {
+  const face = els.accountAvatar;
+  if (!face) return;
+
+  // The glyph ships in the markup, so the avatar is never an empty circle
+  // before this runs. Stash it on the first pass; showGlyph() only matters
+  // if an image is attempted later and fails.
+  if (!accountGlyphNode) {
+    const svg = face.querySelector("svg");
+    if (svg) accountGlyphNode = svg.cloneNode(true);
+  }
+  const showGlyph = () => {
+    if (accountGlyphNode) face.replaceChildren(accountGlyphNode.cloneNode(true));
+    else face.replaceChildren();
+    face.classList.add("is-glyph");
+  };
+
+  let profile = knownProfile || null;
+  if (!profile) {
+    try {
+      // Cheap path first: the session cache, no network.
+      const peek = await chrome.runtime.sendMessage({ type: "UTABLY_PEEK_PROFILE" });
+      profile = peek?.ok ? peek.profile : null;
+
+      // Cold cache (first popup of the browser session). Load the profile
+      // so the avatar is right straight away instead of only after a visit
+      // to the Profile tab. `forceRefresh: false` means this reuses the
+      // 5-minute cache, so it is at most one request per 5 minutes of use,
+      // and only ever while signed in. Disclosed in the privacy modal.
+      if (!profile) {
+        const res = await chrome.runtime.sendMessage({ type: "UTABLY_GET_PROFILE" });
+        profile = res?.ok ? res.profile : null;
+      }
+    } catch {
+      return; // service worker asleep, offline, or signed out — glyph stands.
+    }
+  }
+  if (!profile) return;
+
+  const c = profile.contact || {};
+  const fullName = [c.firstName, c.middleName, c.lastName].filter(Boolean).join(" ");
+  const initials = [c.firstName, c.lastName]
+    .filter(Boolean)
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  if (els.accountMenuName) {
+    els.accountMenuName.textContent = fullName || c.email || "";
+    els.accountMenuName.classList.toggle("hidden", !(fullName || c.email));
+  }
+  if (els.accountMenuBtn && fullName) {
+    els.accountMenuBtn.setAttribute("aria-label", `${t("header.account")} — ${fullName}`);
+  }
+
+  const showInitials = () => {
+    face.replaceChildren();
+    face.textContent = initials;
+    face.classList.remove("is-glyph");
+  };
+
+  if (c.photoUrl) {
+    const img = document.createElement("img");
+    img.alt = "";
+    // Presigned S3 URLs reject requests that carry a Referer, and they
+    // expire. Same handling as the profile card's avatar: attach now, swap
+    // back on error rather than waiting for a load that may never fire.
+    img.referrerPolicy = "no-referrer";
+    img.addEventListener("error", () => (initials ? showInitials() : showGlyph()), { once: true });
+    img.src = c.photoUrl;
+    face.replaceChildren(img);
+    face.classList.remove("is-glyph");
+  } else if (initials) {
+    showInitials();
+  }
+}
+
+// Shared popup-menu behaviour: the "⋯" overflow in the import action bar
+// and the account menu behind the header avatar. Menu items keep whatever
+// ids they had before they moved in here, so their own click listeners are
+// untouched — this only handles open/close and keyboard navigation.
+function wireMenu(trigger, panel) {
+  if (!trigger || !panel) return;
+
+  const items = () =>
+    Array.from(panel.querySelectorAll('[role="menuitem"]')).filter((el) => !el.disabled);
+
+  const isOpen = () => !panel.classList.contains("hidden");
+
+  function open(focusFirst) {
+    panel.classList.remove("hidden");
+    trigger.setAttribute("aria-expanded", "true");
+    if (focusFirst) items()[0]?.focus();
+  }
+
+  function close({ restoreFocus = false } = {}) {
+    if (!isOpen()) return;
+    panel.classList.add("hidden");
+    trigger.setAttribute("aria-expanded", "false");
+    if (restoreFocus) trigger.focus();
+  }
+
+  trigger.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (isOpen()) close();
+    else open(false);
+  });
+
+  trigger.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      open(true);
+    }
+  });
+
+  // Roving focus inside the menu.
+  panel.addEventListener("keydown", (event) => {
+    const list = items();
+    const index = list.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close({ restoreFocus: true });
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      list[(index + 1) % list.length]?.focus();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      list[(index - 1 + list.length) % list.length]?.focus();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      list[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      list[list.length - 1]?.focus();
+    } else if (event.key === "Tab") {
+      close();
+    }
+  });
+
+  // Picking an action dismisses the menu; the action's own listener runs.
+  panel.addEventListener("click", (event) => {
+    if (event.target.closest('[role="menuitem"]')) close();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!isOpen()) return;
+    if (panel.contains(event.target) || trigger.contains(event.target)) return;
+    close();
   });
 }
 
@@ -133,7 +338,10 @@ function buildDraftFromForm(els) {
     applicationDate: trimOrEmpty(els.applicationDate.value),
     jobTitle: trimOrEmpty(els.jobTitle.value),
     companyName: trimOrEmpty(els.companyName.value),
-    location: trimOrEmpty(els.location.value),
+    companyDomain: currentCompanyDomain(els),
+    location: readJobLocation(els),
+    locationStreet: readJobLocationFields(els).locationStreet,
+    locationZip: readJobLocationFields(els).locationZip,
     recruiterName: trimOrEmpty(els.recruiterName.value),
     jobText: trimOrEmpty(els.jobText.value),
     jobUrl: trimOrEmpty(els.jobUrl.value),
@@ -148,7 +356,14 @@ function applyDraftToForm(els, rawDraft) {
   els.applicationDate.value = draft.applicationDate || els.applicationDate.value || new Date().toISOString().slice(0, 10);
   els.jobTitle.value = draft.jobTitle || els.jobTitle.value;
   els.companyName.value = draft.companyName || els.companyName.value;
-  els.location.value = draft.location || els.location.value;
+  if (draft.companyName) {
+    restoreCompanyPick(els, draft.companyName, draft.companyDomain);
+  } else {
+    reconcileCompanyPick(els);
+  }
+  if (draft.location || draft.locationStreet || draft.locationZip) {
+    writeJobLocation(els, draft.location, { street: draft.locationStreet, zip: draft.locationZip });
+  }
   els.recruiterName.value = draft.recruiterName || els.recruiterName.value;
   els.jobText.value = draft.jobText || els.jobText.value;
   els.jobUrl.value = draft.jobUrl || els.jobUrl.value;
@@ -328,9 +543,10 @@ function createAuthController(els, setStatusText) {
     const connected = Boolean(response?.ok && response?.connected);
     if (!connected) setPreviewMeta(els, null);
 
-    els.authGate.classList.toggle("hidden", connected);
-    els.appContent.classList.toggle("hidden", !connected);
+    authConnected = connected;
+    applyShell(els);
     els.logoutBtn.classList.toggle("hidden", !connected);
+    if (connected) renderAccountAvatar(els);
 
     if (connected) {
       hideManualCodeFallback();
@@ -484,7 +700,8 @@ function createAuthController(els, setStatusText) {
     els.applicationDate.value = new Date().toISOString().slice(0, 10);
     els.jobTitle.value = "";
     els.companyName.value = "";
-    els.location.value = "";
+    clearCompanyPick(els);
+    writeJobLocation(els, "");
     els.recruiterName.value = "";
     els.jobText.value = "";
     els.jobUrl.value = "";
@@ -551,6 +768,38 @@ async function sendApplication(els, setStatusText) {
   };
 }
 
+/**
+ * Pass this posting to a friend without saving it as an application.
+ *
+ * Only the posting itself travels — no notes, recruiter or FitCheck, which is
+ * exactly what a job tip is allowed to carry. The plugin parks it and hands
+ * off to the web app; recipients are picked there, under the real session.
+ */
+async function shareToFriend(els, setStatusText) {
+  setStatusText(t("actions.sharing"), "info");
+  const posting = {
+    jobTitle: trimOrEmpty(els.jobTitle.value),
+    companyName: trimOrEmpty(els.companyName.value),
+    jobUrl: trimOrEmpty(els.jobUrl.value),
+    location: readJobLocation(els),
+    jobText: trimOrEmpty(els.jobText.value),
+  };
+  const response = await chrome.runtime.sendMessage({ type: "UTABLY_SHARE_DRAFT", posting });
+  if (!response?.ok) {
+    const err = new Error(response?.error || "Failed to prepare the share.");
+    err.code = response?.code || "";
+    err.details = response?.details || null;
+    throw err;
+  }
+  // Build the link plugin-side for the same reason the save path does: the
+  // lambda's APP_BASE_URL doesn't know about a locally configured stage port.
+  const base = getAppUrl(els).replace(/\/+$/u, "");
+  await chrome.tabs.create({
+    url: `${base}/friends/share?draft=${encodeURIComponent(response.draftId)}`,
+  });
+  setStatusText(t("status.shareOpened"), "info");
+}
+
 async function resetForm(els, setStatusText) {
   clearValidationErrors(els);
   setPreviewMeta(els, null);
@@ -560,7 +809,8 @@ async function resetForm(els, setStatusText) {
   els.applicationDate.value = new Date().toISOString().slice(0, 10);
   els.jobTitle.value = "";
   els.companyName.value = "";
-  els.location.value = "";
+  clearCompanyPick(els);
+  writeJobLocation(els, "");
   els.recruiterName.value = "";
   els.jobText.value = "";
   if (els.notes) els.notes.value = "";
@@ -578,7 +828,8 @@ async function clearFormAfterSave(els) {
   els.applicationDate.value = new Date().toISOString().slice(0, 10);
   els.jobTitle.value = "";
   els.companyName.value = "";
-  els.location.value = "";
+  clearCompanyPick(els);
+  writeJobLocation(els, "");
   els.recruiterName.value = "";
   els.jobText.value = "";
   els.jobUrl.value = "";
@@ -729,7 +980,7 @@ function createFitCheckController(els, setStatusText) {
       jobTitle: trimOrEmpty(els.jobTitle.value),
       companyName: trimOrEmpty(els.companyName.value),
       jobText: trimOrEmpty(els.jobText.value),
-      location: trimOrEmpty(els.location.value),
+      location: readJobLocation(els),
       jobUrl: trimOrEmpty(els.jobUrl.value),
     };
 
@@ -766,10 +1017,14 @@ function createFitCheckController(els, setStatusText) {
   return { isFitCheckOpen, openFitCheck, closeFitCheck, runFitCheck, getCachedResult, clearCachedResult, checkHasCached };
 }
 
+// Lucide "lock" — the same glyph as the app's PlanMark.
+const PLAN_LOCK_SVG =
+  '<svg class="plan-mark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+
 function renderFitCheckResult(els, result) {
   const fitcheck = result?.insight || result || {};
   const insightsLocked = result?.insightsLocked === true;
-  const upgradeMessage = result?.upgradeMessage || "Upgrade to unlock detailed insights.";
+  const upgradeMessage = result?.upgradeMessage || t("fitcheck.upgradeMessage");
 
   // Traffic Light (always shown)
   const trafficLight = fitcheck.trafficLight || "good";
@@ -789,15 +1044,13 @@ function renderFitCheckResult(els, result) {
     scoreValue.textContent = Math.round(score);
   }
 
-  // Helper to render locked section using the branded Utably lock SVG.
+  // Locked sections carry the app's plan mark: one lock and the name of the
+  // plan that opens them (Boost — the plan actually sold), never the old
+  // padlock artwork with "Basic" baked into it.
   // The whole overlay is itself a button — clicking anywhere on a locked
   // section sends the user to the plans page on whichever stage the plugin
   // is talking to. No content underneath is selectable (see popup.css for
   // the pointer-events / user-select rules on .fitcheck-locked).
-  const lockIconUrl = (() => {
-    try { return chrome.runtime.getURL("assets/lock-basic.svg"); }
-    catch { return "assets/lock-basic.svg"; }
-  })();
   const goToUpgrade = async () => {
     const base = getAppUrl(els).replace(/\/+$/u, "");
     await chrome.tabs.create({ url: `${base}/subscription/plans` });
@@ -812,7 +1065,7 @@ function renderFitCheckResult(els, result) {
       overlay.className = "locked-overlay";
       overlay.setAttribute("aria-label", t("fitcheck.locked.text"));
       overlay.innerHTML = `
-        <img class="locked-icon" src="${lockIconUrl}" alt="" aria-hidden="true" />
+        <span class="plan-mark">${PLAN_LOCK_SVG}${escapeHtml(t("plan.boost"))}</span>
         <div class="locked-text">${escapeHtml(t("fitcheck.locked.text"))}</div>
       `;
       overlay.addEventListener("click", (e) => {
@@ -1116,7 +1369,7 @@ function wireListeners(els, auth, sidePanel) {
     setSendAvailability(els, duplicateGate);
     scheduleDuplicateCheck();
   });
-  for (const field of [els.applicationDate, els.location, els.recruiterName, els.jobText, els.notes]) {
+  for (const field of [els.applicationDate, els.location, els.locationCountry, els.locationStreet, els.locationZip, els.recruiterName, els.jobText, els.notes]) {
     field?.addEventListener("input", persistDraftSoon);
   }
   els.openDuplicateBtn.addEventListener("click", async () => {
@@ -1126,7 +1379,8 @@ function wireListeners(els, auth, sidePanel) {
     await chrome.tabs.create({ url });
   });
 
-  els.toggleSettings.addEventListener("click", () => toggleSettingsPanel(els));
+  els.toggleSettings.addEventListener("click", () => setSettingsOpen(els, !settingsOpen));
+  els.closeSettingsBtn?.addEventListener("click", () => setSettingsOpen(els, false));
   els.openPrivacyBtn.addEventListener("click", openPrivacy);
   els.closePrivacyBtn.addEventListener("click", closePrivacy);
   els.privacyModal.addEventListener("click", (event) => {
@@ -1278,11 +1532,17 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   // Apply translations immediately when the user changes the language.
+  // The theme applies (and is kept) as soon as it is picked, like the language.
+  els.themeSelect?.addEventListener("change", () => {
+    globalThis.__utablyApplyTheme?.(els.themeSelect.value);
+  });
+
   els.languageSelect?.addEventListener("change", async () => {
     await setLocalePreference(els.languageSelect.value);
     applyTranslations(document);
     // Refresh dynamic strings.
     renderCaptureButton();
+    refreshCountryLabel(els);
     // FitCheck output is locale-bound. Drop the in-memory result so the next
     // click re-runs (or hits the new locale's storage cache).
     fitCheckController.clearCachedResult();
@@ -1302,6 +1562,8 @@ function wireListeners(els, auth, sidePanel) {
         const result = await extractIntoForm(els, setStatusText);
         setPreviewMeta(els, result);
         persistDraftSoon();
+        // The page only gave a name; find its domain (logo) like a pick would.
+        autoResolveCompany(els).then(persistDraftSoon, () => {});
         currentDuplicateMatch = null;
         duplicateGate.status = "unknown";
         duplicateGate.allowSend = false;
@@ -1339,6 +1601,20 @@ function wireListeners(els, auth, sidePanel) {
       }).catch((error) => {
         setStatusText(error?.message || "Reset failed.", "error");
       });
+    });
+  });
+
+  els.shareFriend?.addEventListener("click", () => {
+    withBusyButton(els.shareFriend, t("actions.sharing"), async () => {
+      if (!validateRequiredFields(els)) {
+        setStatusText(t("errors.requiredFields"), "error");
+        return;
+      }
+      // No duplicate gate here: a tip is not an application, so it can't
+      // collide with one already in the user's list.
+      await shareToFriend(els, setStatusText);
+    }).catch((error) => {
+      setStatusText(error?.message || "Failed to prepare the share.", "error");
     });
   });
 
@@ -1398,6 +1674,15 @@ function wireListeners(els, auth, sidePanel) {
       setSelectedKind(els, btn.dataset.kind);
       persistDraftSoon();
     });
+  });
+
+  wireMenu(els.moreMenuBtn, els.moreMenu);
+  wireMenu(els.accountMenuBtn, els.accountMenu);
+
+  // The header avatar is drawn once at startup from a cache that is usually
+  // cold. Redraw it whenever the profile actually arrives.
+  document.addEventListener("utably:profile-loaded", (event) => {
+    renderAccountAvatar(els, event.detail?.profile);
   });
 
   // Save success notice actions
@@ -1566,6 +1851,10 @@ function wireListeners(els, auth, sidePanel) {
   });
 
   wirePrivacySettings(els, { setStatusText });
+
+  wireCompanyTypeahead(els);
+  wireLocationFields(els);
+  wireTitleTypeahead(els);
 
   wireSavedTab(els, {
     openInUtably: async (path) => {

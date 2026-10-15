@@ -8,6 +8,223 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Attachments laid out like the app's /utably-editor library.** Profile →
+  Attachments lists each master (favourites first, then the most recently
+  opened or edited) with "Used for N applications"; opening a master shows
+  its CV, cover letter and appendix, and under it one row per application
+  ("Utably · Engineer", in progress / not adjusted yet / sent) that opens
+  to that version's files. Archived applications' versions stay behind
+  "Show N archived" per master. Uploads (certificates, reports, job
+  references) sit in their own row at the end. A search field filters by
+  master name, company or role (and finds archived versions). Every master
+  and version has an edit button that opens it in the Utably editor
+  (`/editor/<master>` / `?for=<application>`). A master without a PDF says
+  so. Files are named readably for downloads and form uploads. The
+  structure comes from the server's new `library`; an older server still
+  shows its files, grouped by master (`popup/documents.js`, with tests).
+  Masters deleted in the app no longer appear, although their old PDFs
+  are still stored.
+  Each master shows page 1 of its CV (the picture the app's library made;
+  else its cover letter's), and each version its company's logo, from the
+  server's logo cache only; without either the icon stays.
+- **Auto-fill finds the company's domain.** After Auto-fill writes a
+  company name, the popup asks the server's logo cache for its domain
+  (free) and, on a miss, runs one company search and takes the domain only
+  when the names match once legal forms are ignored ("Utably GmbH" ↔
+  "Utably"). The field then shows the logo and the job is saved with the
+  domain, as if the company had been picked from the list.
+- **Location: country, city, street, postal code.** The same four fields as
+  the app's job form. Country is a searchable field in English and German
+  ("german" or "deutsch" → Deutschland, with the flag). City and street
+  suggest from `/extension/places/suggest` (Amazon Location, inside the
+  picked country); picking a street (`/extension/places/place`) also fills
+  postal code, city and country. The job is sent with `locationCountry`,
+  `locationCity`, `locationZip`, `locationStreet` plus the readable line
+  "City, Country" in `location`.
+- **Auto-fill fills the location fields.** A page's structured address
+  (JSON-LD PostalAddress) fills all four fields directly; free text is
+  split into street, postal code, city and country ("Hauptstraße 1, 10115
+  Berlin, Deutschland"; "New York, NY 10001, USA"). Two-letter endings in
+  free text ("San Diego, CA") are not read as countries; regions are
+  dropped from the city.
+- **Job title suggestions** from our occupation list
+  (`/extension/list/occupations`), ranked like the app's title fields.
+- **Logos on Profile experience and education.** Employer and school logos
+  from the server's logo cache only — stored domains first, otherwise one
+  cache-only name lookup per session; a miss shows nothing.
+- **Profile documents without setup.** The Attachments list now shows all
+  of your uploads and your latest exports (server change); before, only
+  documents pinned in the app appeared, so it was usually empty.
+- **Saved: the status pill is a pill again.** It inherited the form fields'
+  full width and 44 px height and filled half the card.
+- **Locked FitCheck sections show the app's plan mark** (lock + "Boost")
+  instead of the old padlock artwork with "Basic" baked in; the fallback
+  upgrade copy no longer names Basic or Premium. `assets/lock-basic.svg`
+  removed.
+- **Dark mode: readable counts.** The count on the active (mint) filter pill
+  was near-black on a dark wash; counts and section counts now read
+  clearly on dark surfaces. The fit score badges on Saved cards (e.g. 62) kept
+  their light-mode fill with dark digits; on dark they are now a tint of
+  the level's colour with bright digits.
+- **Saved empty state:** the bot image is gone, the state is styled
+  (centred, muted), and the Archived filter has its own text.
+- **Theme setting: System (default), Light, Dark.** Applied before the
+  popup paints, so there is no flash; System keeps following the OS while
+  the popup is open. The dark styles moved from `prefers-color-scheme` to
+  `:root[data-theme="dark"]`.
+- **Archived jobs in Saved.** Jobs archived in the app (closed job search)
+  no longer appear under All or the status filters, and are not counted
+  there. An Archived pill (always shown, with its count) lists them.
+
+### Fixed
+- **City field filled with the country.** Job pages write "Germany ·
+  Remote", "Deutschland, Hybrid", "Germany, Berlin" or put "Deutschland" in
+  the structured address's city; all of these ended up in the city field.
+  Work modes (remote, hybrid, home office, bundesweit…) are now dropped, a
+  country name counts wherever it stands (two-letter codes only at the
+  end), more country spellings are known (Turkey, Czech Republic, Korea…),
+  and a country name never becomes the city.
+- **"Berlin" came out as only "Germany".** Pages whose structured data
+  publishes just the country (`addressCountry: "DE"`) lost the town: the
+  popup used the structured address alone. It now fills whatever the
+  structured address leaves empty from the location text, and the generic
+  reader takes the page's visible location text when the structured data
+  names no town. City suggestions whose title starts with the country
+  ("Deutschland, Berlin") show the town.
+- **Street pick kept the typed text.** Picking "Landsberger Straße" left
+  "Landsberg" in the field whenever the address lookup gave no street name.
+  The picked line now fills street, postal code, city and country at once;
+  the address details only add what the line lacks.
+- **Streets in the picked city.** The city went into the search text
+  ("Landsberger, Berlin"), so streets *named* after Berlin came up. The city
+  is now sent separately (`near`) and the server searches only around it.
+
+## [0.18.1] — 2026-10-14
+
+### Added
+- **Company typeahead on the capture form.** Typing two or more characters
+  in Company suggests matching companies (name + domain) from
+  `/extension/company/search`, debounced 300 ms, stale answers dropped.
+  Arrow keys, Enter, Escape and mouse all work; the field is an ARIA
+  combobox. Picking one remembers its domain and sends it as
+  `companyDomain` with the import; editing the text away from the picked
+  name turns it back into free text with no domain. The domain survives
+  drafts, and is cleared on reset, save and logout. No empty-result or
+  error state — no suggestions simply means no list.
+- **Cached company logos.** The picked company shows its logo inside the
+  field, and Saved cards show one in place of the letter badge — only
+  from the server's logo cache (`favicon?src=cache`); a miss keeps the
+  badge, so the plugin never triggers a new logo fetch. Saved rows without
+  a stored `companyDomain` are resolved cache-only via
+  `/extension/company/resolve-batch`, each name at most once per session.
+
+## [0.18.0] — 2026-09-22
+
+### Added
+- **Brand fonts are now bundled.** `popup.css` had always named
+  `Red Hat Display` and `Spectral`, but neither was ever shipped — no
+  `@font-face`, no font files. Red Hat Display only rendered for people
+  who happened to have it installed locally; Spectral never rendered for
+  anyone. The latin `woff2` subsets now ship in `assets/fonts/`
+  (400/500/600/700/800 sans, 600 serif, ~104 KB total), taken from
+  `@fontsource` under the SIL OFL 1.1. Attributions in `NOTICE`.
+- **Account menu in the header.** An avatar opens a menu holding Settings
+  and Log out. The avatar draws from the profile — photo, else initials,
+  else a neutral glyph — and the profile is loaded when the extension is
+  opened while signed in, so it is correct without visiting the Profile
+  tab first. Reuses the 5-minute session cache, so repeated opens do not
+  re-fetch. Disclosed in the privacy modal.
+- **Overflow menu in the import action bar.** Capture, Go to Utably and
+  Reset moved behind a `⋯` button, leaving `Share | Save to Utably | ⋯`.
+  Full keyboard support: Escape, arrows, Home/End, outside-click.
+- **Firefox XPI is actually built.** `firefox-build.mjs` only ever copied
+  files and rewrote the manifest — the `.xpi` the docs told you to install
+  was never produced. Added a dependency-free ZIP writer
+  (`scripts/zip.mjs`, Node built-ins only) plus `lint:firefox`,
+  `sign:firefox` and `sign:firefox:prod` scripts, and
+  `data_collection_permissions` in the Gecko settings, which AMO now
+  requires for new submissions.
+
+### Changed
+- **Primary buttons use the brand mint.** Nine hardcoded
+  `#00545e !important` declarations and a gradient chain are gone,
+  replaced by `--utably-mint` on `--utably-ink` with a mint-deep keycap
+  edge. Contrast 8.64:1 → 12.28:1.
+- **Settings is a page, not an overlay.** It used to sit before
+  `authGate`/`appContent` in the DOM and merely un-hide, stacking on top
+  of everything. One `applyShell()` now owns which surface is on screen;
+  Settings replaces the gate or the tabbed content and has a Done button.
+  Logout moved into the account menu.
+- **Header fits at every width.** It wrapped at 380px because the 20px
+  title plus the action links exceeded the 348px content box. Now a single
+  non-wrapping row; the subtitle shows only where it fits (side panel and
+  workspace above 440px), and the wordmark steps down below 350px.
+- **Auto-fill moved into the Preview panel header**, where it acts on the
+  panel it fills, rather than into the overflow menu.
+- **Secondary buttons keep their mint wash**, with the border moved to a
+  new `--utably-mint-edge` token: 1.83:1 → 3.70:1, clearing WCAG 1.4.11.
+- **Touch targets.** View tabs 33 → 44px, Save-as radios 37 → 44px, text
+  inputs 39 → 44px, header links 17 → 32px. Checkboxes excluded, since
+  `min-height` would have inflated the settings toggle's hidden input.
+- **Hero removed** from the import view, reclaiming ~150px.
+- Labels are 12px sentence case instead of 11px uppercase letterspaced.
+- `fillConfirm.remember` relabelled. It read "Don't ask again on this
+  site" but the modal always appears by design — invariant #4 requires
+  every recipient origin be shown before every fill. The control records
+  consent; the copy now says so.
+
+### Fixed
+- **Firefox loaded nothing at all.** `chrome.runtime.onMessageExternal`
+  was called unguarded at the top level of `background.js`. Firefox has
+  never implemented `externally_connectable`, so that line threw as the
+  background script loaded and took the whole extension down. Now
+  optional-chained, and the dead manifest key is stripped from the
+  Firefox build.
+- **"Applied day" rendered unconditionally.** Nothing ever toggled it, so
+  users in *Saved* mode saw a date picker asking when they applied to a
+  job they had not applied to. Now tied to `setSelectedKind()`.
+- **The full-bleed tab bar left a 4px strip down each side** in popup
+  mode: `margin: 0 -12px` against `.app`'s `padding: 16px`. The negative
+  margin only matched in side-panel mode.
+- Header wordmark and subtitle were cut mid-word in side panels narrower
+  than ~400px.
+
+### Security
+- No new caches. The profile still lives only in `chrome.storage.session`
+  and is wiped when the browser closes; nothing was added to
+  `storage.local` (`docs/fill.md` invariant #8).
+
+### Documentation
+- Rewrote the Firefox section of `docs/development.md`: both install
+  routes, why `about:addons` reports an unsigned build as unverified, the
+  signing commands, and a warning that `npm test` runs `build.mjs`, which
+  begins with `rm -rf dist` and therefore deletes the `.xpi`.
+
+## [0.17.0] — 2026-08-18
+
+### Added
+- **Send a job to a friend without saving it first.** A new *Send to a
+  friend* action next to *Save to Utably* passes the captured posting
+  straight to someone in your circle. It lands in the job-tip inbox they
+  already have, and it does **not** create an application in your own
+  list — it takes no application-quota slot, logs no application XP, and
+  runs no duplicate check. (Friendship points work as they do for any
+  shared tip: they follow the recipient marking that they applied.)
+- New endpoints `POST /extension/share-drafts` and
+  `GET /extension/share-drafts/{id}` — see [`docs/api.md`](docs/api.md).
+
+### Security
+- The extension parks the captured posting and hands off to the web app,
+  which performs the share under the user's own session with the
+  recipients picked there. The extension token deliberately gains **no**
+  ability to write into another user's inbox: a stolen token's reach
+  stays confined to its own account, as it is today. Only posting fields
+  travel (title, company, location, link, posting text) — never notes,
+  recruiter or FitCheck data.
+- Parked postings carry a short TTL (15 minutes) and are deleted once
+  shared.
+
 ## [0.16.2] — 2026-07-29
 
 ### Security
@@ -265,7 +482,10 @@ log.
 
 ---
 
-[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.2...HEAD
+[Unreleased]: https://github.com/utably/utably-browser-plugin/compare/version_0.18.1...HEAD
+[0.18.1]: https://github.com/utably/utably-browser-plugin/compare/version_0.18.0...version_0.18.1
+[0.18.0]: https://github.com/utably/utably-browser-plugin/compare/version_0.17.0...version_0.18.0
+[0.17.0]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.2...version_0.17.0
 [0.16.2]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.1...version_0.16.2
 [0.16.1]: https://github.com/utably/utably-browser-plugin/compare/version_0.16.0...version_0.16.1
 [0.16.0]: https://github.com/utably/utably-browser-plugin/releases/tag/version_0.16.0
