@@ -752,7 +752,8 @@ async function fetchAttachments({ forceRefresh = false } = {}) {
   if (!json || !Array.isArray(json.attachments)) {
     throw new Error("Invalid attachments response.");
   }
-  return { attachments: json.attachments, forceRefresh };
+  // `library`: masters → versions in the app's order (newer servers only).
+  return { attachments: json.attachments, library: Array.isArray(json.library) ? json.library : null, forceRefresh };
 }
 
 function arrayBufferToBase64(buf) {
@@ -1672,7 +1673,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
       try {
         const result = await fetchAttachments({ forceRefresh: Boolean(message.forceRefresh) });
-        sendResponse({ ok: true, attachments: result.attachments });
+        sendResponse({ ok: true, attachments: result.attachments, library: result.library });
       } catch (err) {
         sendResponse({ ok: false, error: err?.message || "Failed to list attachments." });
       }

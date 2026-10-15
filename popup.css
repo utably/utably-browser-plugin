@@ -2551,12 +2551,118 @@ body.sidepanel-mode .view-tabs {
   flex-direction: column;
   gap: 0;
 }
-.attachment-group-title {
-  padding: 10px 13px 4px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.library-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 13px 6px;
+  padding: 0 10px;
+  min-height: 30px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  color: var(--text-muted);
+}
+.library-filter:focus-within {
+  border-color: var(--utably-mint);
+}
+.library-filter input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-strong);
+  outline: none;
+}
+.library-row + .library-row {
+  border-top: 1px solid var(--border-soft);
+}
+.library-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 13px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.library-head:hover,
+.library-head:focus-visible {
+  background: var(--utably-cream-soft);
+  outline: none;
+}
+.library-row.is-nested .attachment-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+/* A version's company logo and a master's page-1 picture, as in the app. */
+.attachment-icon.has-logo {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--border-soft);
+  overflow: hidden;
+}
+.attachment-icon.has-logo .role-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.attachment-icon.is-thumb {
+  width: 26px;
+  height: 36px;
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--border-soft);
+  overflow: hidden;
+}
+.library-thumb-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+.library-chev {
+  display: inline-flex;
+  color: var(--text-muted);
+  transition: transform 140ms ease;
+}
+.library-row.is-open > .library-head .library-chev {
+  transform: rotate(180deg);
+}
+.library-body {
+  padding-left: 4px;
+  border-left: 2px solid var(--utably-mint-soft);
+  margin: 0 0 6px 27px;
+}
+.library-row.is-nested .library-head {
+  padding-left: 8px;
+}
+.library-row.is-nested .library-body {
+  margin-left: 18px;
+}
+/* Files inside the library: one line of meta, the upload as an icon (its
+   label stays in the tooltip). */
+.library-body .attachment-card {
+  padding: 7px 8px;
+}
+.library-body .attachment-meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-body .attachment-action {
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  justify-content: center;
+}
+.library-body .attachment-action > span:last-child {
+  display: none;
+}
+.library-empty {
+  padding: 8px 13px;
+  font-size: 11.5px;
   color: var(--text-muted);
 }
 .attachment-archived-toggle {

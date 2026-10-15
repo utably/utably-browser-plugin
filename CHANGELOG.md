@@ -9,14 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Attachments grouped and named like the app's library.** Profile →
-  Attachments lists versions for applications ("Utably · Engineer", with the
-  master it came from), then masters (by name), then uploads; the versions
-  of archived applications sit behind "Show {count} archived". Each row
-  says what it is (CV, cover letter, appendix, certificate, job reference…)
-  and when it was made. Downloads and form uploads use the readable file
-  name. Needs the matching applicationsAPI deploy; an older server still
-  shows its list, without groups (`popup/documents.js`, with tests).
+- **Attachments laid out like the app's /utably-editor library.** Profile →
+  Attachments lists each master (favourites first, then the most recently
+  opened or edited) with "Used for N applications"; opening a master shows
+  its CV, cover letter and appendix, and under it one row per application
+  ("Utably · Engineer", in progress / not adjusted yet / sent) that opens
+  to that version's files. Archived applications' versions stay behind
+  "Show N archived" per master. Uploads (certificates, reports, job
+  references) sit in their own row at the end. A search field filters by
+  master name, company or role (and finds archived versions). Every master
+  and version has an edit button that opens it in the Utably editor
+  (`/editor/<master>` / `?for=<application>`). A master without a PDF says
+  so. Files are named readably for downloads and form uploads. The
+  structure comes from the server's new `library`; an older server still
+  shows its files, grouped by master (`popup/documents.js`, with tests).
+  Masters deleted in the app no longer appear, although their old PDFs
+  are still stored.
+  Each master shows page 1 of its CV (the picture the app's library made;
+  else its cover letter's), and each version its company's logo, from the
+  server's logo cache only; without either the icon stays.
 - **Auto-fill finds the company's domain.** After Auto-fill writes a
   company name, the popup asks the server's logo cache for its domain
   (free) and, on a miss, runs one company search and takes the domain only

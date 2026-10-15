@@ -1,40 +1,67 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { documentLines, groupDocuments } from "../popup/documents.js";
+import { buildDocumentTree, editorUrl, filterDocumentTree, versionTitle } from "../popup/documents.js";
 
-const fmt = { kindLabel: (k) => ({ cv: "CV", coverletter: "Cover letter", certificate: "Certificate" })[k] || "", formatDate: () => "1 Oct 2026" };
+const library = [
+  {
+    projectId: "main",
+    projectName: "Main CV",
+    favorite: true,
+    thumbUrl: "https://s3.example/thumb_cv.jpg",
+    versions: [
+      { applicationId: "a1", companyName: "Utably", companyDomain: "utably.com", jobTitle: "Engineer", state: "draft" },
+      { applicationId: "a2", companyName: "Utably", jobTitle: "Designer", state: "sent", archived: true },
+    ],
+  },
+  { projectId: "empty", projectName: "Englisch", versions: [] },
+];
+const attachments = [
+  { key: "k1", kind: "coverletter", group: "master", projectId: "main" },
+  { key: "k2", kind: "cv", group: "master", projectId: "main" },
+  { key: "k3", kind: "cv", group: "version", projectId: "main", applicationId: "a1" },
+  { key: "k4", kind: "cv", group: "version", projectId: "main", applicationId: "a2", archived: true },
+  { key: "k5", kind: "certificate", group: "upload", name: "Zeugnis Müller.pdf" },
+  { key: "k6", kind: "image", group: "upload", name: "me.jpg" },
+];
 
-test("documents group as versions, masters, uploads; archived apart; photos hidden", () => {
-  const { groups, archived } = groupDocuments([
-    { key: "a", kind: "cv", group: "master" },
-    { key: "b", kind: "cv", group: "version" },
-    { key: "c", kind: "certificate", group: "upload" },
-    { key: "d", kind: "coverletter", group: "version", archived: true },
-    { key: "e", kind: "image", group: "upload" },
-    { key: "f", kind: "reference", group: "upload" },
-  ]);
-  assert.deepEqual(groups.map((g) => [g.id, g.items.map((i) => i.key)]), [
-    ["version", ["b"]],
-    ["master", ["a"]],
-    ["upload", ["c", "f"]],
-  ]);
-  assert.deepEqual(archived.map((i) => i.key), ["d"]);
+test("masters in the library's order, documents and versions under them", () => {
+  const tree = buildDocumentTree(attachments, library);
+  assert.deepEqual(tree.masters.map((m) => m.projectId), ["main", "empty"]);
+  const main = tree.masters[0];
+  assert.deepEqual(main.docs.map((d) => d.key), ["k2", "k1"]); // CV before the letter
+  assert.deepEqual(main.versions.map((v) => [v.applicationId, v.docs.map((d) => d.key)]), [["a1", ["k3"]]]);
+  assert.deepEqual(main.archivedVersions.map((v) => v.applicationId), ["a2"]);
+  assert.deepEqual(tree.masters[1].docs, []); // listed even without a PDF (edit link)
+  assert.equal(main.thumbUrl, "https://s3.example/thumb_cv.jpg");
+  assert.equal(tree.masters[1].thumbUrl, "");
+  assert.equal(main.versions[0].companyDomain, "utably.com");
+  assert.deepEqual(tree.uploads.map((d) => d.key), ["k5"]); // photos hidden
 });
 
-test("an older server without groups: exports are masters, the rest uploads", () => {
-  const { groups } = groupDocuments([{ key: "x", kind: "cv" }, { key: "y", kind: "certificate" }]);
-  assert.deepEqual(groups.map((g) => g.id), ["master", "upload"]);
+test("a master deleted in the app is not shown, even though its PDFs remain", () => {
+  const stale = [...attachments, { key: "k7", kind: "cv", group: "master", projectId: "deleted" }];
+  assert.deepEqual(buildDocumentTree(stale, library).masters.map((m) => m.projectId), ["main", "empty"]);
 });
 
-test("rows are named by application, project or file", () => {
-  assert.deepEqual(
-    documentLines({ group: "version", kind: "cv", companyName: "Utably", jobTitle: "Engineer", projectName: "Main CV", lastModified: "2026-10-01" }, fmt),
-    { title: "Utably · Engineer", detail: "CV · Main CV · 1 Oct 2026" },
-  );
-  assert.deepEqual(
-    documentLines({ group: "master", kind: "coverletter", projectName: "Main CV", name: "Main-CV_coverletter.pdf" }, fmt),
-    { title: "Main CV", detail: "Cover letter" },
-  );
-  assert.equal(documentLines({ group: "version", kind: "cv", name: "p_cv.pdf" }, fmt).title, "p_cv.pdf");
-  assert.equal(documentLines({ group: "upload", kind: "certificate", name: "Zeugnis.pdf" }, fmt).title, "Zeugnis.pdf");
+test("an older server without a library still groups by the files", () => {
+  const tree = buildDocumentTree(attachments.map(({ group, ...d }) => ({ ...d, projectName: "Main CV" })), null);
+  assert.equal(tree.masters.length, 1);
+  assert.deepEqual(tree.uploads.map((d) => d.key), ["k5"]);
+});
+
+test("filter: master name keeps its versions; company / role finds versions, archived included; uploads by name", () => {
+  const tree = buildDocumentTree(attachments, library);
+  assert.deepEqual(filterDocumentTree(tree, "main").masters.map((m) => m.projectId), ["main"]);
+  const designer = filterDocumentTree(tree, "designer utably");
+  assert.deepEqual(designer.masters[0].versions.map((v) => v.applicationId), ["a2"]);
+  assert.deepEqual(designer.uploads, []);
+  assert.deepEqual(filterDocumentTree(tree, "muller").uploads.map((d) => d.key), ["k5"]);
+  assert.equal(filterDocumentTree(tree, "").masters.length, 2);
+});
+
+test("editor links follow the app's routes", () => {
+  assert.equal(editorUrl("https://app.utably.com/", "main"), "https://app.utably.com/editor/main");
+  assert.equal(editorUrl("https://app.utably.com", "main", "a1"), "https://app.utably.com/editor/main?for=a1");
+  assert.equal(editorUrl("", "main"), "");
+  assert.equal(versionTitle({ companyName: "Utably", jobTitle: "Engineer" }), "Utably · Engineer");
 });
