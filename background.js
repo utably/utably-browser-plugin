@@ -406,6 +406,141 @@ async function sendImport(payload) {
   };
 }
 
+// ---- Company typeahead + cache-only resolve ----
+//
+// Both endpoints are best-effort: no token, a network error or a non-2xx
+// answer all come back as an empty result. An empty suggestion list is the
+// normal "provider off / no match" case and is never shown as an error.
+
+let companySearchController = null;
+
+async function getCompanyAuth() {
+  const settings = await getSettings();
+  const token = await ensureAccessToken(settings);
+  return { settings, token };
+}
+
+async function searchCompanies(query, limit) {
+  const q = trim(query);
+  if (q.length < 2) return [];
+  const auth = await getCompanyAuth();
+  if (!auth.token) return [];
+
+  // Only the newest search matters; abort the one still in flight.
+  companySearchController?.abort();
+  const controller = new AbortController();
+  companySearchController = controller;
+  const cappedLimit = Math.min(Math.max(Number(limit) || 6, 1), 10);
+  try {
+    const res = await fetch(
+      `${auth.settings.apiBase}/extension/company/search?q=${encodeURIComponent(q)}&limit=${cappedLimit}`,
+      { headers: { Authorization: `Bearer ${auth.token}` }, signal: controller.signal }
+    );
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => null);
+    return Array.isArray(json?.data) ? json.data : [];
+  } finally {
+    if (companySearchController === controller) companySearchController = null;
+  }
+}
+
+async function resolveCompaniesCacheOnly(names) {
+  const clean = (Array.isArray(names) ? names : [])
+    .map((name) => trim(String(name ?? "")))
+    .filter((name) => name.length >= 2)
+    .slice(0, 20);
+  if (!clean.length) return {};
+  const auth = await getCompanyAuth();
+  if (!auth.token) return {};
+  const res = await fetch(
+    `${auth.settings.apiBase}/extension/company/resolve-batch?names=${encodeURIComponent(JSON.stringify(clean))}`,
+    { headers: { Authorization: `Bearer ${auth.token}` } }
+  );
+  if (!res.ok) return {};
+  const json = await res.json().catch(() => null);
+  return json?.data && typeof json.data === "object" ? json.data : {};
+}
+
+// City suggestions for the location field (Amazon Location via our API).
+// Best-effort like the company search: any failure is an empty list.
+let placesSuggestController = null;
+
+async function suggestPlaces({ query, country, lang, limit, kind, near }) {
+  const q = trim(query);
+  if (q.length < 2) return [];
+  const auth = await getCompanyAuth();
+  if (!auth.token) return [];
+
+  placesSuggestController?.abort();
+  const controller = new AbortController();
+  placesSuggestController = controller;
+  const params = new URLSearchParams({
+    q,
+    limit: String(Math.min(Math.max(Number(limit) || 6, 1), 8)),
+    kind: kind === "address" ? "address" : "city",
+  });
+  const iso = trim(country).toUpperCase();
+  if (/^[A-Z]{2}$/.test(iso)) params.set("country", iso);
+  const language = trim(lang).toLowerCase();
+  if (/^[a-z]{2}$/.test(language)) params.set("lang", language);
+  // Streets inside this town (the server narrows to the town's area).
+  const town = trim(near).slice(0, 120);
+  if (kind === "address" && town) params.set("near", town);
+  try {
+    const res = await fetch(`${auth.settings.apiBase}/extension/places/suggest?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+      signal: controller.signal,
+    });
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => null);
+    return Array.isArray(json?.data) ? json.data : [];
+  } finally {
+    if (placesSuggestController === controller) placesSuggestController = null;
+  }
+}
+
+// A picked street → postal code, city, country (one lookup per pick).
+async function getPlaceDetails({ placeId, lang }) {
+  const id = trim(placeId);
+  if (!id || id.length > 2048) return null;
+  const auth = await getCompanyAuth();
+  if (!auth.token) return null;
+  const params = new URLSearchParams({ id });
+  const language = trim(lang).toLowerCase();
+  if (/^[a-z]{2}$/.test(language)) params.set("lang", language);
+  const res = await fetch(`${auth.settings.apiBase}/extension/places/place?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${auth.token}` },
+  });
+  if (!res.ok) return null;
+  const json = await res.json().catch(() => null);
+  return json?.data && typeof json.data === "object" ? json.data : null;
+}
+
+// Job title suggestions from our occupation list. The popup re-ranks them.
+let titleSuggestController = null;
+
+async function suggestJobTitles(query) {
+  const q = trim(query);
+  if (q.length < 2) return [];
+  const auth = await getCompanyAuth();
+  if (!auth.token) return [];
+  titleSuggestController?.abort();
+  const controller = new AbortController();
+  titleSuggestController = controller;
+  try {
+    const params = new URLSearchParams({ search: q, limit: "30" });
+    const res = await fetch(`${auth.settings.apiBase}/extension/list/occupations?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+      signal: controller.signal,
+    });
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => null);
+    return Array.isArray(json?.data) ? json.data.map((row) => ({ title: row?.title, altLabels: row?.altLabels })) : [];
+  } finally {
+    if (titleSuggestController === controller) titleSuggestController = null;
+  }
+}
+
 async function findDuplicateImport(candidate) {
   const settings = await getSettings();
   const token = await ensureAccessToken(settings);
@@ -432,6 +567,50 @@ async function findDuplicateImport(candidate) {
     duplicate: Boolean(json?.duplicate),
     match: json?.match || null,
   };
+}
+
+/**
+ * Park a captured posting so it can be passed to a friend from the web app.
+ *
+ * The plugin deliberately does NOT perform the share itself: writing into
+ * another user's inbox is a cross-user capability, and this token lives in
+ * browser storage. Parking a draft writes only into the user's own account —
+ * the same trust level the plugin already has — and the web app does the
+ * actual sharing under the real session, with the user picking recipients.
+ */
+async function createShareDraft(posting) {
+  const settings = await getSettings();
+  const token = await ensureAccessToken(settings);
+  if (!token) {
+    throw new Error("Not connected. Please connect to Utably first.");
+  }
+
+  const res = await fetch(`${settings.apiBase}/extension/share-drafts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(posting || {}),
+  });
+
+  if (!res.ok) {
+    const json = await res.json().catch(() => null);
+    const message = trim(json?.message || json?.error || "") || `HTTP ${res.status}`;
+    const err = new Error(message);
+    err.code = trim(json?.error || "");
+    err.details = json?.details || null;
+    throw err;
+  }
+
+  const json = await res.json().catch(() => ({}));
+  const draftId = trim(json?.draftId);
+  // Without an id there is nothing to hand off — fail here rather than
+  // opening the web app on an empty draft.
+  if (!draftId) {
+    throw new Error("Could not prepare the share. Please try again.");
+  }
+  return { draftId };
 }
 
 async function sendFitCheck(jobPosting) {
@@ -573,7 +752,8 @@ async function fetchAttachments({ forceRefresh = false } = {}) {
   if (!json || !Array.isArray(json.attachments)) {
     throw new Error("Invalid attachments response.");
   }
-  return { attachments: json.attachments, forceRefresh };
+  // `library`: masters → versions in the app's order (newer servers only).
+  return { attachments: json.attachments, library: Array.isArray(json.library) ? json.library : null, forceRefresh };
 }
 
 function arrayBufferToBase64(buf) {
@@ -882,9 +1062,12 @@ function normalizeDraft(rawValue) {
       jobTitle: "",
       companyName: "",
       location: "",
+      locationStreet: "",
+      locationZip: "",
       recruiterName: "",
       jobText: "",
       jobUrl: "",
+      companyDomain: "",
       updatedAt: 0,
     };
   }
@@ -893,9 +1076,12 @@ function normalizeDraft(rawValue) {
     jobTitle: trim(rawValue.jobTitle),
     companyName: trim(rawValue.companyName),
     location: trim(rawValue.location),
+    locationStreet: trim(rawValue.locationStreet),
+    locationZip: trim(rawValue.locationZip),
     recruiterName: trim(rawValue.recruiterName),
     jobText: trim(rawValue.jobText),
     jobUrl: trim(rawValue.jobUrl),
+    companyDomain: trim(rawValue.companyDomain),
     updatedAt: Number(rawValue.updatedAt || 0),
   };
 }
@@ -930,6 +1116,11 @@ async function applyCaptureToDraft(payload) {
     draft.jobText = `${current}${text}`.trim();
   } else {
     draft[field] = text;
+  }
+  // A captured company name is free text: the domain picked for the old
+  // name no longer belongs to it.
+  if (field === "companyName") {
+    draft.companyDomain = "";
   }
   if (!draft.jobUrl && pageUrl) {
     draft.jobUrl = pageUrl;
@@ -1022,6 +1213,67 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
       }
     })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_SHARE_DRAFT") {
+    (async () => {
+      try {
+        const result = await createShareDraft(message.posting || {});
+        sendResponse({ ok: true, ...result });
+      } catch (err) {
+        sendResponse({
+          ok: false,
+          error: err?.message || "Failed to prepare the share.",
+          code: err?.code || "",
+          details: err?.details || null,
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "UTABLY_COMPANY_SEARCH") {
+    searchCompanies(message.query, message.limit)
+      .then((suggestions) => sendResponse({ ok: true, suggestions }))
+      .catch((err) => sendResponse({ ok: false, aborted: err?.name === "AbortError", suggestions: [] }));
+    return true;
+  }
+
+  if (message?.type === "UTABLY_PLACES_SUGGEST") {
+    suggestPlaces(message)
+      .then((suggestions) => sendResponse({ ok: true, suggestions }))
+      .catch(() => sendResponse({ ok: false, suggestions: [] }));
+    return true;
+  }
+
+  if (message?.type === "UTABLY_PLACES_PLACE") {
+    getPlaceDetails(message)
+      .then((place) => sendResponse({ ok: Boolean(place), place }))
+      .catch(() => sendResponse({ ok: false, place: null }));
+    return true;
+  }
+
+  if (message?.type === "UTABLY_TITLE_SUGGEST") {
+    suggestJobTitles(message.query)
+      .then((titles) => sendResponse({ ok: true, titles }))
+      .catch(() => sendResponse({ ok: false, titles: [] }));
+    return true;
+  }
+
+  if (message?.type === "UTABLY_COMPANY_RESOLVE_BATCH") {
+    resolveCompaniesCacheOnly(message.names)
+      .then((resolved) => sendResponse({ ok: true, resolved }))
+      .catch(() => sendResponse({ ok: false, resolved: {} }));
+    return true;
+  }
+
+  // The popup builds cache-only logo URLs itself and needs the same API
+  // base the background resolved from the stored stage settings.
+  if (message?.type === "UTABLY_GET_API_BASE") {
+    getSettings()
+      .then((settings) => sendResponse({ ok: true, apiBase: settings.apiBase }))
+      .catch(() => sendResponse({ ok: false, apiBase: "" }));
     return true;
   }
 
@@ -1143,6 +1395,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, ...result });
       } catch (err) {
         sendResponse({ ok: false, error: err?.message || "Failed to load profile." });
+      }
+    })();
+    return true;
+  }
+
+  // Read-only peek at the session cache for the header avatar. Never calls
+  // the API: the popup opens on every job page, and the profile is meant to
+  // be fetched when the user asks for it (Profile tab, or a fill), not as a
+  // side effect of showing chrome. A cold cache just means no avatar yet.
+  if (message?.type === "UTABLY_PEEK_PROFILE") {
+    (async () => {
+      try {
+        const cached = await readProfileCache();
+        // No TTL check here on purpose. The 5-minute window exists so autofill
+        // never writes stale values into a form; the avatar is cosmetic, so a
+        // stale name and photo are fine and stop it flickering back to the
+        // generic glyph. Still session-only, so it clears when the browser does.
+        sendResponse({ ok: true, profile: cached?.profile || null });
+      } catch {
+        sendResponse({ ok: true, profile: null });
       }
     })();
     return true;
@@ -1401,7 +1673,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
       try {
         const result = await fetchAttachments({ forceRefresh: Boolean(message.forceRefresh) });
-        sendResponse({ ok: true, attachments: result.attachments });
+        sendResponse({ ok: true, attachments: result.attachments, library: result.library });
       } catch (err) {
         sendResponse({ ok: false, error: err?.message || "Failed to list attachments." });
       }
@@ -1583,7 +1855,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     .catch(() => {});
 });
 
-chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+// Optional-chained: Firefox does not implement `externally_connectable` and
+// therefore has no `onMessageExternal`. Without the guard this throws at the
+// top level of the background script and takes the whole extension down.
+chrome.runtime.onMessageExternal?.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "UTABLY_EXTERNAL_CONNECT") return;
   (async () => {
     try {
