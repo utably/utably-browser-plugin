@@ -41,9 +41,18 @@ sequenceDiagram
         BG->>API: POST /extension/llm
         API-->>SP: Fit analysis results
     end
-    U->>SP: Click Save to Utably
-    SP->>BG: Send payload
-    BG->>API: POST /extension/import-job
+    alt Save to my list
+        U->>SP: Click Save to Utably
+        SP->>BG: Send payload
+        BG->>API: POST /extension/import-job
+    else Send to a friend
+        U->>SP: Click Send to a friend
+        SP->>BG: Send posting fields only
+        BG->>API: POST /extension/share-drafts
+        API-->>BG: draftId
+        BG->>U: Open web app at /friends/share?draft={id}
+        Note over U,API: The share itself happens in the web app,<br/>under the user's session, with recipients<br/>picked there. The extension never writes<br/>into another user's account.
+    end
 ```
 
 ## Auth & Token Model
@@ -54,6 +63,27 @@ sequenceDiagram
 - **Refresh token**: Long-lived, rotated on each refresh call
 - **Logout**: Calls `/extension/token/revoke`, clears all stored tokens
 - **External messaging**: `onMessageExternal` listener for app-initiated connects
+
+## Sharing Model
+
+*Send to a friend* passes a captured posting to someone in the user's Utably
+circle without saving it as an application first.
+
+The extension does **not** perform the share. Writing into another user's
+inbox is a cross-user capability, and the access token lives in
+`chrome.storage.local`; granting that capability would mean a stolen token
+could reach accounts other than its owner's. Instead:
+
+1. The background worker POSTs the posting to `/extension/share-drafts`,
+   which stores it in the **caller's own** account — the same trust level
+   `/extension/import-job` already has.
+2. The extension opens the Utably web app at `/friends/share?draft=<id>`.
+3. The web app, under the user's own session, shows what will be shared and
+   performs the share once the user picks recipients.
+
+Only posting fields travel (title, company, location, link, posting text) —
+never notes, recruiter details, or FitCheck results. Parked drafts expire on
+their own if the user abandons the flow.
 
 ## Storage Keys
 

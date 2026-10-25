@@ -350,7 +350,8 @@ Yes, technically. Practically, you're rebuilding most of the product:
 - You'll need `/extension/connect/session/{start,status}`,
   `/extension/token/{exchange,refresh,revoke,issue}`,
   `/extension/import-job`, `/extension/import-job/duplicate-check`,
-  and `/extension/llm` — see [`api.md`](api.md).
+  `/extension/share-drafts`, and `/extension/llm` — see
+  [`api.md`](api.md).
 - You'll need to run your own LLM for FitCheck.
 - You'll need to store applications, detect duplicates, and manage user
   accounts.

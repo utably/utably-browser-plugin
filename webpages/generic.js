@@ -45,6 +45,22 @@
       .join(", ");
   }
 
+  // The first jobLocation's PostalAddress, as plain strings, for the
+  // popup's street / postal code / city / country fields.
+  function structuredJobAddress(jobLocation, normalize) {
+    const first = Array.isArray(jobLocation) ? jobLocation[0] : jobLocation;
+    const address = first?.address || first;
+    if (!address || typeof address !== "object") return null;
+    const text = (value) => normalize(typeof value === "object" ? value?.name || "" : value || "");
+    const out = {
+      streetAddress: text(address.streetAddress),
+      postalCode: text(address.postalCode),
+      addressLocality: text(address.addressLocality),
+      addressCountry: text(address.addressCountry),
+    };
+    return Object.values(out).some(Boolean) ? out : null;
+  }
+
   function scoreDescriptionNode(node, normalize) {
     const text = normalize(node?.innerText || "");
     const len = text.length;
@@ -83,14 +99,20 @@
       document.title ||
       "";
 
-    const location =
-      flattenJobLocation(jobPosting?.jobLocation, normalize) ||
-      queryFirstText([
-        "[data-testid*='location']",
-        "[class*='location']",
-        "[data-test*='location']",
-        "li[class*='location']",
-      ]);
+    // The page's own location text when the structured data names no town
+    // (often just `addressCountry: "DE"`); the popup fills the gaps of the
+    // structured address from it.
+    const structuredLocation = flattenJobLocation(jobPosting?.jobLocation, normalize);
+    const hasTown = Boolean(structuredJobAddress(jobPosting?.jobLocation, normalize)?.addressLocality);
+    const pageLocation = hasTown
+      ? ""
+      : queryFirstText([
+          "[data-testid*='location']",
+          "[class*='location']",
+          "[data-test*='location']",
+          "li[class*='location']",
+        ]);
+    const location = (pageLocation && pageLocation.length <= 120 ? pageLocation : "") || structuredLocation;
 
     const recruiterName = queryFirstText([
       "[data-testid*='recruiter']",
@@ -126,6 +148,7 @@
       title: cleanTitle(rawTitle, company),
       company,
       location,
+      address: structuredJobAddress(jobPosting?.jobLocation, normalize),
       recruiterName,
       description: sanitizeText(bestDescription),
     };
