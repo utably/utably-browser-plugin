@@ -1,12 +1,65 @@
-import { t } from "./i18n.js";
+import { getLocale, t } from "./i18n.js";
+import { buildDocumentTree, editorUrl, filterDocumentTree, versionTitle } from "./documents.js";
+import { getAppUrl } from "./settings.js";
 import { trimOrEmpty } from "./dom.js";
 import { getActiveTab } from "./extraction.js";
+import { cleanCompanyDomain, normalizeCompanyName, takeNamesToResolve } from "./company.js";
+import { loadCachedCompanyLogo } from "./companyLogo.js";
 
 const MAX_EXPERIENCES = 5;
 const MAX_EDUCATION = 4;
 const MAX_SKILLS = 18;
 const MAX_LANGUAGES = 12;
 const MAX_CERTS = 20;
+
+// ---- Cached employer / school logos on the experience and education cards ----
+// Only from the server's logo cache, like the Saved list: an entry with a
+// stored domain loads its logo directly; an entry without one asks the
+// cache-only name lookup once per popup session. A miss shows nothing.
+const askedLogoNames = new Set();
+const resolvedLogoDomains = new Map(); // name -> domain ("" = none)
+
+function showLogo(slot, domain) {
+  loadCachedCompanyLogo(domain, { className: "role-logo-img" }).then((img) => {
+    if (!img || !slot.isConnected) return;
+    slot.replaceChildren(img);
+    slot.classList.remove("hidden");
+    slot.classList.add("has-logo");
+  });
+}
+
+// Fill `slot` with the company's cached logo: at once with a domain, else
+// once fillMissingEntryLogos has asked the name lookup. A miss keeps it as is.
+function wantLogo(slot, domain, name) {
+  const host = cleanCompanyDomain(domain) || resolvedLogoDomains.get(normalizeCompanyName(name)) || "";
+  if (host) showLogo(slot, host);
+  else if (normalizeCompanyName(name)) slot.dataset.logoName = normalizeCompanyName(name);
+  return slot;
+}
+
+function entryLogoSlot(domain, name) {
+  const slot = document.createElement("span");
+  slot.className = "role-logo hidden";
+  slot.setAttribute("aria-hidden", "true");
+  return wantLogo(slot, domain, name);
+}
+
+async function fillMissingEntryLogos(root) {
+  const slots = [...root.querySelectorAll("[data-logo-name]")];
+  const batches = takeNamesToResolve(slots.map((slot) => slot.dataset.logoName), askedLogoNames);
+  for (const batch of batches) {
+    const response = await chrome.runtime
+      .sendMessage({ type: "UTABLY_COMPANY_RESOLVE_BATCH", names: batch })
+      .catch(() => null);
+    for (const name of batch) {
+      resolvedLogoDomains.set(name, cleanCompanyDomain(response?.resolved?.[name]?.domain));
+    }
+  }
+  for (const slot of slots) {
+    const domain = resolvedLogoDomains.get(slot.dataset.logoName);
+    if (domain) showLogo(slot, domain);
+  }
+}
 
 function escapeHtml(value) {
   const div = document.createElement("div");
@@ -102,6 +155,8 @@ const SECTION_ICONS = {
   copy: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
   check: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
   download: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  search: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
   target: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>',
 };
 
@@ -247,6 +302,7 @@ function buildRoleCard(els, role) {
   title.className = "role-title";
   const titleText = role.title || role.position || "";
   title.textContent = titleText;
+  head.appendChild(entryLogoSlot(role.companyDomain, role.company));
   if (role.company) {
     const sub = document.createElement("span");
     sub.className = "role-sub";
@@ -437,6 +493,7 @@ function buildEducationCard(els, edu) {
   title.className = "role-title";
   const titleText = [edu.degree, edu.field].filter(Boolean).join(", ") || edu.course || edu.institution || "";
   title.textContent = titleText;
+  head.appendChild(entryLogoSlot(edu.institutionDomain, edu.institution));
   if (edu.degree && edu.institution) {
     const sub = document.createElement("span");
     sub.className = "role-sub";
@@ -575,6 +632,8 @@ const ATTACHMENT_KIND_META = {
   appendix:    { tone: "cream",  iconKey: "award" },
   document:    { tone: "cream",  iconKey: "award" },
   certificate: { tone: "cream",  iconKey: "award" },
+  testimonial: { tone: "cream",  iconKey: "award" },
+  reference:   { tone: "cream",  iconKey: "award" },
   image:       { tone: "mint",   iconKey: "user" },
   export:      { tone: "mint",   iconKey: "sparkle" },
 };
@@ -592,15 +651,20 @@ function buildAttachmentCard(els, attachment) {
 
   const body = document.createElement("div");
   body.className = "attachment-body";
+  // Inside a master or version the row is named by what it is ("CV");
+  // an upload by its file name.
+  const kindLabel = t(`profile.attachment.kind.${attachment.kind}`);
+  const isUpload = !["cv", "coverletter", "appendix"].includes(attachment.kind);
+  const date = attachment.lastModified ? formatDocumentDate(attachment.lastModified) : "";
   const name = document.createElement("div");
   name.className = "attachment-name";
-  name.textContent = attachment.name;
+  name.textContent = isUpload ? attachment.name : kindLabel;
+  name.title = attachment.name;
   body.appendChild(name);
 
   const metaLine = document.createElement("div");
   metaLine.className = "attachment-meta";
-  const kindLabel = t(`profile.attachment.kind.${attachment.kind}`) || attachment.kind;
-  metaLine.textContent = [kindLabel, formatBytes(attachment.size)].filter(Boolean).join(" · ");
+  metaLine.textContent = [isUpload ? kindLabel : "", date, formatBytes(attachment.size)].filter(Boolean).join(" · ");
   body.appendChild(metaLine);
   card.appendChild(body);
 
@@ -614,6 +678,8 @@ function buildAttachmentCard(els, attachment) {
   const at = document.createElement("span");
   at.textContent = t("profile.attachment.upload");
   uploadBtn.appendChild(at);
+  uploadBtn.title = t("profile.attachment.upload");
+  uploadBtn.setAttribute("aria-label", t("profile.attachment.upload"));
   uploadBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     handleAttachmentUpload(els, attachment, uploadBtn);
@@ -827,35 +893,252 @@ function confirmAttachmentUpload(els, { attachment, host, targets }) {
   }).then((res) => Boolean(res));
 }
 
-// Surface only the kinds that make sense for application autofill:
-// project exports (cv / coverletter / appendix) and certificate documents
-// the user curated under /user-data/profile → Documents. Profile pictures
-// and bulk exports are hidden — they don't drop into application forms.
-const ATTACHMENT_VISIBLE_KINDS = new Set(["cv", "coverletter", "appendix", "certificate"]);
+function formatDocumentDate(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(getLocale(), { day: "numeric", month: "short", year: "numeric" }).format(date);
+}
 
-function renderAttachmentsSection(els, attachments) {
+function editLink(els, projectId, applicationId) {
+  const url = editorUrl(getAppUrl(els), projectId, applicationId);
+  if (!url) return null;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "attachment-icon-btn";
+  btn.title = t("profile.attachment.editInUtably");
+  btn.setAttribute("aria-label", t("profile.attachment.editInUtably"));
+  btn.appendChild(makeIconSpan(SECTION_ICONS.edit));
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    chrome.tabs.create({ url });
+  });
+  return btn;
+}
+
+// One row of the library (a master or a version): a head that opens its
+// documents, and the edit link. `fill(body)` builds the content on first open.
+function libraryRow(els, { title, meta, tone, iconKey, decorate, nested, projectId, applicationId, fill, open = false }) {
+  const row = document.createElement("div");
+  row.className = `library-row${nested ? " is-nested" : ""}`;
+  const head = document.createElement("div");
+  head.className = "library-head";
+  head.setAttribute("role", "button");
+  head.tabIndex = 0;
+  head.setAttribute("aria-expanded", "false");
+
+  const icon = document.createElement("span");
+  icon.className = `attachment-icon tone-${tone}`;
+  icon.appendChild(makeIconSpan(SECTION_ICONS[iconKey] || SECTION_ICONS.briefcase));
+  decorate?.(icon);
+  head.appendChild(icon);
+
+  const text = document.createElement("div");
+  text.className = "attachment-body";
+  const name = document.createElement("div");
+  name.className = "attachment-name";
+  name.textContent = title;
+  name.title = title;
+  text.appendChild(name);
+  if (meta) {
+    const m = document.createElement("div");
+    m.className = "attachment-meta";
+    m.textContent = meta;
+    text.appendChild(m);
+  }
+  head.appendChild(text);
+
+  const actions = document.createElement("div");
+  actions.className = "attachment-actions";
+  const edit = editLink(els, projectId, applicationId);
+  if (edit) actions.appendChild(edit);
+  const chev = document.createElement("span");
+  chev.className = "library-chev";
+  chev.appendChild(makeIconSpan(SECTION_ICONS.chev));
+  actions.appendChild(chev);
+  head.appendChild(actions);
+  row.appendChild(head);
+
+  const body = document.createElement("div");
+  body.className = "library-body hidden";
+  row.appendChild(body);
+  let filled = false;
+  const toggle = () => {
+    const isOpen = body.classList.toggle("hidden") === false;
+    if (isOpen && !filled) {
+      filled = true;
+      fill(body);
+    }
+    row.classList.toggle("is-open", isOpen);
+    head.setAttribute("aria-expanded", String(isOpen));
+  };
+  head.addEventListener("click", toggle);
+  head.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggle();
+    }
+  });
+  if (open) toggle();
+  return row;
+}
+
+function appendDocs(els, body, docs) {
+  if (!docs.length) {
+    const empty = document.createElement("div");
+    empty.className = "library-empty";
+    empty.textContent = t("profile.attachment.noExport");
+    body.appendChild(empty);
+    return;
+  }
+  const list = document.createElement("div");
+  list.className = "attachment-list";
+  for (const doc of docs) list.appendChild(buildAttachmentCard(els, doc));
+  body.appendChild(list);
+}
+
+function versionMeta(version) {
+  const state = version.state ? t(`profile.attachment.state.${version.state}`) : "";
+  return [state, version.archived ? t("profile.attachment.archived") : ""].filter(Boolean).join(" · ");
+}
+
+function showMasterThumb(slot, url) {
+  if (!url) return;
+  const img = new Image();
+  img.decoding = "async";
+  img.referrerPolicy = "no-referrer";
+  img.alt = "";
+  img.className = "library-thumb-img";
+  img.onload = () => {
+    if (!img.naturalWidth || !slot.isConnected) return;
+    slot.replaceChildren(img);
+    slot.classList.add("is-thumb");
+  };
+  img.src = url;
+}
+
+function versionRow(els, master, version, open) {
+  return libraryRow(els, {
+    title: versionTitle(version) || t("profile.attachment.untitledVersion"),
+    meta: versionMeta(version),
+    tone: "mint",
+    iconKey: "target",
+    // The company's logo, as on the app's version rows.
+    decorate: (icon) => wantLogo(icon, version.companyDomain, version.companyName),
+    nested: true,
+    projectId: master.projectId,
+    applicationId: version.applicationId,
+    open,
+    fill: (body) => appendDocs(els, body, version.docs),
+  });
+}
+
+function masterRow(els, master, { open }) {
+  const count = master.versions.length;
+  const meta = [
+    t("profile.attachment.master"),
+    count === 1 ? t("profile.attachment.versionsOne") : count ? t("profile.attachment.versionsN", { count }) : "",
+  ].filter(Boolean).join(" · ");
+  return libraryRow(els, {
+    title: master.projectName || t("profile.attachment.untitledMaster"),
+    meta,
+    tone: "ink",
+    iconKey: "briefcase",
+    // Page 1 of the master's CV, as the app's library shows it.
+    decorate: (icon) => showMasterThumb(icon, master.thumbUrl),
+    projectId: master.projectId,
+    open,
+    fill: (body) => {
+      appendDocs(els, body, master.docs);
+      for (const version of master.versions) body.appendChild(versionRow(els, master, version, open));
+      fillMissingEntryLogos(body).catch(() => {});
+      if (master.archivedVersions.length) {
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "attachment-archived-toggle";
+        let shown = [];
+        const label = () => {
+          toggle.textContent = shown.length
+            ? t("profile.attachment.archivedHide")
+            : t("profile.attachment.archivedShow", { count: master.archivedVersions.length });
+        };
+        toggle.addEventListener("click", () => {
+          if (shown.length) {
+            shown.forEach((node) => node.remove());
+            shown = [];
+          } else {
+            shown = master.archivedVersions.map((v) => body.appendChild(versionRow(els, master, v, false)));
+            fillMissingEntryLogos(body).catch(() => {});
+          }
+          label();
+        });
+        label();
+        body.appendChild(toggle);
+      }
+    },
+  });
+}
+
+function renderLibrary(els, container, tree, query) {
+  container.replaceChildren();
+  const shown = filterDocumentTree(tree, query);
+  // While filtering, matches are opened so the documents are one click away.
+  const open = Boolean(String(query || "").trim());
+  for (const master of shown.masters) container.appendChild(masterRow(els, master, { open }));
+  if (shown.uploads.length) {
+    container.appendChild(libraryRow(els, {
+      title: t("profile.attachment.group.upload"),
+      meta: t("profile.attachment.uploadsMeta", { count: shown.uploads.length }),
+      tone: "cream",
+      iconKey: "award",
+      open,
+      fill: (body) => appendDocs(els, body, shown.uploads),
+    }));
+  }
+  if (!shown.masters.length && !shown.uploads.length) {
+    const empty = document.createElement("div");
+    empty.className = "library-empty";
+    empty.textContent = t("profile.attachment.filterNoMatch");
+    container.appendChild(empty);
+  }
+}
+
+// Masters (the app's /utably-editor order), their versions under them, then
+// uploads; a filter on top. Tree + filter rules: documents.js.
+function renderAttachmentsSection(els, attachments, library) {
   if (!els.profileSections) return;
   const existing = els.profileSections.querySelector('[data-section="attachments"]');
   if (existing) existing.remove();
-  const visible = (Array.isArray(attachments) ? attachments : [])
-    .filter((a) => ATTACHMENT_VISIBLE_KINDS.has(a.kind));
-  if (visible.length === 0) return;
+  const tree = buildDocumentTree(attachments, library);
+  if (!tree.masters.length && !tree.uploads.length) return;
 
   const { section, body } = buildSection({
     id: "attachments",
     label: t("profile.attachments"),
     iconKey: "award",
     tone: "orange",
-    count: visible.length,
+    count: tree.masters.length + (tree.uploads.length ? 1 : 0),
     defaultOpen: false,
   });
 
+  const filter = document.createElement("label");
+  filter.className = "library-filter";
+  filter.appendChild(makeIconSpan(SECTION_ICONS.search));
+  const input = document.createElement("input");
+  input.type = "search";
+  input.placeholder = t("profile.attachment.filterPlaceholder");
+  input.setAttribute("aria-label", t("profile.attachment.filterPlaceholder"));
+  filter.appendChild(input);
+  body.appendChild(filter);
+
   const list = document.createElement("div");
-  list.className = "attachment-list";
-  for (const att of visible) {
-    list.appendChild(buildAttachmentCard(els, att));
-  }
+  list.className = "library-list";
   body.appendChild(list);
+  renderLibrary(els, list, tree, "");
+  let timer = null;
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => renderLibrary(els, list, tree, input.value), 120);
+  });
 
   // Always append last — Attachments is supporting context, not the headline.
   els.profileSections.appendChild(section);
@@ -865,7 +1148,7 @@ async function loadAttachments(els) {
   try {
     const response = await chrome.runtime.sendMessage({ type: "UTABLY_LIST_ATTACHMENTS" });
     if (!response?.ok) return;
-    renderAttachmentsSection(els, response.attachments || []);
+    renderAttachmentsSection(els, response.attachments || [], response.library || null);
   } catch (err) {
     console.warn("[Utably] attachments load failed", err);
   }
@@ -985,6 +1268,7 @@ function renderProfileCard(els, profile) {
     for (const edu of education) body.appendChild(buildEducationCard(els, edu));
     sectionsRoot.appendChild(section);
   }
+  fillMissingEntryLogos(sectionsRoot).catch(() => {});
 
   // ---- Skills section (grouped) ----
   const hardSkills = (profile?.skills?.hard || []).slice(0, MAX_SKILLS);
@@ -1139,6 +1423,10 @@ export async function loadProfile(els, { forceRefresh = false } = {}) {
     }
     const profile = response.profile;
     renderProfileCard(els, profile);
+    // Let the shell know: the header avatar is drawn from the session
+    // profile cache, which is usually still empty when the popup first
+    // renders, so it needs a second chance once the profile arrives.
+    document.dispatchEvent(new CustomEvent("utably:profile-loaded", { detail: { profile } }));
     // Attachments load in parallel — failure here doesn't block the profile.
     loadAttachments(els).catch(() => {});
     return profile;

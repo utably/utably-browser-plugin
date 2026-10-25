@@ -35,6 +35,10 @@ profile, and click **Save**. That's the whole extension.
 - **AI FitCheck** — a traffic-light score, skills breakdown, and
   qualification analysis for how well a posting matches your Utably
   profile.
+- **Send to a friend** — pass a posting straight to someone in your Utably
+  circle without saving it yourself first. It arrives in the job-tip inbox
+  they already have. You pick who gets it in the Utably web app, and only
+  the posting travels — never your notes or FitCheck results.
 - **Profile autofill** — fill the contact, employment, and education
   fields on a Greenhouse, Lever, or Ashby application form from your
   Utably profile. You see exactly which fields go to which host before
@@ -131,6 +135,10 @@ dependencies** — the extension is hand-rolled vanilla JS, so
 6. *(Optional)* **Click FitCheck** for an AI analysis of how well the
    posting matches your profile.
 7. **Click Save to Utably.** Done.
+
+Not for you, but right for someone you know? Click **Send to a friend**
+instead — the Utably web app opens so you can choose who gets it, and the
+role never enters your own application list.
 
 LinkedIn runs in **manual-description mode** by design: the extension
 only fills metadata (title, company, location) and you paste the
