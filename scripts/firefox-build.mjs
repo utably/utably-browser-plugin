@@ -2,6 +2,8 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { zipDirectory } from "./zip.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
@@ -39,6 +41,11 @@ async function main() {
     default_popup: "popup.html",
   };
 
+  // Firefox has never implemented `externally_connectable`, so the key is
+  // dead weight here and trips AMO validation. Consequence: the web app
+  // cannot message the extension directly on Firefox.
+  delete manifest.externally_connectable;
+
   if (manifest.background && typeof manifest.background === "object") {
     const workerFile = typeof manifest.background.service_worker === "string" ? manifest.background.service_worker : "";
     manifest.background = {
@@ -57,11 +64,33 @@ async function main() {
         ? manifest.browser_specific_settings.gecko
         : {})),
       id: geckoId,
+      // Required by AMO for new submissions, and shown to the user at
+      // install. `websiteContent` covers the job posting text and URL that
+      // go to the Utably API when the user presses Save or FitCheck — the
+      // only data this extension transmits on its own behalf. Autofill
+      // moves profile fields into third-party forms, but that data comes
+      // from Utably and is placed by the user, so it is not collection
+      // here. Revisit this if the extension ever sends anything else.
+      data_collection_permissions: {
+        required: ["websiteContent"],
+      },
     },
   };
 
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+  // Package the .xpi. Firefox will load the unpacked directory from
+  // about:debugging (you pick its manifest.json), but an .xpi is what you
+  // need for AMO, for `web-ext sign`, and for anyone installing from a file.
+  const xpiPath = path.join(
+    path.dirname(FIREFOX_DIR),
+    `${path.basename(FIREFOX_DIR)}-${manifest.version}.xpi`
+  );
+  const { buffer, fileCount } = await zipDirectory(FIREFOX_DIR);
+  await writeFile(xpiPath, buffer);
+
   console.log(`Firefox build generated at ${FIREFOX_DIR}`);
+  console.log(`Firefox XPI packaged at ${xpiPath} (${fileCount} files, ${buffer.length} bytes)`);
 }
 
 main().catch((error) => {

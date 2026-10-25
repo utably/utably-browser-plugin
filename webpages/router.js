@@ -23,6 +23,8 @@
           title: payload.title || "",
           company: payload.company || "",
           location: payload.location || "",
+          // schema.org PostalAddress when the page publishes one.
+          address: payload.address && typeof payload.address === "object" ? payload.address : null,
           recruiterName: payload.recruiterName || "",
           description: payload.description || "",
           adapter: extractor.id || "unknown",

@@ -166,12 +166,61 @@ Load via `chrome://extensions` → **Load unpacked**.
 
 ```bash
 npm run build:firefox
-# → dist/utably-browser-plugin-firefox/ (contains the .xpi)
+# → dist/utably-browser-plugin-firefox/            (unpacked)
+# → dist/utably-browser-plugin-firefox-<version>.xpi
 ```
 
-Load via `about:debugging` → **This Firefox** → **Load Temporary
-Add-on** → pick the `.xpi`. Firefox temporary add-ons unload on
-browser restart — you'll need to reload after closing Firefox.
+Load via `about:debugging#/runtime/this-firefox` → **Load Temporary
+Add-on** → pick either the `.xpi` **or** the `manifest.json` inside the
+unpacked directory. Temporary add-ons unload when Firefox closes, so
+you'll reload after each restart.
+
+> **Careful:** `scripts/build.mjs` starts with `rm -rf dist`, and
+> `npm test` runs it. Running the tests after `build:firefox` deletes the
+> `.xpi`. Test first, build second.
+
+**You cannot install the `.xpi` permanently on release Firefox.** It
+fails with *"This add-on could not be installed because it has not been
+verified"* — meaning unsigned. Release and Beta enforce signing with no
+override; see
+[Add-on signing in Firefox](https://support.mozilla.org/kb/add-on-signing-in-firefox).
+That article covers *installing*, and does not mention
+`about:debugging` — temporary loading is a separate path that is allowed
+on release Firefox without signing.
+
+To install permanently, either:
+
+```bash
+export WEB_EXT_API_KEY=...      # AMO → Developer Hub → Manage API Keys
+export WEB_EXT_API_SECRET=...
+npm run sign:firefox            # → dist/signed/*.xpi
+```
+
+`--channel unlisted` means AMO signs it automatically, with no public
+listing and no review queue. The signed `.xpi` installs permanently in
+normal release Firefox.
+
+Or use Firefox Developer Edition / Nightly / ESR with
+`xpinstall.signatures.required = false` in `about:config` — but then
+you're testing in a different build from your users.
+
+For day-to-day development, **Load Temporary Add-on is the intended
+path** — no signing required.
+
+Validate before submitting:
+
+```bash
+npm run lint:firefox            # Mozilla's own validator
+```
+
+Two Firefox differences to be aware of, both handled by the build:
+
+- **No side panel.** The `sidePanel` permission and `side_panel` key are
+  stripped and `action.default_popup` is set, so Firefox gets the popup
+  only.
+- **No `externally_connectable`.** Firefox has never implemented it, so
+  the key is stripped and `app.utably.com` cannot message the extension
+  directly. Connect works through the normal flow.
 
 ### Safari
 
