@@ -149,5 +149,5 @@ test("package.json OSS metadata is correct", async () => {
   assert.equal(pkg.private, false, 'package.json must not be "private: true" for OSS release');
   assert.ok(pkg.repository?.url?.includes("utably-browser-plugin"), "repository.url required");
   assert.ok(pkg.bugs?.url?.includes("utably-browser-plugin"), "bugs.url required");
-  assert.match(pkg.engines?.node || "", />=\s*18/, "engines.node must require Node >= 18");
+  assert.match(pkg.engines?.node || "", />=\s*22/, "engines.node must require Node >= 22");
 });
