@@ -151,3 +151,32 @@ test("package.json OSS metadata is correct", async () => {
   assert.ok(pkg.bugs?.url?.includes("utably-browser-plugin"), "bugs.url required");
   assert.match(pkg.engines?.node || "", />=\s*22/, "engines.node must require Node >= 22");
 });
+
+// The extension has ONE privacy policy: the main Utably policy's extension
+// section (utably/utably-browser-plugin#57). The popup, the README and every
+// store listing point at the same URLs; the anchors are the heading slugs of
+// the legal Markdown in utably-marketing, so they are pinned here verbatim.
+const LEGAL_LINKS = {
+  privacy: "https://utably.com/legal/privacy-policy#browser-extension-utably-job-importer",
+  terms: "https://utably.com/legal/terms-of-service#5a-browser-extension-utably-job-importer",
+  cookie: "https://utably.com/legal/cookie-policy",
+  imprint: "https://utably.com/legal/imprint",
+};
+
+test("popup.html links the canonical legal pages, nothing else under /legal/", async () => {
+  const html = await readFile(path.join(repoRoot, "popup.html"), "utf8");
+  for (const [name, url] of Object.entries(LEGAL_LINKS)) {
+    assert.ok(html.includes(`href="${url}"`), `popup.html must link the ${name} page at ${url}`);
+  }
+  const legalHrefs = [...html.matchAll(/href="(https:\/\/utably\.com\/legal\/[^"]*)"/g)].map((m) => m[1]);
+  const unexpected = legalHrefs.filter((href) => !Object.values(LEGAL_LINKS).includes(href));
+  assert.deepEqual(unexpected, [], "every /legal/ link in the popup must be one of the canonical URLs");
+});
+
+test("README and the dev docs name the same privacy policy as the popup", async () => {
+  const readme = await readFile(path.join(repoRoot, "README.md"), "utf8");
+  const dev = await readFile(path.join(repoRoot, "docs/development.md"), "utf8");
+  assert.ok(readme.includes(LEGAL_LINKS.privacy));
+  assert.ok(dev.includes(LEGAL_LINKS.privacy));
+  assert.ok(dev.includes("https://utably.com/legal/privacy-policy`"), "the store field takes the plain policy URL");
+});
