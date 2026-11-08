@@ -361,3 +361,44 @@ them. Stick to DOM queries and helper calls.
 - [`adapters.md`](adapters.md) — build your first adapter.
 - [`architecture.md`](architecture.md) — deeper dive into components.
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — PR rules.
+
+## Store listings
+
+The extension has **one** privacy policy and **one** terms text: the
+sections of the main Utably legal documents that cover the browser
+extension. There is no separate extension privacy page, and MV3 has no
+manifest field for a store privacy URL — every store takes it in its
+developer dashboard, so it has to be entered by hand and kept identical:
+
+| Field | Canonical URL |
+|---|---|
+| Privacy policy (store field) | `https://utably.com/legal/privacy-policy` |
+| Privacy policy, extension section (popup link) | `https://utably.com/legal/privacy-policy#browser-extension-utably-job-importer` |
+| Terms, extension section (popup link) | `https://utably.com/legal/terms-of-service#5a-browser-extension-utably-job-importer` |
+| Imprint | `https://utably.com/legal/imprint` |
+
+Enter the plain policy URL (no `#fragment`) in the store field; the
+in-popup links keep the section anchors. Where each store asks for it:
+
+- **Chrome Web Store** — Developer Dashboard → item → *Privacy* tab →
+  "Privacy policy" URL. Also fill the data-use disclosures there; they
+  must match the *Browser Extension* section of the policy.
+- **Microsoft Edge Add-ons** — Partner Center → extension → *Properties*
+  → "Privacy policy URL".
+- **Firefox Add-ons (AMO)** — Developer Hub → Manage → *Edit Details* →
+  "Privacy Policy" (free text; paste the URL and one sentence pointing at
+  the extension section).
+- **Safari (App Store Connect)** — app → *App Privacy* → "Privacy Policy
+  URL", plus the App Privacy questionnaire.
+
+Release checklist, every store, every release that changes data use:
+1. The popup links (`popup.html`) still resolve — the anchors are the
+   heading slugs of the legal Markdown in `utably-marketing`, so a
+   renamed heading there breaks them.
+2. Each listing's privacy URL is the canonical one above.
+3. The store's data-use disclosure still describes what the policy
+   section says (import on click, autofill with per-fill consent, no
+   background crawling).
+
+Tracked in utably/utably-browser-plugin#57.
+
