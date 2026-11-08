@@ -277,6 +277,13 @@ Deeper dive in [`docs/architecture.md`](docs/architecture.md).
 - **LinkedIn description** is manual entry by design — we don't
   auto-scrape posting descriptions on LinkedIn.
 
+- **One privacy policy.** The extension has no privacy page of its own:
+  the popup, every store listing and this README all point at the main
+  Utably privacy policy, section *Browser Extension ("Utably Job
+  Importer")*:
+  <https://utably.com/legal/privacy-policy#browser-extension-utably-job-importer>
+  (terms: <https://utably.com/legal/terms-of-service#5a-browser-extension-utably-job-importer>).
+
 Full threat model in [`SECURITY.md`](SECURITY.md). Autofill design
 details in [`docs/fill.md`](docs/fill.md).
 
