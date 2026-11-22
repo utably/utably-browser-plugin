@@ -1,0 +1,88 @@
+name: release
+
+# Every push to utably-prod becomes a release: the version is computed from
+# the highest version_X.Y.Z tag and the commit markers since it
+# (scripts/version.mjs), the production build is stamped with it, and the
+# commit is tagged and published with the store packages attached.
+
+on:
+  push:
+    branches:
+      - utably-prod
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: tag and publish
+    runs-on: ubuntu-latest
+    # contents:write so the job can create the tag and the GitHub release.
+    permissions:
+      contents: write
+    steps:
+      # fetch-depth: 0 — the version scan reads every commit message since the
+      # last release tag. A shallow checkout would miss [minor]/[major] markers.
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.x
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Run tests
+        run: npm test
+
+      - name: Compute release version
+        id: version
+        run: node scripts/version.mjs --strict
+
+      # A re-run on an already released commit computes that commit's own
+      # version, whose tag exists. The remaining steps are skipped then.
+      - name: Check for an existing release
+        id: existing
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} exists. Nothing to release."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The same value the tag carries is stamped into the built manifests.
+      - name: Build production packages
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          UTABLY_PLUGIN_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          npm run build:prod
+          cd dist/prod/utably-browser-plugin-chrome-edge
+          zip -qr "../utably-browser-plugin-chrome-edge-${UTABLY_PLUGIN_VERSION}.zip" .
+
+      - name: Create release
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          gh release create "$TAG" \
+            --target "$TARGET_SHA" \
+            --title "Utably Job Importer $VERSION" \
+            --generate-notes \
+            "dist/prod/utably-browser-plugin-chrome-edge-${VERSION}.zip" \
+            "dist/prod/utably-browser-plugin-firefox-${VERSION}.xpi"
+          echo "Created release $TAG for $TARGET_SHA"
