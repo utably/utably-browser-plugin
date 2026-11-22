@@ -2,6 +2,8 @@ import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { resolveBuildVersion } from './version.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const extensionRoot = path.resolve(__dirname, '..');
@@ -36,14 +38,20 @@ async function copyRuntimePath(relPath) {
   await cp(src, dst, { recursive: true });
 }
 
-// Decorate the built manifest name so sideloaded dev builds are visibly
-// distinct from the Chrome Web Store release ("Utably Job Importer").
-// prod-build.mjs overwrites this back to the clean name for store builds.
-async function decorateDevManifest() {
+// The source manifest carries the placeholder 0.0.0. The built manifest gets
+// the version computed from git (scripts/version.mjs); the Firefox, Safari and
+// prod builds all start from this output, so they carry the same version.
+//
+// The name is decorated so sideloaded dev builds are visibly distinct from the
+// Chrome Web Store release ("Utably Job Importer"). prod-build.mjs overwrites
+// it back to the clean name for store builds.
+async function stampDevManifest() {
   const manifestPath = path.join(chromeEdgeDir, 'manifest.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.version = resolveBuildVersion({ fallback: manifest.version });
   manifest.name = `${manifest.name} (Dev ${manifest.version})`;
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  return manifest.version;
 }
 
 async function main() {
@@ -58,9 +66,9 @@ async function main() {
     await copyRuntimePath(runtimePath);
   }
 
-  await decorateDevManifest();
+  const version = await stampDevManifest();
 
-  console.log(`Built Chrome+Edge extension at ${chromeEdgeDir}`);
+  console.log(`Built Chrome+Edge extension ${version} at ${chromeEdgeDir}`);
 }
 
 main().catch((error) => {

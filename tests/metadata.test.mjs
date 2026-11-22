@@ -2,8 +2,9 @@
 // and stay within the declared permission surface.
 //
 // These tests protect against three common regressions:
-//   1. Version drift between package.json and manifest.json (a release
-//      tag that doesn't match what the extension actually reports).
+//   1. A hand-written version in package.json or manifest.json. Both carry
+//      the placeholder 0.0.0; the build stamps the version computed from
+//      git (scripts/version.mjs), so a number typed here would be ignored.
 //   2. Accidental broadening of host_permissions (e.g. someone adds
 //      "<all_urls>" to make local testing easier and forgets).
 //   3. The canonical manifest shipping with a dev-only "Dev" suffix in
@@ -45,6 +46,15 @@ test("manifest.json version matches package.json version", async () => {
     manifest.version,
     pkg.version,
     `manifest.json version (${manifest.version}) must match package.json version (${pkg.version})`
+  );
+});
+
+test("source versions are the placeholder; the build stamps the real one", async () => {
+  const manifest = await readJson("manifest.json");
+  assert.equal(
+    manifest.version,
+    "0.0.0",
+    "The version comes from git tags and commit markers (scripts/version.mjs), not from this file."
   );
 });
 
