@@ -77,6 +77,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer appear under All or the status filters, and are not counted
   there. An Archived pill (always shown, with its count) lists them.
 
+### Changed
+- **Versions come from git.** The next version continues from the highest
+  `version_X.Y.Z` tag: a patch by default, `[minor]` or `[major]` in any
+  commit message since that tag raises it, and `[!major]` / `[!minor]` /
+  `[!patch]` force a level (`scripts/version.mjs`, with tests).
+  `manifest.json` and `package.json` carry the placeholder `0.0.0`; the
+  build stamps the computed version into the built manifests. A push to
+  `utably-prod` runs the tests, builds the production packages, tags the
+  commit and publishes a GitHub release with the Chrome/Edge zip and the
+  Firefox XPI attached (`.github/workflows/release.yml`).
+
 ### Fixed
 - **City field filled with the country.** Job pages write "Germany ·
   Remote", "Deutschland, Hybrid", "Germany, Berlin" or put "Deutschland" in
