@@ -77,6 +77,16 @@
     return best;
   }
 
+
+  function isPasteOnlyHost(hostname) {
+    if (!hostname || typeof hostname !== "string") return false;
+    const host = hostname.toLowerCase().replace(/\.$/, "");
+    return (
+      /(^|\.)(linkedin\.com|xing\.com)$/.test(host) ||
+      /(^|\.)(indeed|glassdoor|stepstone)\./.test(host)
+    );
+  }
+
   globalThis.__utablyExtractorRegistry = [];
   globalThis.__utablyExtractCommon = {
     normalize,
@@ -85,5 +95,6 @@
     metaValue,
     waitForText,
     cleanTitle,
+    isPasteOnlyHost,
   };
 })();

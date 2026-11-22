@@ -1,4 +1,5 @@
 import { EXTRACTION_SCRIPT_FILES } from "./config.js";
+import { isPasteOnlyHost } from "./pasteOnlyHosts.js";
 import { trimOrEmpty } from "./dom.js";
 import { reconcileCompanyPick } from "./companyTypeahead.js";
 import { writeJobLocationParts } from "./placesTypeahead.js";
@@ -81,11 +82,34 @@ async function runAdapterExtraction(tabId) {
   return result || null;
 }
 
+
+export function applyPasteOnlyMode(els, tabUrl) {
+  let pasteOnly = false;
+  try {
+    pasteOnly = isPasteOnlyHost(new URL(tabUrl).hostname);
+  } catch {
+    pasteOnly = false;
+  }
+  if (els.extract) {
+    els.extract.classList.toggle("hidden", pasteOnly);
+    els.extract.disabled = pasteOnly;
+  }
+  if (els.pasteOnlyNotice) {
+    els.pasteOnlyNotice.classList.toggle("hidden", !pasteOnly);
+  }
+  return pasteOnly;
+}
+
 export async function extractIntoForm(els, setStatus) {
   setStatus("Extracting...", "info");
   const tab = await getActiveTab();
   if (!tab?.id) {
     setStatus("No active tab.", "error");
+    return null;
+  }
+
+  if (applyPasteOnlyMode(els, tab.url)) {
+    setStatus("Paste the job description. This site does not allow page reading.", "info");
     return null;
   }
 
@@ -108,7 +132,7 @@ export async function extractIntoForm(els, setStatus) {
     return null;
   }
 
-  els.linkedinNotice.classList.toggle("hidden", !result.isLinkedIn);
+  els.pasteOnlyNotice?.classList.add("hidden");
   els.applicationDate.value = trimOrEmpty(els.applicationDate.value) || new Date().toISOString().slice(0, 10);
   els.jobTitle.value = result.title || "";
   els.companyName.value = result.company || "";
@@ -128,8 +152,11 @@ export async function extractIntoForm(els, setStatus) {
 }
 
 export async function refreshActiveTabContext(els, isSidePanel, refreshAuthState) {
+  const tab = await getActiveTab();
+  applyPasteOnlyMode(els, tab?.url || "");
   if (!isSidePanel) return;
   const connected = await refreshAuthState();
   if (!connected) return;
   await prefillSourceUrl(els);
+  applyPasteOnlyMode(els, tab?.url || els.jobUrl?.value || "");
 }

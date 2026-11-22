@@ -9,10 +9,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Enforce allowed source -> target branch pairs
+        # Branch and repository names are attacker-controlled on a pull
+        # request: they reach the script through env, never by interpolation
+        # into it (apputably #2368).
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
         run: |
-          base="${{ github.base_ref }}"
-          head="${{ github.head_ref }}"
-          head_repo="${{ github.event.pull_request.head.repo.full_name }}"
+          base="$BASE_REF"
+          head="$HEAD_REF"
+          head_repo="$HEAD_REPO"
           echo "PR: $head_repo:$head -> $base"
 
           case "$base" in
@@ -22,7 +30,7 @@ jobs:
             *)              exit 0 ;; # no restriction for other base branches
           esac
 
-          if [ "$head_repo" != "${{ github.repository }}" ]; then
+          if [ "$head_repo" != "$THIS_REPO" ]; then
             echo "Promotion PRs into '$base' must come from this repository, not a fork (got '$head_repo')."
             exit 1
           fi

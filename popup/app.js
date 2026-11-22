@@ -11,6 +11,7 @@ import {
 import { buildApplicationPayload } from "./payload.js";
 import {
   ensureHostAccessForTab,
+  applyPasteOnlyMode,
   extractIntoForm,
   getActiveTab,
   prefillSourceUrl,
@@ -552,6 +553,8 @@ function createAuthController(els, setStatusText) {
       hideManualCodeFallback();
       await prefillSourceUrl(els);
     }
+    const activeTab = await getActiveTab();
+    applyPasteOnlyMode(els, activeTab?.url || els.jobUrl?.value || "");
     return connected;
   }
 
@@ -805,7 +808,7 @@ async function resetForm(els, setStatusText) {
   setPreviewMeta(els, null);
   clearDuplicateNotice(els);
   hideSaveSuccess(els);
-  els.linkedinNotice.classList.add("hidden");
+  els.pasteOnlyNotice.classList.add("hidden");
   els.applicationDate.value = new Date().toISOString().slice(0, 10);
   els.jobTitle.value = "";
   els.companyName.value = "";
@@ -816,6 +819,8 @@ async function resetForm(els, setStatusText) {
   if (els.notes) els.notes.value = "";
   setSelectedKind(els, "Saved");
   await prefillSourceUrl(els);
+  const resetTab = await getActiveTab();
+  applyPasteOnlyMode(els, resetTab?.url || els.jobUrl?.value || "");
   await clearDraftFromStorage();
   setStatusText(t("status.formReset"), "info");
 }
@@ -824,7 +829,7 @@ async function clearFormAfterSave(els) {
   clearValidationErrors(els);
   setPreviewMeta(els, null);
   clearDuplicateNotice(els);
-  els.linkedinNotice.classList.add("hidden");
+  els.pasteOnlyNotice.classList.add("hidden");
   els.applicationDate.value = new Date().toISOString().slice(0, 10);
   els.jobTitle.value = "";
   els.companyName.value = "";
@@ -836,6 +841,8 @@ async function clearFormAfterSave(els) {
   if (els.notes) els.notes.value = "";
   setSelectedKind(els, "Saved");
   await clearDraftFromStorage();
+  const tab = await getActiveTab();
+  applyPasteOnlyMode(els, tab?.url || "");
 }
 
 function confirmResetInApp(els) {
@@ -1691,11 +1698,21 @@ function wireListeners(els, auth, sidePanel) {
     if (!link) return;
     await chrome.tabs.create({ url: link });
     hideSaveSuccess(els);
-    prefillSourceUrl(els).catch(() => {});
+    prefillSourceUrl(els)
+      .then(async () => {
+        const tab = await getActiveTab();
+        applyPasteOnlyMode(els, tab?.url || els.jobUrl?.value || "");
+      })
+      .catch(() => {});
   });
   els.saveAnotherBtn?.addEventListener("click", () => {
     hideSaveSuccess(els);
-    prefillSourceUrl(els).catch(() => {});
+    prefillSourceUrl(els)
+      .then(async () => {
+        const tab = await getActiveTab();
+        applyPasteOnlyMode(els, tab?.url || els.jobUrl?.value || "");
+      })
+      .catch(() => {});
   });
 
   // Hide success notice as soon as the user starts working on a new entry.
