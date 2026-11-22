@@ -48,6 +48,7 @@
   "trust.pill": "Your data stays local until you Save or run FitCheck.",
   "actions.goToApp": "Go to Utably",
   "linkedin.notice": "LinkedIn detected. Auto-import is disabled. Paste the job description manually.",
+  "pasteOnly.notice": "This site does not allow page reading. Paste the job description below.",
   "preview.title": "Preview",
   "preview.appliedDay": "Applied day",
   "preview.jobTitle": "Job title",

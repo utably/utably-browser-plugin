@@ -305,10 +305,10 @@ Every adapter must follow these rules or the PR will be rejected:
 
 | Priority | Adapter | Source | Notes |
 |:-:|---|---|---|
-| 100 | [`linkedin.js`](../webpages/linkedin.js) | LinkedIn | Metadata only; description is manual entry by design. |
+| 100 | [`linkedin.js`](../webpages/linkedin.js) | LinkedIn | Paste-only: page/DOM reading is disabled; user pastes the posting. |
 | 95 | [`googlejobs.js`](../webpages/googlejobs.js) | Google Careers | Detail page parser. |
-| 80 | [`indeed.js`](../webpages/indeed.js) | Indeed | Full extraction. |
-| 90 | [`glassdoor.js`](../webpages/glassdoor.js) | Glassdoor | Full extraction. |
+| 80 | [`indeed.js`](../webpages/indeed.js) | Indeed | Paste-only: page/DOM reading is disabled; user pastes the posting. |
+| 90 | [`glassdoor.js`](../webpages/glassdoor.js) | Glassdoor | Paste-only: page/DOM reading is disabled; user pastes the posting. |
 | 90 | [`ziprecruiter.js`](../webpages/ziprecruiter.js) | ZipRecruiter | Full extraction. |
 | 90 | [`monster.js`](../webpages/monster.js) | Monster | Full extraction. |
 | 90 | [`careerbuilder.js`](../webpages/careerbuilder.js) | CareerBuilder | Full extraction. |
@@ -319,7 +319,7 @@ Every adapter must follow these rules or the PR will be rejected:
 | 90 | [`ukPortals.js`](../webpages/ukPortals.js) | UK job portals | UK-specific boards. |
 | 80 | [`atsHosted.js`](../webpages/atsHosted.js) | Greenhouse, Lever, Workday, etc. | Shared-host ATS adapter. |
 | 80 | [`builtin.js`](../webpages/builtin.js) | BuiltIn | Tech community. |
-| 10 | [`generic.js`](../webpages/generic.js) | Any page | Fallback using JSON-LD `JobPosting`, DOM scoring, and a mutation observer. |
+| 10 | [`generic.js`](../webpages/generic.js) | Any page | Fallback using JSON-LD `JobPosting`, DOM scoring, and a mutation observer. StepStone and XING are paste-only and never run this fallback. |
 
 ---
 
