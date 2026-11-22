@@ -273,12 +273,33 @@ utably-browser-plugin/
 | `npm run build:chrome` | Builds the Chrome/Edge target only (fastest). |
 | `npm run build:firefox` | Builds Chrome/Edge, then packages Firefox XPI. |
 | `npm run safari:convert` | Builds Chrome/Edge, then runs Xcode conversion (macOS only). |
-| `npm run build` | Builds all three targets + the production build. Use before tagging a release. |
+| `npm run build` | Builds all three targets + the production build. |
+| `node scripts/version.mjs` | Prints the version the next build gets. |
 | `npm run build:prod` | Builds the clean production variant (no debug UI, dev hosts stripped) under `dist/prod/`. |
 | `npm run clean` | Removes `dist/`. |
 | `npm test` | Runs the test suite via Node's native test runner. |
 
 **For iterating on code, `npm run build:chrome` is all you need.**
+
+## Versions and releases
+
+The version is computed from git, the same way the Utably app does it.
+`manifest.json` and `package.json` carry the placeholder `0.0.0`; every
+build stamps the computed version into the built manifests under `dist/`.
+
+- The next version continues from the highest `version_X.Y.Z` tag.
+- A release is a patch by default (`0.18.2` → `0.18.3`).
+- `[minor]` or `[major]` in any commit message since that tag raises the
+  bump (`0.19.0`, `1.0.0`). The highest marker wins. A PR title works,
+  because it lands in the merge commit message.
+- `[!major]`, `[!minor]`, `[!patch]` (or `[!]`) force a level; the newest
+  one wins.
+- A commit that carries the highest tag keeps that tag's version.
+
+A push to `utably-prod` runs `.github/workflows/release.yml`: tests, the
+production build with the computed version, the tag `version_X.Y.Z` on
+that commit, and a GitHub release with the Chrome/Edge zip and the Firefox
+XPI attached. Uploading the packages to the stores stays a manual step.
 
 ## Testing
 

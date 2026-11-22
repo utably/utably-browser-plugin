@@ -44,10 +44,16 @@ async function exists(p) {
   }
 }
 
+// The build stamps the version computed from git into the built manifest
+// (scripts/version.mjs). The tests pin it, so they do not depend on the
+// tags and commits of the checkout they run in.
+const BUILD_VERSION = "9.8.7";
+
 function runNodeScript(script) {
   const result = spawnSync(process.execPath, [path.join(repoRoot, script), "--optional"], {
     cwd: repoRoot,
     stdio: "pipe",
+    env: { ...process.env, UTABLY_PLUGIN_VERSION: BUILD_VERSION },
   });
   if (result.status !== 0) {
     throw new Error(
@@ -79,8 +85,16 @@ before(async () => {
 
 test("dev build decorates the manifest name with (Dev <version>)", async () => {
   const manifest = await readJson(path.join(devDir, "manifest.json"));
-  const pkg = await readJson(path.join(repoRoot, "package.json"));
-  assert.equal(manifest.name, `Utably Job Importer (Dev ${pkg.version})`);
+  assert.equal(manifest.name, `Utably Job Importer (Dev ${BUILD_VERSION})`);
+});
+
+test("dev and prod builds carry the stamped version, not the source placeholder", async () => {
+  const dev = await readJson(path.join(devDir, "manifest.json"));
+  const prod = await readJson(path.join(prodDir, "manifest.json"));
+  const source = await readJson(path.join(repoRoot, "manifest.json"));
+  assert.equal(dev.version, BUILD_VERSION);
+  assert.equal(prod.version, BUILD_VERSION);
+  assert.equal(source.version, "0.0.0");
 });
 
 test("dev build preserves dev/test host permissions", async () => {
