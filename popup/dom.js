@@ -28,7 +28,7 @@ export function getDom() {
     stage: document.getElementById("stage"),
     localPortRow: document.getElementById("localPortRow"),
     localPort: document.getElementById("localPort"),
-    linkedinNotice: document.getElementById("linkedinNotice"),
+    pasteOnlyNotice: document.getElementById("pasteOnlyNotice"),
     applicationDate: document.getElementById("applicationDate"),
     applicationDateLabel: document.getElementById("applicationDateLabel"),
     jobTitle: document.getElementById("jobTitle"),

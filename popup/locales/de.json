@@ -48,6 +48,7 @@
   "trust.pill": "Deine Daten bleiben lokal, bis du speicherst oder FitCheck ausführst.",
   "actions.goToApp": "Zu Utably",
   "linkedin.notice": "LinkedIn erkannt. Auto-Import ist deaktiviert. Stellenbeschreibung manuell einfügen.",
+  "pasteOnly.notice": "Diese Seite erlaubt kein Auslesen der Seite. Füge die Stellenbeschreibung unten ein.",
   "preview.title": "Vorschau",
   "preview.appliedDay": "Bewerbungstag",
   "preview.jobTitle": "Jobtitel",

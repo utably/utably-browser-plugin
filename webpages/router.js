@@ -10,6 +10,22 @@
     const url = location.href;
     const isLinkedIn = host.includes("linkedin.com");
 
+    // Indeed, Glassdoor, LinkedIn, StepStone and XING: never read the DOM.
+    if (common.isPasteOnlyHost && common.isPasteOnlyHost(host)) {
+      return {
+        url,
+        host,
+        isLinkedIn,
+        title: "",
+        company: "",
+        location: "",
+        recruiterName: "",
+        description: "",
+        adapter: "paste-only",
+        pasteOnly: true,
+      };
+    }
+
     for (const extractor of registry) {
       try {
         if (!extractor?.canHandle || !extractor.extract) continue;
