@@ -301,6 +301,17 @@ production build with the computed version, the tag `version_X.Y.Z` on
 that commit, and a GitHub release with the Chrome/Edge zip and the Firefox
 XPI attached. Uploading the packages to the stores stays a manual step.
 
+The XPI on the release is signed by AMO on the unlisted channel
+(`web-ext sign`), so it installs permanently in release Firefox. The
+workflow needs the repository secrets `WEB_EXT_API_KEY` and
+`WEB_EXT_API_SECRET` (AMO → Developer Hub → Manage API Keys) and fails
+without them. AMO accepts each version number once, across both channels:
+a version signed here cannot be signed again, and cannot be submitted to
+the public AMO listing under the same number.
+
+The Chrome/Edge zip is not signed and does not need to be. The Chrome Web
+Store and Edge Add-ons sign the package themselves when it is published.
+
 ## Testing
 
 The project ships with a small test suite under `tests/` covering:
