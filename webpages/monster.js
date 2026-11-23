@@ -51,9 +51,10 @@
 
   function htmlToText(value) {
     if (!value) return "";
-    const node = document.createElement("div");
-    node.innerHTML = String(value);
-    return node.textContent || node.innerText || "";
+    // DOMParser, not innerHTML: the description is third-party HTML, and a
+    // parsed document is inert — it loads no images and runs no handlers.
+    const doc = new DOMParser().parseFromString(String(value), "text/html");
+    return doc.body?.textContent || "";
   }
 
   function scoreDescriptionText(text) {
