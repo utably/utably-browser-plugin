@@ -71,6 +71,37 @@ jobs:
           cd dist/prod/utably-browser-plugin-chrome-edge
           zip -qr "../utably-browser-plugin-chrome-edge-${UTABLY_PLUGIN_VERSION}.zip" .
 
+      # Release Firefox refuses an unsigned .xpi, so AMO signs the production
+      # build (unlisted: signed, no public listing). The signed file replaces
+      # the unsigned one under the release name. AMO accepts each version
+      # number once: if this step succeeded and a later one failed, a re-run
+      # is rejected and the release needs a new version.
+      - name: Sign the Firefox package
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -z "$WEB_EXT_API_KEY" ] || [ -z "$WEB_EXT_API_SECRET" ]; then
+            echo "::error::Repository secrets WEB_EXT_API_KEY and WEB_EXT_API_SECRET (AMO API credentials) are not set."
+            exit 1
+          fi
+          npx --yes web-ext@10.8.0 sign \
+            --source-dir dist/prod/utably-browser-plugin-firefox \
+            --artifacts-dir dist/signed \
+            --channel unlisted
+          signed=(dist/signed/*.xpi)
+          if [ "${#signed[@]}" -ne 1 ] || [ ! -f "${signed[0]}" ]; then
+            echo "::error::Expected exactly one signed .xpi in dist/signed."
+            exit 1
+          fi
+          if ! unzip -l "${signed[0]}" | grep -q "META-INF/mozilla.rsa"; then
+            echo "::error::${signed[0]} carries no Mozilla signature."
+            exit 1
+          fi
+          mv -f "${signed[0]}" "dist/prod/utably-browser-plugin-firefox-${VERSION}.xpi"
+
       - name: Create release
         if: steps.existing.outputs.exists == 'false'
         env:

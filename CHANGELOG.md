@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   there. An Archived pill (always shown, with its count) lists them.
 
 ### Changed
+- **The released Firefox XPI is signed.** The release workflow has AMO
+  sign the production build (unlisted channel) and attaches the signed
+  file, so it installs permanently in release Firefox. Needs the
+  repository secrets `WEB_EXT_API_KEY` and `WEB_EXT_API_SECRET`.
 - **Versions come from git.** The next version continues from the highest
   `version_X.Y.Z` tag: a patch by default, `[minor]` or `[major]` in any
   commit message since that tag raises it, and `[!major]` / `[!minor]` /
