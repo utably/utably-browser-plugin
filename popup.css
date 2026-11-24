@@ -250,6 +250,11 @@ body.sidepanel-mode .app {
   color: var(--text-strong);
 }
 
+/* Keep the save button clear of the field above it. */
+#saveSettings {
+  margin-top: 14px;
+}
+
 /* Privacy stays a visible, first-class control rather than a menu item:
    it is the route to the data-use disclosure, so it should not need a
    menu to be opened first. */
@@ -3331,6 +3336,13 @@ body.sidepanel-mode .view-tabs {
 .settings-privacy .privacy-row .privacy-meta {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.settings-version {
+  margin: 16px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 /* ============================================================

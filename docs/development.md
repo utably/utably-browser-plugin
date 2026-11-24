@@ -340,7 +340,8 @@ The project ships with a small test suite under `tests/` covering:
 - **`common.js` helpers** — unit tests for `normalize`, `sanitizeText`,
   and `cleanTitle` via a Node `vm` sandbox.
 - **Build output** — executes both the dev and prod builds, asserts the
-  prod stripper removes dev hosts, hides the Debug Mode UI, and strips
+  prod stripper removes dev hosts, hides the Debug Mode rows (keeping the
+  rest of Settings reachable), and strips
   `console.log/debug/info` while preserving `console.error/warn`.
 
 Run locally:

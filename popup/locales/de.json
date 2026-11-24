@@ -311,6 +311,7 @@
   "settings.privacy.title": "Datenschutz Auto-Ausfüllen",
   "settings.privacy.consents": "Seiten, auf denen du Auto-Ausfüllen erlaubt hast",
   "settings.privacy.clearConsents": "Einwilligungen löschen",
+  "settings.version": "Version",
   "settings.privacy.cacheMeta": "Profildaten werden lokal bis zu 5 Minuten für Vorschauen zwischengespeichert.",
   "settings.privacy.clearCache": "Cache löschen",
   "settings.privacy.consentsCleared": "Auto-Ausfüllen-Einwilligungen gelöscht.",

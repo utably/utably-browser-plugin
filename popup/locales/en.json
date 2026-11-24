@@ -311,6 +311,7 @@
   "settings.privacy.title": "Autofill privacy",
   "settings.privacy.consents": "Sites you've allowed autofill on",
   "settings.privacy.clearConsents": "Clear consents",
+  "settings.version": "Version",
   "settings.privacy.cacheMeta": "Profile data is cached locally for 5 minutes for autofill previews.",
   "settings.privacy.clearCache": "Clear cache",
   "settings.privacy.consentsCleared": "Autofill consents cleared.",

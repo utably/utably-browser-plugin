@@ -44,6 +44,9 @@ export async function loadSettings(els) {
   if (els.themeSelect) {
     els.themeSelect.value = globalThis.__utablyThemePreference?.() || "system";
   }
+  if (els.extensionVersion) {
+    els.extensionVersion.textContent = chrome.runtime.getManifest().version;
+  }
   updateStageSettingsUi(els);
 }
 
