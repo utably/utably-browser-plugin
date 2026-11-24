@@ -1,7 +1,8 @@
 // Produces a production-only variant of the extension under dist/prod/.
 // Strips debug-only features:
 //   - removes dev/test entries from manifest.json (host_permissions, externally_connectable)
-//   - removes the Debug Mode UI (settings panel, stage selector, local port) from popup.html
+//   - hides the Debug Mode UI (debug toggle, stage selector, local port) in popup.html;
+//     the rest of the settings panel (theme, language, autofill privacy) stays
 //   - removes console.log / console.debug / console.info statements from JS files
 //   - copies the result into dist/prod/utably-browser-plugin-chrome-edge
 // Then re-runs the firefox and safari transforms against the prod chrome-edge build.
@@ -62,21 +63,21 @@ async function transformPopupHtml() {
   const popupPath = path.join(PROD_CHROME_EDGE_DIR, "popup.html");
   let html = await readFile(popupPath, "utf8");
 
-  // IMPORTANT: do not remove #toggleSettings or #settings from the DOM.
-  // popup.js looks them up in dom.js and binds listeners; if they are gone,
-  // `els.toggleSettings.addEventListener` throws and the entire popup init
-  // halts (no Privacy / Connect / Logout handlers wired).
+  // The settings panel stays reachable in prod: it holds theme, language and
+  // autofill privacy. Only the debug controls inside it are hidden.
   //
-  // Instead, hide the toggle button and the settings panel via inline
-  // styles so they exist in the DOM but cannot be reached by the user.
-  html = html.replace(
-    /<button id="toggleSettings"([^>]*)>/,
-    '<button id="toggleSettings"$1 style="display:none !important">'
-  );
-  html = html.replace(
-    /<div id="settings"([^>]*)>/,
-    '<div id="settings"$1 style="display:none !important">'
-  );
+  // IMPORTANT: hide the rows with inline styles, do not remove them from the
+  // DOM. popup/dom.js looks the controls up and popup/settings.js reads and
+  // toggles them; if they are gone the popup init throws and halts.
+  // The inline `!important` also beats settings.js un-hiding #stageRow and
+  // #localPortRow when a stored debugMode flag is still set.
+  for (const id of ["debugModeRow", "stageRow", "localPortRow"]) {
+    const pattern = new RegExp(`<div id="${id}"([^>]*)>`);
+    if (!pattern.test(html)) {
+      throw new Error(`prod build: #${id} not found in popup.html; debug UI would ship visible.`);
+    }
+    html = html.replace(pattern, `<div id="${id}"$1 style="display:none !important">`);
+  }
 
   await writeFile(popupPath, html, "utf8");
 }

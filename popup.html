@@ -254,7 +254,7 @@
           <button id="closeSettingsBtn" class="secondary" type="button" data-i18n="settings.done">Done</button>
         </div>
 
-        <div class="settings-row">
+        <div id="debugModeRow" class="settings-row">
           <label class="label" data-i18n="settings.debug">Debug mode</label>
           <label class="switch">
             <input id="debugMode" type="checkbox" />
@@ -312,6 +312,10 @@
           </div>
         </div>
 
+        <p class="settings-version">
+          <span data-i18n="settings.version">Version</span>
+          <span id="extensionVersion"></span>
+        </p>
       </div>
 
       <section id="authGate" class="panel auth-gate">
