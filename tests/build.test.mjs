@@ -140,18 +140,23 @@ test("prod build strips dev/test externally_connectable matches", async () => {
 
 test("prod build hides the Debug Mode UI in popup.html", async () => {
   const html = await readFile(path.join(prodDir, "popup.html"), "utf8");
-  // The debug UI elements must still be in the DOM (popup.js binds to
-  // them) but must be hidden with inline display:none !important.
-  assert.match(
-    html,
-    /<button id="toggleSettings"[^>]*style="display:none !important"/,
-    "prod popup.html should hide the settings toggle button"
-  );
-  assert.match(
-    html,
-    /<div id="settings"[^>]*style="display:none !important"/,
-    "prod popup.html should hide the settings panel"
-  );
+  // The debug rows must still be in the DOM (popup.js binds to their
+  // controls) but must be hidden with inline display:none !important.
+  for (const id of ["debugModeRow", "stageRow", "localPortRow"]) {
+    assert.match(
+      html,
+      new RegExp(`<div id="${id}"[^>]*style="display:none !important"`),
+      `prod popup.html should hide #${id}`
+    );
+  }
+});
+
+test("prod build keeps the settings panel reachable", async () => {
+  const html = await readFile(path.join(prodDir, "popup.html"), "utf8");
+  // Theme, language and autofill privacy live in the settings panel, so
+  // neither the menu item nor the panel itself may be force-hidden.
+  assert.doesNotMatch(html, /<button id="toggleSettings"[^>]*display:none/);
+  assert.doesNotMatch(html, /<div id="settings"[^>]*display:none/);
 });
 
 test("prod build strips console.log / console.debug / console.info from JS files", async () => {
