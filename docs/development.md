@@ -229,10 +229,26 @@ npm run safari:convert
 # → dist/utably-browser-plugin-safari/ (Xcode project)
 ```
 
-Safari builds require **macOS with Xcode installed**. Open the
-generated `.xcodeproj`, build, and run. The Safari app wrapper is
-more involved than Chrome/Firefox — don't start here unless you
-actually need Safari support.
+Safari builds require **macOS with full Xcode installed** (the
+standalone Command Line Tools don't include the converter). If
+`xcode-select` points at the Command Line Tools, the script falls back
+to `/Applications/Xcode.app` on its own. `npm run build` also runs the
+conversion, writing the dev project to `dist/utably-browser-plugin-safari/`
+and the prod project to `dist/prod/utably-browser-plugin-safari/`; on
+machines without Xcode it skips Safari instead of failing.
+
+The project's version (`MARKETING_VERSION`) is stamped from the
+extension's manifest version. The project is regenerated on every
+build, so anything set in Xcode (signing team, build number) is lost
+on the next build.
+
+Open the generated `.xcodeproj`, build, and run. The Safari app
+wrapper is more involved than Chrome/Firefox — don't start here unless
+you actually need Safari support.
+
+To release, open the **prod** project, pick your team under *Signing &
+Capabilities* for each target, then *Product → Archive* and
+*Distribute App → App Store Connect*.
 
 ## Project layout
 
