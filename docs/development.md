@@ -229,10 +229,26 @@ npm run safari:convert
 # → dist/utably-browser-plugin-safari/ (Xcode project)
 ```
 
-Safari builds require **macOS with Xcode installed**. Open the
-generated `.xcodeproj`, build, and run. The Safari app wrapper is
-more involved than Chrome/Firefox — don't start here unless you
-actually need Safari support.
+Safari builds require **macOS with full Xcode installed** (the
+standalone Command Line Tools don't include the converter). If
+`xcode-select` points at the Command Line Tools, the script falls back
+to `/Applications/Xcode.app` on its own. `npm run build` also runs the
+conversion, writing the dev project to `dist/utably-browser-plugin-safari/`
+and the prod project to `dist/prod/utably-browser-plugin-safari/`; on
+machines without Xcode it skips Safari instead of failing.
+
+The project's version (`MARKETING_VERSION`) is stamped from the
+extension's manifest version. The project is regenerated on every
+build, so anything set in Xcode (signing team, build number) is lost
+on the next build.
+
+Open the generated `.xcodeproj`, build, and run. The Safari app
+wrapper is more involved than Chrome/Firefox — don't start here unless
+you actually need Safari support.
+
+To release, open the **prod** project, pick your team under *Signing &
+Capabilities* for each target, then *Product → Archive* and
+*Distribute App → App Store Connect*.
 
 ## Project layout
 
@@ -301,6 +317,17 @@ production build with the computed version, the tag `version_X.Y.Z` on
 that commit, and a GitHub release with the Chrome/Edge zip and the Firefox
 XPI attached. Uploading the packages to the stores stays a manual step.
 
+The XPI on the release is signed by AMO on the unlisted channel
+(`web-ext sign`), so it installs permanently in release Firefox. The
+workflow needs the repository secrets `WEB_EXT_API_KEY` and
+`WEB_EXT_API_SECRET` (AMO → Developer Hub → Manage API Keys) and fails
+without them. AMO accepts each version number once, across both channels:
+a version signed here cannot be signed again, and cannot be submitted to
+the public AMO listing under the same number.
+
+The Chrome/Edge zip is not signed and does not need to be. The Chrome Web
+Store and Edge Add-ons sign the package themselves when it is published.
+
 ## Testing
 
 The project ships with a small test suite under `tests/` covering:
@@ -313,7 +340,8 @@ The project ships with a small test suite under `tests/` covering:
 - **`common.js` helpers** — unit tests for `normalize`, `sanitizeText`,
   and `cleanTitle` via a Node `vm` sandbox.
 - **Build output** — executes both the dev and prod builds, asserts the
-  prod stripper removes dev hosts, hides the Debug Mode UI, and strips
+  prod stripper removes dev hosts, hides the Debug Mode rows (keeping the
+  rest of Settings reachable), and strips
   `console.log/debug/info` while preserving `console.error/warn`.
 
 Run locally:

@@ -40,6 +40,7 @@ export function getDom() {
     companySuggestions: document.getElementById("companySuggestions"),
     location: document.getElementById("location"),
     themeSelect: document.getElementById("themeSelect"),
+    extensionVersion: document.getElementById("extensionVersion"),
     locationCountry: document.getElementById("locationCountry"),
     locationCountryField: document.getElementById("locationCountryField"),
     locationCountryFlag: document.getElementById("locationCountryFlag"),

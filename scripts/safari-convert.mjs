@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -18,6 +18,9 @@ const DEFAULT_PROJECT_LOCATION = process.env.UTABLY_OUT_DIR
   : path.join(projectRoot, "dist", "utably-browser-plugin-safari");
 const DEFAULT_APP_NAME = "Utably Job Importer";
 const DEFAULT_BUNDLE_ID = "com.utably.importer";
+// The converter ships only with full Xcode. When xcode-select points at the
+// standalone Command Line Tools, fall back to Xcode in its default location.
+const FALLBACK_DEVELOPER_DIR = "/Applications/Xcode.app/Contents/Developer";
 
 function getArgValue(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -50,9 +53,37 @@ async function createSafariInput() {
   }
 
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  return manifest.version;
 }
 
-function runConverter({ projectLocation, appName, bundleId }) {
+// The converter hardcodes MARKETING_VERSION 1.0; stamp the extension's
+// version so the Xcode project matches the Chrome and Firefox builds.
+// Handles both project formats: project.pbxproj (`KEY = value;`) and the
+// newer project.xcproj (`"KEY": "value"`).
+async function stampProjectVersion(projectLocation, version) {
+  if (!/^\d+(\.\d+){0,2}$/.test(version || "")) return;
+  const entries = await readdir(projectLocation, { recursive: true });
+  const projectFiles = entries.filter((entry) =>
+    /\.xcodeproj[\\/]project\.(pbxproj|xcproj)$/.test(entry)
+  );
+  let stampedCount = 0;
+  for (const relPath of projectFiles) {
+    const projectFile = path.join(projectLocation, relPath);
+    const raw = await readFile(projectFile, "utf8");
+    const stamped = raw
+      .replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${version};`)
+      .replace(/"MARKETING_VERSION": "[^"]*"/g, `"MARKETING_VERSION": "${version}"`);
+    if (stamped !== raw) {
+      await writeFile(projectFile, stamped, "utf8");
+      stampedCount += 1;
+    }
+  }
+  if (stampedCount === 0) {
+    console.warn(`Warning: could not stamp version ${version} into the Xcode project; set it manually.`);
+  }
+}
+
+function runConverter({ projectLocation, appName, bundleId, env }) {
   const args = [
     "safari-web-extension-converter",
     SAFARI_INPUT_DIR,
@@ -68,7 +99,7 @@ function runConverter({ projectLocation, appName, bundleId }) {
     "--copy-resources",
   ];
 
-  const result = spawnSync("xcrun", args, { stdio: "inherit" });
+  const result = spawnSync("xcrun", args, { stdio: "inherit", env });
   if (result.error) {
     throw result.error;
   }
@@ -77,12 +108,18 @@ function runConverter({ projectLocation, appName, bundleId }) {
   }
 }
 
-function isConverterAvailable() {
-  const result = spawnSync("xcrun", ["--find", "safari-web-extension-converter"], {
-    stdio: "pipe",
-    encoding: "utf8",
-  });
-  return result.status === 0;
+// Returns the environment to run xcrun with, or null if the converter can't be found.
+function resolveConverterEnv() {
+  const candidates = [process.env, { ...process.env, DEVELOPER_DIR: FALLBACK_DEVELOPER_DIR }];
+  for (const env of candidates) {
+    const result = spawnSync("xcrun", ["--find", "safari-web-extension-converter"], {
+      stdio: "pipe",
+      encoding: "utf8",
+      env,
+    });
+    if (result.status === 0) return env;
+  }
+  return null;
 }
 
 async function main() {
@@ -91,17 +128,19 @@ async function main() {
   const bundleId = getArgValue("--bundle-identifier", DEFAULT_BUNDLE_ID);
   const optional = hasFlag("--optional");
 
-  if (!isConverterAvailable()) {
+  const env = resolveConverterEnv();
+  if (!env) {
     if (optional) {
       console.log("Skipping Safari conversion: safari-web-extension-converter is not available on this machine.");
       return;
     }
-    throw new Error('Missing converter. Install Xcode Command Line Tools so "xcrun safari-web-extension-converter" is available.');
+    throw new Error('Missing converter. Install Xcode (the standalone Command Line Tools do not include it) so "xcrun safari-web-extension-converter" is available.');
   }
 
-  await createSafariInput();
+  const version = await createSafariInput();
   await mkdir(projectLocation, { recursive: true });
-  runConverter({ projectLocation, appName, bundleId });
+  runConverter({ projectLocation, appName, bundleId, env });
+  await stampProjectVersion(projectLocation, version);
 
   console.log(`Safari project generated at ${projectLocation}`);
 }
